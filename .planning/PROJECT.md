@@ -33,7 +33,7 @@ Prove secure, authenticated, streamed Hermes run control across representative H
 - Multiple connection profiles, profile CRUD, import/export, and persisted settings — defer until direct transport is proven.
 - Workspace path mapping and active-worktree execution — depend on a later validated per-run `cwd` contract.
 - Hermes repository changes — v1 is extension-only.
-- Hermes lifecycle plugins and Muxy provider/core changes — separate optional integrations after v1.
+- Any Muxy source-code change, including agent/provider registration — v1 is extension-only; registration is reconsidered only if later native Agent Focused status actually requires it.
 - Durable background run ownership, closed-panel status, and out-of-panel approval notifications — require a transport owner the current Muxy background runtime does not provide.
 - Terminal/TUI launchers — not required to validate embedded Gateway transport.
 - Marketplace publication, production credential storage, and infrastructure lifecycle management — premature for a development proof.
@@ -72,6 +72,7 @@ If direct authenticated panel streaming cannot be made safe, v1 still succeeds b
 | Keep the bearer token only in panel memory | Muxy has no extension keychain/secret setting and `muxy.storage` is not secret storage | — Pending |
 | Limit run ownership to the open panel | The background runtime cannot own native HTTP streaming and panels are recreated across project lifecycle events | — Pending |
 | Stop with a bridge contract if direct transport is unsafe | A reproducible negative result resolves the v1 question without silently expanding into Muxy core work | — Pending |
+| Stop and alert before any Muxy source change | The user authorizes an extension-only v1 and is comfortable considering agent registration only if a later native integration proves it necessary | — Pending |
 | Defer `cwd`, path mapping, plugins, provider registration, and marketplace work | These belong to later milestones after the embedded transport is validated | — Pending |
 
 ## Evolution
