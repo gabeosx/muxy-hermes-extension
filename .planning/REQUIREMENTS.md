@@ -110,16 +110,52 @@
 
 ## Traceability
 
-Roadmap phase mappings will be populated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| EXT-01 | Phase 1 | Pending |
+| EXT-02 | Phase 1 | Pending |
+| CONN-01 | Phase 1 | Pending |
+| CONN-02 | Phase 1 | Pending |
+| CONN-03 | Phase 1 | Pending |
+| CONN-04 | Phase 1 | Pending |
+| CONN-05 | Phase 1 | Pending |
+| DEPL-01 | Phase 1 | Pending |
+| DEPL-02 | Phase 1 | Pending |
+| DEPL-03 | Phase 1 | Pending |
+| DEPL-04 | Phase 1 | Pending |
+| DEPL-05 | Phase 1 | Pending |
+| DEPL-06 | Phase 1 | Pending |
+| SEC-01 | Phase 1 | Pending |
+| SEC-02 | Phase 1 | Pending |
+| SEC-04 | Phase 1 | Pending |
+| SEC-05 | Phase 1 | Pending |
+| EVID-01 | Phase 1 | Pending |
+| EVID-02 | Phase 1 | Pending |
+| EVID-03 | Phase 1 | Pending |
+| EVID-04 | Phase 1 | Pending |
+| RUN-01 | Phase 2 | Pending |
+| RUN-02 | Phase 2 | Pending |
+| RUN-03 | Phase 2 | Pending |
+| RUN-04 | Phase 2 | Pending |
+| RUN-05 | Phase 2 | Pending |
+| RUN-06 | Phase 2 | Pending |
+| RUN-07 | Phase 2 | Pending |
+| SEC-03 | Phase 2 | Pending |
+| UX-01 | Phase 2 | Pending |
+| UX-02 | Phase 2 | Pending |
+| UX-03 | Phase 2 | Pending |
+| UX-04 | Phase 2 | Pending |
+| RECV-01 | Phase 3 | Pending |
+| RECV-02 | Phase 3 | Pending |
+| RECV-03 | Phase 3 | Pending |
+| RECV-04 | Phase 3 | Pending |
+| RECV-05 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 38 total
-- Mapped to phases: 0
-- Unmapped: 38
+- Mapped to phases: 38
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-08-16*
-*Last updated: 2026-08-16 after initial definition*
+*Last updated: 2026-08-16 after roadmap mapping*
