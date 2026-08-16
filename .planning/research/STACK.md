@@ -78,7 +78,7 @@ The transport is deliberately a proof gate. The panel must make a preflighted re
 |---------------|------------------|
 | A publish-valid Muxy panel built from the current scaffold, with `package.json` copied to `dist/`. | Marketplace delivery, backward compatibility across unpinned Muxy releases, or a framework migration. |
 | One runtime-entered URL/token works with exact observed CORS origin, bearer auth, capabilities, streamed token/tool/approval/terminal events, and advertised stop/steer/approval controls. | Multiple profiles, stored configuration, keychain integration, pairing, or token refresh. |
-| One reproducible result for host-native **or** Docker **or** tunnel **or** direct HTTPS; the protocol fixture records Muxy version, Hermes version/commit, origin, capabilities, preflight, SSE frames, reconnect, and error outcome. | A promise that every possible deployment works before the direct transport result is known. |
+| Reproducible results for host-native, Docker, SSH local-forward, and direct HTTPS fixtures, plus remote-Muxy-workspace lifecycle/namespace behavior; each fixture records Muxy version, Hermes version/commit, origin, capabilities, preflight, SSE frames, reconnect, and error outcome. | A promise that untested deployment variants work, or any topology-specific client implementation. |
 | Close/reopen behavior: token re-entry, status reconciliation, and documented replay window while the panel remains the owner. | Durable background run ownership, closed-panel approvals, notifications, or background SSE. |
 | A negative direct-transport result ends with a minimal Muxy streaming-bridge contract. | Implementing a sidecar, `curl` helper, Node service, Muxy core patch, Hermes plugin, or provider registration during v1. |
 
