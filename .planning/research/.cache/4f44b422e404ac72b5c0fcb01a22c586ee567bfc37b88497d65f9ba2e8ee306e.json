@@ -1,0 +1,1 @@
+{"content":"Official Hermes environment reference confirms API server defaults: bind 127.0.0.1, port 8642, CORS disabled, API key required for non-loopback; network binding requires a narrow CORS allowlist. Its supported API uses bearer authentication.","source":"web","provider":"websearch","confidence":"MEDIUM","fetched_at":"2026-08-16T22:21:16.566Z","ttl":86400000,"kind":"web"}
