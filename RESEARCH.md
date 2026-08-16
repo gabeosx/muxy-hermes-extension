@@ -13,7 +13,7 @@ The long-term product is a Muxy panel backed by the Hermes Gateway, potentially 
 3. A deployment-neutral connection profile that works with host-native, Docker, tunneled, and remote Gateways.
 4. A focused Hermes API addition for validated per-run working directories.
 
-Those companion integrations are not part of v1. The approved v1 is an extension-only technical proof that answers the riskiest question first: can a Muxy panel securely connect to an authenticated Hermes Gateway, consume its run stream, and control a live run? It uses one development connection, keeps its bearer token in panel memory, and owns status and approvals only while the panel is open.
+Those companion integrations are not part of v1. The approved v1 is an extension-only technical proof that answers the riskiest question first: can a Muxy panel securely connect to an authenticated Hermes Gateway, consume its run stream, and control a live run across the deployment shapes Hermes users actually operate? It uses one development connection at a time, keeps its bearer token in panel memory, and owns status and approvals only while the panel is open.
 
 The extension must never assume how Hermes is deployed or attempt to manage Docker. The long-term design connects to an authenticated Gateway URL, discovers capabilities at runtime, and translates the active Muxy workspace path through user-configured mappings. The original concern that embedded chat would require a new agent backend was incorrect.
 
@@ -28,13 +28,15 @@ v1 is a development-only Muxy extension for a Hermes user who already has a reac
 ### In scope
 
 - Scaffold an npm/Vite Muxy extension whose build copies `package.json` into `dist/`.
-- Prompt for one development Gateway URL and bearer token at panel load; never embed or persist the token.
+- Prompt for one development Gateway URL and bearer token at panel load; never embed or persist the token. The same connection form must accept host-native, Docker-published, SSH-forwarded, and direct HTTPS Gateway URLs without topology-specific code paths.
 - Fetch `/v1/capabilities` and enable only advertised run controls.
-- Prove direct WebKit connectivity, record the actual request `Origin`, and establish a narrow CORS configuration.
+- Prove direct WebKit connectivity, record the actual request `Origin`, and establish a narrow CORS configuration. Classify loopback HTTP, remote HTTPS, authentication, DNS, TLS, CORS, timeout, and connection-loss failures from observed facts rather than guessed deployment labels.
+- Parse authenticated SSE with streamed `fetch()` rather than `EventSource`, because the bearer token must be sent in an `Authorization` header.
 - Start one run and render token, tool, approval, steer, completion, failure, and cancellation behavior supported by the connected Gateway.
 - Respond to approvals and expose steer and stop only when capability discovery permits them.
 - Reconnect to an active run within the Gateway's supported replay window and reconcile terminal state through the run-status endpoint.
 - Capture versioned protocol fixtures: Muxy version, Hermes version/commit, `/v1/capabilities`, representative SSE frames, approval payloads, steer responses, and reconnect observations.
+- Exercise the same client contract against representative host-native, local Docker, SSH local-forward, direct remote HTTPS, and remote-Muxy-workspace fixtures. A remote Muxy workspace is a path-namespace case, not a different network transport.
 - Follow Muxy's native UI contract: `--muxy-*` theme tokens, the documented spacing/type/control scale, visible focus/hover states, reduced-motion support, and least-privilege permissions.
 
 ### Explicitly out of scope for v1
@@ -45,11 +47,11 @@ v1 is a development-only Muxy extension for a Hermes user who already has a reac
 - A Hermes lifecycle plugin, Muxy provider registration, or other Muxy core changes.
 - Durable background ownership of runs, topbar/status updates while the panel is closed, or approval notifications outside the open panel.
 - Optional terminal/TUI launchers.
-- Marketplace publication, production credential storage, remote Gateway production hardening, or a polished general-purpose chat client.
+- Marketplace publication, production credential storage, production infrastructure automation, or a polished general-purpose chat client.
 
 ### v1 completion gate
 
-v1 is complete when a user can load the unpacked extension against a pinned development Gateway, provide a token without persisting it, prove an exact safe origin policy, run a multi-tool prompt, handle an approval, steer or stop when advertised, observe the terminal result, close/reopen the panel during an active run, and document the precise recovery behavior. If direct authenticated streaming from the WebKit panel cannot be made safe, v1 succeeds by producing a reproducible failure report and the contract for the smallest required Muxy streaming bridge; it does not continue into product UI work.
+v1 is complete when a user can load the unpacked extension against pinned representative Gateways, provide a token without persisting it, prove an exact safe origin policy, run a multi-tool prompt, handle an approval, steer or stop when advertised, observe the terminal result, close/reopen the panel during an active run, and document the precise recovery behavior. The validation matrix must cover host-native, local Docker, SSH local-forward, direct remote HTTPS, and a remote Muxy workspace; where a fixture is unavailable, the report must name the unverified class instead of claiming support. If direct authenticated streaming from the WebKit panel cannot be made safe for a class, v1 succeeds for that class by producing a reproducible failure report and the contract for the smallest required Muxy streaming bridge; it does not hide the limitation behind topology-specific behavior.
 
 ## Repositories and documentation reviewed
 
@@ -129,6 +131,20 @@ The core Gateway integration must not:
 - Assume that Muxy and Hermes see the same filesystem paths.
 - Infer deployment type from the URL or filesystem.
 - Start, stop, restart, update, or reconfigure the user's Gateway.
+
+### V1 deployment validation matrix
+
+Deployment neutrality is an observable contract, not an inference feature. The client always receives a URL and bearer token, then follows the same sequence: validate the URL's trust class, fetch capabilities, start a run, consume events, reconcile status, and expose only advertised controls.
+
+| Deployment class | Supplied endpoint | Distinct v1 proof obligation |
+| --- | --- | --- |
+| Host-native Gateway | Loopback HTTP | Exact WebKit origin/CORS behavior, bearer auth, streamed response delivery, and process-loss diagnostics. |
+| Local Docker Gateway | Published loopback HTTP port | Same client behavior as host-native; document port-unreachable and stream interruption without inspecting or controlling Docker. |
+| SSH-tunneled remote Gateway | User-owned loopback local forward | Same loopback client behavior; distinguish a closed/refused tunnel from Gateway terminal state and reconcile after restoration. |
+| Direct remote Gateway | Public or private HTTPS URL | Normal certificate validation, DNS/TLS/auth/CORS diagnostics, and proof that reverse proxies do not buffer the SSE stream. No certificate bypass. |
+| Remote Muxy workspace | Any supported Gateway URL plus remote workspace identity | Prove that network transport is still panel-to-Gateway and that the extension does not send or translate workspace paths in v1. |
+
+The first four rows are network fixtures. The fifth is a workspace-lifecycle and namespace fixture that may be combined with any network fixture. Named profiles, deployment detection, tunnel management, Docker management, and path mapping remain out of scope.
 
 An optional terminal launcher is separate from the Gateway connection. It may execute only a command that the user explicitly configures, through Muxy's normal command-consent path. It is never required for embedded chat or run control.
 
@@ -382,8 +398,10 @@ The v1 proof keeps working, waiting, completed, and failed state inside the open
 ```text
 v1: Muxy Hermes extension only
   - Open-panel development control surface
-  - Direct authenticated Gateway transport experiment
+  - Direct authenticated Gateway transport experiment across representative deployment classes
   - Capability-driven Runs API client
+  - Streamed fetch + manual SSE parser with status reconciliation
+  - Deployment-neutral diagnostics based on observed failures
   - In-memory token and panel-local lifecycle state
 
 existing dependency: Hermes Gateway
@@ -422,39 +440,48 @@ Build a development-only Muxy panel with the following acceptance criteria, in t
 2. Prompt at runtime for one development Gateway URL and bearer token; keep the token only in panel memory.
 3. Record the actual WebKit `Origin` and prove an exact CORS allowlist without `*`.
 4. Fetch `/v1/capabilities`, record the versioned payload, and drive controls from it.
-5. Start a run and parse the authenticated SSE stream with representative event fixtures.
+5. Start a run and parse the authenticated SSE stream from `fetch()` with representative event fixtures; do not use `EventSource`, which cannot attach the bearer header.
 6. Render token, tool, approval, completion, failure, and cancellation behavior actually emitted by the pinned Gateway.
 7. Respond to one approval and exercise steer and stop when advertised.
 8. Close and reopen the panel during a run; document replay, polling reconciliation, and token re-entry behavior.
 9. Verify that closing the panel ends v1's live ownership and that no background-status promise is implied.
-10. Demonstrate the panel in light and dark themes, at more than one interface scale, with keyboard focus and reduced motion respected.
+10. Run the validation matrix for host-native, local Docker, SSH local-forward, direct remote HTTPS, and remote Muxy workspace behavior, recording a supported, unsupported, or unverified verdict for each class.
+11. Demonstrate the panel in light and dark themes, at more than one interface scale, with keyboard focus and reduced motion respected.
 
-The proof should use one pinned development Gateway. Whether that Gateway is host-native or containerized is deliberately irrelevant to the extension contract at this stage. It must not publish to the Muxy extension marketplace. Its purpose is to validate WebKit transport, CORS, authentication, capability negotiation, panel lifetime, approvals, and run controls before profiles, workspace execution, or product polish begin.
+The proof uses one runtime-supplied connection at a time and pinned Hermes/Muxy versions for reproducibility. Deployment topology is deliberately absent from the client model but present in the test matrix: the extension must demonstrate that the same contract survives the materially different trust and lifecycle conditions above. It must not publish to the Muxy extension marketplace. Its purpose is to validate WebKit transport, CORS, authentication, capability negotiation, panel lifetime, approvals, and run controls before profiles, workspace execution, or product polish begin.
 
 ## Suggested delivery phases
 
-### Phase 1: Transport feasibility
+### Phase 1: Transport, trust, and fixture spike
 
 - Publish-valid Muxy extension scaffold and unpacked loading
 - Runtime-only development URL and bearer-token prompt
 - WebKit origin capture and exact CORS proof
+- URL trust classification and secret-safe failure diagnostics
+- Authenticated streamed-`fetch()` SSE parser
 - Capability and SSE protocol fixtures pinned to Muxy and Hermes versions
-- A fail-fast decision on direct transport versus a required upstream streaming bridge
+- Representative loopback, tunnel, HTTPS, and remote-workspace fixtures
+- A per-deployment fail-fast decision on direct transport versus a required upstream streaming bridge
 
-### Phase 2: Panel-local run control
+### Phase 2: Capability-driven single-run control
 
 - Native-feeling panel UI using Muxy theme and sizing contracts
 - Capability-driven run submission and SSE rendering
-- Approval, steer, stop, terminal-state reconciliation, and bounded reconnect
+- Approval, steer, stop, and authoritative terminal-state reconciliation
+
+### Phase 3: Panel lifetime and deployment recovery proof
+
+- Bounded reconnect without a lossless-replay promise
 - Explicit panel-open lifecycle and token re-entry behavior
-- v1 validation report and captured protocol fixtures
+- Tunnel loss, proxy buffering, Gateway loss, and panel recreation exercises
+- Deployment validation matrix and versioned v1 verdict
 
 ### Post-v1 milestone: Product configuration and durability
 
 - Multiple connection profiles and non-secret import/export
 - Secure credential storage or pairing
 - A durable transport owner for background status and approval notifications
-- Host-native, Docker, tunneled, and remote Gateway contract tests
+- Automated compatibility coverage across supported deployment fixtures
 
 ### Post-v1 milestone: Workspace execution
 
@@ -474,4 +501,4 @@ The proof should use one pinned development Gateway. Whether that Gateway is hos
 
 ## Current conclusion
 
-The Hermes Gateway means that an embedded Hermes client for Muxy does not require a new agent backend. A credible extension-only proof can be built with the current APIs, including approvals and steer, but direct authenticated WebKit streaming must be proven before any surrounding product surface is built. V1 therefore ends at a panel-local, capability-driven run-control proof with versioned fixtures and an explicit transport verdict. Connection profiles, durable background state, workspace translation, validated per-run `cwd`, Hermes plugins, and Muxy core integration are post-v1 work. For later tool-capable workspace execution, validated per-run `cwd` remains the material Hermes API gap identified so far.
+The Hermes Gateway means that an embedded Hermes client for Muxy does not require a new agent backend. A credible extension-only proof can be built with the current APIs, including approvals and steer, but direct authenticated WebKit streaming must be proven before any surrounding product surface is built. V1 therefore ends at a panel-local, capability-driven run-control proof with versioned fixtures and explicit verdicts for host-native, Docker, SSH-forwarded, HTTPS, and remote-workspace deployments. These are one protocol with different trust and lifecycle tests—not separate integration modes. Connection profiles, durable background state, workspace translation, validated per-run `cwd`, Hermes plugins, and Muxy core integration are post-v1 work. For later tool-capable workspace execution, validated per-run `cwd` remains the material Hermes API gap identified so far.
