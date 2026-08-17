@@ -60,24 +60,25 @@ export class GatewayClient {
     this.#controller = null;
   }
 
-  async probe(rawUrl, bearer) {
+  async probe(rawUrl, bearer, { signal = null } = {}) {
     if (this.#inFlight) throw new Error("A connection test is already in progress.");
     if (!bearer) throw new Error("Enter a bearer token.");
     const baseUrl = normalizeGatewayUrl(rawUrl);
     this.#inFlight = true;
-    const controller = new AbortController();
-    this.#controller = controller;
+    const controller = signal ? null : new AbortController();
+    if (controller) this.#controller = controller;
+    const requestSignal = signal ?? controller.signal;
     let authorization = `Bearer ${bearer}`;
     try {
       const capabilitiesResponse = await this.#fetch(endpoint(baseUrl, "/v1/capabilities"), {
         method: "GET",
         headers: { Authorization: authorization, Accept: "application/json" },
-        signal: controller.signal,
+        signal: requestSignal,
       });
       if (capabilitiesResponse.status === 401 || capabilitiesResponse.status === 403) {
-        return this.#failed("authentication");
+        return this.#authenticationFailed();
       }
-      if (!capabilitiesResponse.ok) return this.#failed("capabilities");
+      if (!capabilitiesResponse.ok) return this.#capabilitiesFailed();
       const capabilities = normalizeCapabilities(await capabilitiesResponse.json());
       const baseResult = {
         url: stage("passed"),
@@ -89,14 +90,14 @@ export class GatewayClient {
       if (!capabilities.chatCompletions) {
         return { ...baseResult, stream: stage("not_verified", { reason: "chat_completions_not_advertised" }) };
       }
-      return { ...baseResult, stream: await this.#qualifyStream(baseUrl, authorization, controller.signal) };
+      return { ...baseResult, stream: await this.#qualifyStream(baseUrl, authorization, requestSignal) };
     } catch (error) {
       if (error?.name === "AbortError") return this.#failed("aborted");
       return this.#failed("browser_request_rejected");
     } finally {
       authorization = null;
       bearer = null;
-      if (this.#controller === controller) this.#controller = null;
+      if (controller && this.#controller === controller) this.#controller = null;
       this.#inFlight = false;
     }
   }
@@ -109,6 +110,28 @@ export class GatewayClient {
       origin: stage("not_verified"),
       capabilities: { state: "not_verified", names: [], version: null },
       stream: stage("not_verified", { reason }),
+    };
+  }
+
+  #authenticationFailed() {
+    return {
+      url: stage("passed"),
+      request: stage("passed"),
+      authentication: stage("failed"),
+      origin: stage("not_verified"),
+      capabilities: { state: "not_verified", names: [], version: null },
+      stream: stage("not_verified"),
+    };
+  }
+
+  #capabilitiesFailed() {
+    return {
+      url: stage("passed"),
+      request: stage("passed"),
+      authentication: stage("not_verified"),
+      origin: stage("not_verified"),
+      capabilities: { state: "failed", names: [], version: null },
+      stream: stage("not_verified"),
     };
   }
 
