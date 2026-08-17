@@ -6,55 +6,17 @@
   },
   "muxy" : {
     "$schema" : "https:\/\/raw.githubusercontent.com\/muxy-app\/muxy\/main\/docs\/extensions\/schema\/manifest.schema.json",
-    "commands" : [
-      {
-        "action" : {
-          "kind" : "togglePanel",
-          "panel" : "hello"
-        },
-        "defaultShortcut" : "cmd+shift+h",
-        "id" : "toggle-hello",
-        "title" : "Starter: Toggle Hello Panel"
-      },
-      {
-        "id" : "refresh-hello",
-        "title" : "Starter: Refresh Hello Panel"
-      }
-    ],
     "description" : "Connects Muxy to an existing Hermes Gateway",
     "panels" : [
       {
         "entry" : "panel\/index.html",
-        "headerButtons" : [
-          {
-            "command" : "refresh-hello",
-            "icon" : {
-              "symbol" : "arrow.clockwise"
-            },
-            "id" : "refresh",
-            "tooltip" : "Refresh"
-          }
-        ],
         "icon" : {
           "symbol" : "sparkles"
         },
-        "id" : "hello",
+        "id" : "hermes-gateway",
         "mode" : "pinned",
         "position" : "right",
-        "title" : "Hello"
-      }
-    ],
-    "permissions" : [
-      "panels:write"
-    ],
-    "topbarItems" : [
-      {
-        "command" : "toggle-hello",
-        "icon" : {
-          "symbol" : "sparkles"
-        },
-        "id" : "hello",
-        "tooltip" : "Toggle Hello Panel"
+        "title" : "Hermes Gateway"
       }
     ]
   },
