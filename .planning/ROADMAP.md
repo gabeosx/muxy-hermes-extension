@@ -118,12 +118,17 @@ Plans:
 **Requirements:** RECV-01, RECV-02, RECV-03, RECV-04, RECV-05, DEPL-02, DEPL-03, DEPL-04, DEPL-05, DEPL-06, EVID-01
 **Success Criteria** (what must be TRUE):
 
-  1. When an active event stream interrupts while the panel remains open, user receives reconciled Gateway status and is told that the disconnected Hermes event stream cannot be reattached safely.
+  1. When an active event stream interrupts while the panel remains open, user receives reconciled Gateway status and bounded best-effort reattach attempts, with a clear warning that lossless or exactly-once reattachment cannot be promised.
   2. User can close and reopen the panel during an active run, re-enter the token, and recover current status/final output without a promise of missed-event or approval-detail replay.
   3. User can inspect validation evidence that distinguishes tunnel loss, Gateway loss, proxy buffering, and panel recreation by observed behavior without the extension claiming to identify deployment topology.
   4. User is clearly told when event history cannot be recovered; the panel never promises lossless replay without fixture evidence.
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 03-01-PLAN.md — Add bounded same-panel event reattachment and status-only recreated-panel recovery.
+- [ ] 03-02-PLAN.md — Publish safe recovery evidence and run the disposable Docker/Muxy lifecycle proof.
 **UI hint:** yes
 
 ## Progress
