@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 02
-current_phase_name: capability-driven-run-control
+current_phase: 03
+current_phase_name: open-panel-recovery-proof
 status: ready_to_plan
-stopped_at: Phase 1 fast path verified; Phase 2 run control is next
-last_updated: "2026-08-17T20:27:06.000Z"
+stopped_at: Phase 2 fast path verified; Phase 3 recovery proof is next
+last_updated: "2026-08-17T20:48:49.000Z"
 last_activity: 2026-08-17
-last_activity_desc: Phase 1 fast path passed — disposable Docker live proof, native UI checklist, and validator complete; Phase 2 next
+last_activity_desc: Phase 2 fast path passed — capability-gated run control, native completion/steer/stop proof, cleanup, and validator complete
 progress:
   total_phases: 3
-  completed_phases: 1
-  total_plans: 15
-  completed_plans: 15
+  completed_phases: 2
+  total_plans: 16
+  completed_plans: 16
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-16)
 
 **Core value:** Prove secure, authenticated, streamed Hermes run control across representative Hermes deployment shapes inside a native-feeling Muxy panel before building the surrounding product.
-**Current focus:** Phase 02 — capability-driven-run-control
+**Current focus:** Phase 03 — open-panel-recovery-proof
 
 ## Current Position
 
-Phase: 02 (capability-driven-run-control) — READY TO PLAN
-Plan: Phase 1 has 9 executed plans and 6 explicitly superseded plans
-Status: Phase 1 fast-path exit gate passed; ready to build actual run controls
-Last activity: 2026-08-17 — Native Muxy capability/stream proof passed against a disposable pinned Docker Gateway; UI checklist completed
+Phase: 03 (open-panel-recovery-proof) — READY TO PLAN
+Plan: Phase 2 completed through quick task 260817-mzi
+Status: Phase 2 fast-path exit gate passed; ready to plan recovery behavior
+Last activity: 2026-08-17 — Native Muxy run completion, steer, authoritative cancellation, cleanup, and aggregate validation passed
 
-Progress: [███░░░░░░░] 33%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
@@ -95,6 +95,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: The generic CLI accepts only fixed failure/incomplete metadata and always emits supportEligible false.
 - [Phase ?]: Schema-v1 artifacts remain readable historical evidence but expose no support eligibility marker.
 - [Phase 01]: Stop the multi-plan qualification expansion after Plan 09; keep the working connect/stream/cancel vertical slice, defer Plans 10-15, and validate once against a user-operated Gateway.
+- [Phase 02]: Require `run_submission`, `run_status`, and `run_events_sse` for the run surface; gate approval, steer, and stop independently from advertised capabilities.
+- [Phase 02]: Retain only bounded allowlisted run events in panel memory and reconcile terminal truth from `GET /v1/runs/{run_id}`.
+- [Phase 02]: Clear the bearer input immediately after connection and clear the controller's private bearer on panel release.
 
 ### Pending Todos
 
@@ -102,12 +105,20 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 2]: The current Muxy webview exposes Promise-based `exec`, not cancellable `execAsync`; long-lived run streaming needs a bounded ownership design that remains truthful about cancellation.
+- [Phase 3]: The current Muxy webview exposes Promise-based `exec`, not cancellable `execAsync`; interrupted and closed-panel stream ownership must remain bounded and truthful.
 - [Phase 3]: Host-native, SSH-forward, direct-HTTPS, remote-workspace, and Docker fault/recovery qualification remain deferred and must stay `Unverified` until tested.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 260817-mp9 | Close Phase 1 using the verified ephemeral fast path | 2026-08-17 | a2d0a31 | Passed | [260817-mp9-close-phase-1-using-the-verified-ephemer](./quick/260817-mp9-close-phase-1-using-the-verified-ephemer/) |
+| 260817-mzi | Implement Phase 2 capability-driven Hermes run control | 2026-08-17 | af516a5 | Passed | [260817-mzi-implement-phase-2-capability-driven-herm](./quick/260817-mzi-implement-phase-2-capability-driven-herm/) |
 
 ### Roadmap Evolution
 
 - Phase 1 completed through the user-approved fast path: one disposable Docker live proof, native UI checks, and no broader deployment support claim.
+- Phase 2 completed through quick task 260817-mzi: one native completed run plus advertised steer and authoritative cancellation against a disposable pinned Docker Gateway.
 
 ## Deferred Items
 
@@ -119,6 +130,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-17T20:27:06.000Z
-Stopped at: Phase 1 complete; Phase 2 capability-driven run control ready
+Last session: 2026-08-17T20:48:49.000Z
+Stopped at: Phase 2 complete; Phase 3 open-panel recovery proof ready
 Resume file: None

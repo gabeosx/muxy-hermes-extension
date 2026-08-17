@@ -12,7 +12,7 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
 - Decimal phases (for example, 2.1): Urgent insertions after planning
 
 - [x] **Phase 1: Verified Gateway Connectivity** - Build the extension, record the direct-WebKit negative result, and prove the consented relay boundary.
-- [ ] **Phase 2: Capability-Driven Run Control** - Let users operate one Hermes run with advertised controls in a native Muxy panel.
+- [x] **Phase 2: Capability-Driven Run Control** - Let users operate one Hermes run with advertised controls in a native Muxy panel.
 - [ ] **Phase 3: Open-Panel Recovery Proof** - Make interruption, panel recreation, and replay limits truthful and reproducible.
 
 ## Phase Details
@@ -101,7 +101,13 @@ Plans:
   4. User can steer or request stop only when the current Gateway advertises that control, and a stop request is not shown as complete until the Gateway reports a terminal state.
   5. User can operate the panel in light and dark themes and at supported Muxy interface scales, with keyboard navigation, visible focus/hover states, and no nonessential animation when reduced motion is enabled.
 
-**Plans:** TBD
+**Plans:** 1/1 fast-path quick task complete
+
+Plans:
+
+- [x] Quick 260817-mzi — Implement, validate, and natively prove capability-driven run control.
+
+**Fast-path result (2026-08-17):** The final extension was reloaded in Muxy against the pinned disposable Docker Gateway. Incremental completion, advertised steer, stop-to-authoritative-cancellation, and credential-field clearing passed; the fixture was then removed. Approval and tool-event projections are deterministic-test verified without inducing dangerous native fixture actions.
 **UI hint:** yes
 
 ### Phase 3: Open-Panel Recovery Proof
@@ -127,5 +133,5 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Verified Gateway Connectivity | 15/15 | Complete | 2026-08-17 |
-| 2. Capability-Driven Run Control | 0/TBD | Not started | - |
+| 2. Capability-Driven Run Control | 1/1 | Complete | 2026-08-17 |
 | 3. Open-Panel Recovery Proof | 0/TBD | Not started | - |

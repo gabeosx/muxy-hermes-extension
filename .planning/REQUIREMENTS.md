@@ -29,13 +29,13 @@
 
 ### Run Control
 
-- [ ] **RUN-01**: User can start one Hermes run from the panel after a successful capability probe.
-- [ ] **RUN-02**: User can observe assistant text incrementally while one authenticated curl SSE process writes a bounded ephemeral journal consumed by the open panel without repeated exec reads.
-- [ ] **RUN-03**: User can observe tool activity and run completion, failure, and cancellation events emitted by the Gateway.
-- [ ] **RUN-04**: User can answer a pending approval explicitly using only persistence choices supplied by the Gateway.
-- [ ] **RUN-05**: User can steer an active run when the Gateway advertises steer support.
-- [ ] **RUN-06**: User can request that an active run stop when the Gateway advertises stop support, and the UI does not claim termination until the Gateway reports a terminal state.
-- [ ] **RUN-07**: User sees the run-status endpoint's terminal state as authoritative when stream observations and server status differ.
+- [x] **RUN-01**: User can start one Hermes run from the panel after a successful capability probe.
+- [x] **RUN-02**: User can observe assistant text incrementally while one authenticated curl SSE process writes a bounded ephemeral journal consumed by the open panel without repeated exec reads.
+- [x] **RUN-03**: User can observe tool activity and run completion, failure, and cancellation events emitted by the Gateway.
+- [x] **RUN-04**: User can answer a pending approval explicitly using only persistence choices supplied by the Gateway.
+- [x] **RUN-05**: User can steer an active run when the Gateway advertises steer support.
+- [x] **RUN-06**: User can request that an active run stop when the Gateway advertises stop support, and the UI does not claim termination until the Gateway reports a terminal state.
+- [x] **RUN-07**: User sees the run-status endpoint's terminal state as authoritative when stream observations and server status differ.
 
 ### Recovery and Panel Lifecycle
 
@@ -49,16 +49,16 @@
 
 - [x] **SEC-01**: User's bearer token exists only in transient panel/exec-stdin memory and is absent from argv, URLs, environment, journal files, source, bundles, persisted settings, fixtures, audit summaries, and diagnostics.
 - [x] **SEC-02**: User explicitly authorizes the argv-form curl executable boundary; the UI discloses that a remembered argv grant covers the executable rather than only one Hermes host.
-- [ ] **SEC-03**: User must explicitly decide every Hermes approval; the extension never auto-approves an action.
+- [x] **SEC-03**: User must explicitly decide every Hermes approval; the extension never auto-approves an action.
 - [x] **SEC-04**: User is never asked to grant Docker, SSH-tunnel, Gateway-lifecycle, terminal, Git-write, or Muxy-source authority; v1 requests only the documented curl-exec and extension-owned journal read/scrub/remove permissions required by the relay.
 - [x] **SEC-05**: User grants only the minimum Muxy extension permissions demonstrated to be necessary by the v1 implementation.
 
 ### Native UX
 
-- [ ] **UX-01**: User can use the panel in light and dark Muxy themes without illegible, hard-coded, or visually conflicting colors.
-- [ ] **UX-02**: User can use the panel at multiple Muxy interface scales with controls and text following the host sizing contract.
-- [ ] **UX-03**: User can navigate interactive controls by keyboard and see visible focus and hover states.
-- [ ] **UX-04**: User who enables reduced motion does not receive nonessential interface animation.
+- [x] **UX-01**: User can use the panel in light and dark Muxy themes without illegible, hard-coded, or visually conflicting colors.
+- [x] **UX-02**: User can use the panel at multiple Muxy interface scales with controls and text following the host sizing contract.
+- [x] **UX-03**: User can navigate interactive controls by keyboard and see visible focus and hover states.
+- [x] **UX-04**: User who enables reduced motion does not receive nonessential interface animation.
 
 ### Compatibility Evidence
 
@@ -133,18 +133,18 @@
 | EVID-02 | Phase 1 | Complete |
 | EVID-03 | Phase 1 | Complete |
 | EVID-04 | Phase 1 | Complete |
-| RUN-01 | Phase 2 | Pending |
-| RUN-02 | Phase 2 | Pending |
-| RUN-03 | Phase 2 | Pending |
-| RUN-04 | Phase 2 | Pending |
-| RUN-05 | Phase 2 | Pending |
-| RUN-06 | Phase 2 | Pending |
-| RUN-07 | Phase 2 | Pending |
-| SEC-03 | Phase 2 | Pending |
-| UX-01 | Phase 2 | Pending |
-| UX-02 | Phase 2 | Pending |
-| UX-03 | Phase 2 | Pending |
-| UX-04 | Phase 2 | Pending |
+| RUN-01 | Phase 2 | Complete |
+| RUN-02 | Phase 2 | Complete |
+| RUN-03 | Phase 2 | Complete |
+| RUN-04 | Phase 2 | Complete |
+| RUN-05 | Phase 2 | Complete |
+| RUN-06 | Phase 2 | Complete |
+| RUN-07 | Phase 2 | Complete |
+| SEC-03 | Phase 2 | Complete |
+| UX-01 | Phase 2 | Complete |
+| UX-02 | Phase 2 | Complete |
+| UX-03 | Phase 2 | Complete |
+| UX-04 | Phase 2 | Complete |
 | RECV-01 | Phase 3 | Pending |
 | RECV-02 | Phase 3 | Pending |
 | RECV-03 | Phase 3 | Pending |
@@ -159,4 +159,4 @@
 
 ---
 *Requirements defined: 2026-08-16*
-*Last updated: 2026-08-16 after roadmap mapping*
+*Last updated: 2026-08-17 after Phase 2 fast-path verification*
