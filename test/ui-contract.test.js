@@ -69,6 +69,24 @@ test("the panel keeps capability and evidence output read-only and uses contract
   assert.match(panel, /type: "password", autocomplete: "off"/);
 });
 
+test("the panel loads the five-row safe evidence index and exposes only stop-boundary actions", async () => {
+  const panel = await readFile(new URL("../src/panel/app.js", import.meta.url), "utf8");
+
+  for (const text of [
+    "loadEvidenceIndex",
+    "renderDeploymentMatrix",
+    "/evidence/index.json",
+    "Copy failure report",
+    "View bridge contract",
+    "Copying report…",
+    "Loading bridge contract…",
+    "Could not copy the failure report.",
+    "Could not load the bridge contract.",
+  ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")));
+
+  assert.doesNotMatch(panel, /install bridge|register.*agent|provider registration|certificate bypass|Start run|Stop run|Steer|Approve/i);
+});
+
 test("native styles wrap content, preserve visible interaction state, and honor reduced motion", async () => {
   const css = await readFile(new URL("../src/styles/global.css", import.meta.url), "utf8");
 
