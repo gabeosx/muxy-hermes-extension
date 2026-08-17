@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 01
 current_phase_name: verified-gateway-connectivity
-status: executing
-stopped_at: Completed 01-06-PLAN.md
-last_updated: "2026-08-17T18:01:37.036Z"
+status: planning
+stopped_at: Verification found gaps; run /gsd-plan-phase 01 --gaps
+last_updated: "2026-08-17T18:16:34.975Z"
 last_activity: 2026-08-17
-last_activity_desc: Approved and implemented the consented curl relay after the direct-WebKit negative result.
+last_activity_desc: Phase 01 verification found 5 blocking gaps; plan gap closure next.
 progress:
   total_phases: 1
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 6
   completed_plans: 6
 ---
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-08-16)
 
 ## Current Position
 
-Phase: 01 (verified-gateway-connectivity) — EXECUTING
-Plan: 2 of 6
-Status: Ready to execute
-Last activity: 2026-08-17 — Phase 01 execution started
+Phase: 01 (verified-gateway-connectivity) — PLANNING GAPS
+Plan: 6 of 6
+Status: Gaps found — gap planning required
+Last activity: 2026-08-17 — Phase 01 verification found 5 blocking gaps; plan gap closure next
 
 Progress: [██████████] 100%
 
