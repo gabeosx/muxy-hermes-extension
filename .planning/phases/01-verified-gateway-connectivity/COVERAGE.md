@@ -12,12 +12,18 @@ Phase 1 integrates only the read-only capability contract and the smallest authe
 
 `INTEGRATE` means the endpoint or protocol behavior is exercised by Phase 1 production panel code or its repository-owned qualification harness. `OPT-OUT` means the surface was reviewed and intentionally excluded with a phase-scope reason. `NOT-ADVERTISED` records a capability that project requirements mention but current official HTTP API documentation does not expose.
 
+## Qualification Fixture Contract
+
+Hermes does not document a stream-only heartbeat or dry-run route. Its system-message contract explicitly preserves the agent's tools, so prompt wording alone is not accepted as a harmlessness control. Phase 1 therefore uses a real authenticated `POST /v1/chat/completions` SSE request only against a repository-owned qualification Gateway configured with a fresh temporary `HERMES_HOME`, an empty fixture workspace, no user profiles/MCP/memory, and a loopback deterministic OpenAI-compatible model stub. The stub emits no tool call, flushes two non-empty text deltas 250 ms apart, then returns `finish_reason: stop` and `[DONE]`.
+
+The panel request body is exactly `{"model":"hermes-agent","messages":[{"role":"user","content":"HERMES_STREAM_QUALIFICATION_V1"}],"stream":true}`. The actual Muxy panel must dispatch the first accepted `chat.completion.chunk` before the second delta and before EOF, observe the terminal frame, and observe zero `hermes.tool.progress`/tool-call shapes. Prompt/delta/raw-frame content is discarded; D-15 metadata and sanitized hashes are the only durable projection. If the controlled provider is incompatible, the fixture is unavailable, delivery is coalesced so first-frame-before-completion cannot be proved, a tool event appears, the fixture directory changes, or an unexpected outbound request occurs, the stream stage is `Not verified` and the deployment remains `Unverified`. The harness never substitutes an arbitrary live prompt, Runs API operation, synthetic non-Hermes stream, or Phase 2 UI.
+
 ## Official Endpoint Surface
 
 | capability | decision | reason |
 |---|---|---|
 | Capability discovery — `GET /v1/capabilities` | INTEGRATE | The authenticated machine-readable compatibility contract is Phase 1's primary data read; names are read-only and unknown/absent flags stay unavailable. |
-| Harmless SSE qualification — `POST /v1/chat/completions` with `stream: true` | INTEGRATE | A fixed harmless request proves bearer-authenticated incremental SSE in the real Muxy panel without adding a user chat composer or retaining content. |
+| Harmless SSE qualification — `POST /v1/chat/completions` with `stream: true` | INTEGRATE | The exact isolated deterministic fixture contract above proves bearer-authenticated incremental SSE in the real Muxy panel without adding a user chat composer, invoking Runs controls, retaining content, or trusting prompt wording to suppress tools. |
 | CORS preflight — browser `OPTIONS` for bearer-authenticated requests | INTEGRATE | The harness records the actual panel origin and verifies that preflight and SSE responses authorize that exact non-null, non-wildcard origin. |
 | Responses API — `POST /v1/responses` | OPT-OUT | Stateful response creation and chaining are run/chat product behavior assigned to Phase 2 or later. |
 | Stored response read — `GET /v1/responses/{id}` | OPT-OUT | Stored-response history is outside the connectivity proof. |
@@ -31,7 +37,7 @@ Phase 1 integrates only the read-only capability contract and the smallest authe
 | Run events — `GET /v1/runs/{run_id}/events` | OPT-OUT | Phase 1 proves SSE through the qualification-only chat stream; run-scoped observation belongs to Phase 2. |
 | Run stop — `POST /v1/runs/{run_id}/stop` | OPT-OUT | Stop UI and terminal-state reconciliation belong to Phase 2. |
 | Run approval — `POST /v1/runs/{run_id}/approval` | OPT-OUT | Explicit approval handling belongs to Phase 2 and is never auto-invoked by the connectivity probe. |
-| Run steer — no public run-scoped HTTP endpoint in current official inventory | OPT-OUT | The surface is not currently advertised; Phase 2 must capability-gate steer and cannot invent an HTTP endpoint. |
+| Run steer — `POST /v1/runs/{run_id}/steer` | OPT-OUT | Current official source advertises the route, but steering is Phase 2 behavior and must remain capability-gated there; Phase 1 never invokes or renders it. |
 | Job list/create — `GET /api/jobs`, `POST /api/jobs` | OPT-OUT | Scheduled/background work is unrelated to direct panel transport qualification. |
 | Job read/update/delete — `GET`, `PATCH`, `DELETE /api/jobs/{job_id}` | OPT-OUT | Job management is outside the milestone's extension proof. |
 | Job pause/resume/run-now — `POST /api/jobs/{job_id}/pause`, `/resume`, `/run` | OPT-OUT | Phase 1 neither manages background work nor starts user work. |
@@ -70,5 +76,5 @@ Phase 1 stores and displays only safe names/shapes from the capability payload:
 
 - No endpoint in the `OPT-OUT` set may be called by Phase 1 panel code, except that the names of capability-advertised surfaces may appear in the read-only capability summary.
 - The qualification-only chat stream must not expose user prompt input, run controls, model selection, session state, tool arguments/results, or assistant content in evidence.
-- Current official HTTP docs do not advertise a run-scoped steer endpoint. Phase 2 must re-resolve `/v1/capabilities` and current official docs before implementing steer.
+- Current official source advertises a run-scoped steer endpoint. Phase 2 must still re-resolve `/v1/capabilities` and current official docs before implementing it; Phase 1 keeps the route opted out.
 - If the qualification stream itself is unsafe or cannot prove exact-origin incremental delivery, the result is the redacted failure report and minimum bridge contract. No alternate endpoint, helper, Muxy source change, or bridge implementation is authorized.

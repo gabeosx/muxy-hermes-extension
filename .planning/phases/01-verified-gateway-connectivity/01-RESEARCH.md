@@ -108,13 +108,13 @@ Browser failure detail is intentionally limited: after cross-origin `fetch()` fa
 | Muxy extension panel | Resolve latest stable per test run; current official release is `v1.5.0` dated 2026-08-16 | Open-panel native control surface | A panel is an isolated `WKWebView`, and Muxy validates/publishes only built `dist/` output. [CITED: https://muxy.app/docs/extensions/panels] [CITED: https://muxy.app/docs/extensions/manifest] [CITED: https://github.com/muxy-app/muxy/releases] |
 | Vanilla TypeScript + DOM APIs | Use Muxy's generated starter lockfile; npm registry currently reports Vite `8.2.1` and TypeScript `7.0.2` | Transparent panel, client state, and validation helpers | Phase 1 needs a small auditable state machine rather than an extra UI runtime. `vite` is named by Muxy's official manifest documentation. [CITED: https://muxy.app/docs/extensions/manifest] [ASSUMED: TypeScript versioning/toolchain compatibility is confirmed by the generated starter] |
 | Direct `fetch`, `AbortController`, `ReadableStream`, `TextDecoderStream` | Browser platform APIs | Bearer-header requests and incremental event decoding | `Response.body` is a stream and may be processed as chunks arrive; an abort signal cancels an in-flight operation. [CITED: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch] |
-| Hermes Gateway API | Resolve latest stable per run; current official release is `v0.20.2` / `v2026.8.16` dated 2026-08-16 | Authentication, capabilities, harmless fixture run, and authenticated SSE | Hermes documents bearer auth, explicit CORS allowlisting, `/v1/capabilities`, and `GET /v1/runs/{run_id}/events`. [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md] [CITED: https://github.com/NousResearch/hermes-agent/releases] |
+| Hermes Gateway API | Resolve latest stable per run; current official release is `v0.20.2` / `v2026.8.16` dated 2026-08-16 | Authentication, capabilities, and qualification-only authenticated SSE | Hermes documents bearer auth, explicit CORS allowlisting, `/v1/capabilities`, and streaming `POST /v1/chat/completions`. The qualification contract below uses that real Hermes route with a deterministic fixture-owned loopback model, not a Runs API control. [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md] [CITED: https://github.com/NousResearch/hermes-agent/releases] |
 
 ### Supporting
 
 | Library / Platform | Version | Purpose | When to Use |
 |--------------------|---------|---------|-------------|
-| Node built-in `node:test` | Node `v26.5.0` available in this workspace | Unit-test URL policy, redaction, SSE framing, evidence-schema validation | Use in Wave 0 rather than add a test framework to a greenfield phase. [VERIFIED: environment probe] |
+| Node built-in `node:test` | Node `v26.5.0` available in this workspace | Unit-test URL policy, redaction, SSE framing, evidence-schema validation | Bootstrap in Plan 01-01 Task 2 rather than add a test framework to a greenfield phase. [VERIFIED: environment probe] |
 | Docker Compose | Docker `29.7.2`; Compose `v5.3.1` available in this workspace | Real local Docker fixture and local simulations | Use only in the repository-owned validation harness, never in the extension. [VERIFIED: environment probe] |
 | In-repo SSE frame parser | No external package | Frame `event:`, `data:`, `id:`, comments, blank-line termination, and chunk boundaries | Use because Hermes's event route is a fetch stream and EventSource has no arbitrary-header option. [CITED: https://developer.mozilla.org/en-US/docs/Web/API/EventSource/EventSource] [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md] |
 
@@ -161,7 +161,7 @@ Muxy Panel WKWebView --> direct fetch + Authorization --> Hermes Gateway
       |                       |                     | \--> /v1/capabilities
       |                       |                     |       -> capability summary
       |                       |                     |
-      |                       |                     \----> controlled harmless run events
+      |                       |                     \----> qualification-only chat SSE
       |                       |                               -> response.body -> SSE parser
       |                       v
       |          browser-visible observed outcome
@@ -205,7 +205,11 @@ The directory names are a recommendation under the agent's discretion; evidence 
 
 ### Pattern 2: Fetch-backed, chunk-safe SSE probe
 
-**What:** Use a fresh direct authenticated fetch to the Hermes events route for the controlled harmless fixture and parse decoded lines only after a blank frame delimiter. Hermes documents that the route is a Server-Sent Events stream and current source writes `data:` JSON frames, keepalive comments, and a close comment; parser tests must also cover arbitrary network chunk boundaries. [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md] [CITED: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch]
+**What:** Use a fresh direct authenticated `POST /v1/chat/completions` request with `stream: true` and parse decoded lines only after a blank frame delimiter. Hermes documents this endpoint as stateless and returning standard `chat.completion.chunk` SSE data plus optional `hermes.tool.progress` events. Current official documentation also states that an added system prompt does not remove Hermes tools, so prompt wording alone is not a harmlessness control. [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md] [CITED: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch]
+
+**Qualification fixture contract (RESOLVED):** The repository-owned harness starts the resolved real Hermes Gateway with a fresh temporary `HERMES_HOME`, an empty fixture working directory, no user profiles/MCP servers/memory, and only fixture-scoped credentials. Hermes's configured model target is a loopback-only deterministic OpenAI-compatible model stub owned by the harness. The stub accepts the one qualification turn, never emits a tool call, writes and flushes two non-empty text deltas separated by 250 ms, then emits a terminal `finish_reason: stop` and `[DONE]`. The panel sends exactly `{"model":"hermes-agent","messages":[{"role":"user","content":"HERMES_STREAM_QUALIFICATION_V1"}],"stream":true}` to the real Hermes route with its runtime bearer. This is not a Runs API request and creates no Phase 2 control surface. The prompt, deltas, and raw frames remain ephemeral; committed evidence keeps only the D-15 metadata/hash projection. [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md] [ASSUMED: the resolved Hermes release accepts the fixture-owned loopback OpenAI-compatible provider; Plans 01/04 test this and fail closed]
+
+**Acceptance contract:** The actual Muxy panel must dispatch the first accepted `chat.completion.chunk` before the second fixture delta and before stream completion, observe the terminal frame, and observe zero `hermes.tool.progress` or tool-call shapes. The harness must also confirm that the deterministic model stub received exactly one request and that its empty fixture directory is unchanged. A missing/mismatched frame, coalesced delivery that cannot prove first-frame-before-completion, any tool event/call, provider incompatibility, unexpected outbound request, or unavailable controlled fixture records the stream stage as `Not verified` and the deployment verdict as `Unverified`; it never falls back to an arbitrary live prompt, a Runs API call, a browser substitute, or a synthetic non-Hermes stream. A repeatable route failure on the resolved real qualification lane is eligible for `Unsupported` only under D-02 and the stop gate. [VERIFIED: 01-CONTEXT.md] [ASSUMED: empirical frame timing and provider compatibility are execution gates]
 
 **When to use:** The Phase 1 qualification probe only; Phase 2 owns actual run control UI.
 
@@ -285,7 +289,7 @@ The example intentionally keeps `eventsUrl`, `token`, and decoded payload out of
 
 **What goes wrong:** Capabilities and OPTIONS may pass while a proxy buffers SSE or the stream route lacks required response headers. Hermes explicitly documents CORS headers on SSE responses, so qualification must exercise that route. [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md]
 
-**How to avoid:** Require an authenticated harmless Hermes run stream with at least one incremental frame delivered before terminal close; store only allowlisted metadata/hashes. [VERIFIED: 01-CONTEXT.md]
+**How to avoid:** Require the resolved qualification fixture contract above: two flushed deterministic model deltas must cross the real authenticated Hermes chat-completions SSE route, and the panel must dispatch the first accepted frame before terminal close. Store only allowlisted metadata/hashes. [VERIFIED: 01-CONTEXT.md] [ASSUMED: empirical delivery remains an execution gate]
 
 ### Pitfall 4: Accidentally retaining bearer material
 
@@ -347,22 +351,17 @@ API_SERVER_CORS_ORIGINS=<exact-observed-origin>
 | A3 | A classification function can encode `real_path`, two fresh sessions, and all required checks without requiring topology detection in the extension. | Common Pitfalls | Evidence semantics could drift from D-01 through D-04. |
 | A4 | TypeScript remains part of the current Muxy-generated vanilla starter and is compatible with the version the starter resolves. | Standard Stack / Package Audit | Do not independently install it until a human checks the generated starter. |
 
-## Open Questions
+## Resolved Questions and Remaining Empirical Gates
 
-1. **What exact Origin does the current Muxy `WKWebView` send, and can Hermes explicitly allow it?**
-   - What we know: A panel is a `WKWebView`; Hermes has an explicit comma-separated CORS allowlist and does not enable browser CORS by default. [CITED: https://muxy.app/docs/extensions/panels] [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md]
-   - What's unclear: The live emitted Origin and local/private-network behavior on current Muxy/WebKit have not been measured in this workspace. [VERIFIED: environment probe]
-   - Recommendation: Make this the first real-panel gate; record it only in redacted trust-class evidence and stop if it is `null`, unstable, or cannot be safely allowlisted. [VERIFIED: 01-CONTEXT.md]
+1. **RESOLVED AS AN EMPIRICAL GATE — What exact Origin does the current Muxy `WKWebView` send, and can Hermes explicitly allow it?**
+   - A source document cannot predict the runtime Origin. Plans 01 and 04 must observe the preflight from the actual installed Muxy panel, require one stable non-null/non-wildcard value, configure only that exact value in `API_SERVER_CORS_ORIGINS`, and then verify the capabilities and chat-SSE responses return matching CORS authorization. The evidence stores only the origin outcome/trust class, never the Origin text. `null`, instability, reflection, wildcard, absent route headers, or an unavailable real panel fails closed to `Not verified`/`Unverified` and can never be replaced by a browser simulation. [CITED: https://muxy.app/docs/extensions/panels] [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md] [VERIFIED: 01-CONTEXT.md]
 
-2. **What harmless real Hermes run fixture can reliably produce an event increment without shipping payload content?**
-   - What we know: Hermes exposes a runs event route and reports token/tool/lifecycle events. [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md]
-   - What's unclear: The exact current safe fixture trigger and resulting capability/event shapes must be captured on the resolved release. [ASSUMED]
-   - Recommendation: The harness, not the panel UI, should create/prestage the controlled harmless run and give the panel an authenticated stream target under an ephemeral test token. [VERIFIED: 01-CONTEXT.md] [ASSUMED]
+2. **RESOLVED — What harmless real Hermes stream fixture can reliably produce an event increment without shipping payload content?**
+   - Current Hermes has no documented stream-only heartbeat or dry-run endpoint independent of an agent turn. The selected mechanism is the Pattern 2 qualification fixture: a fixed `stream: true` chat-completions request crosses the real authenticated Hermes route while a harness-owned deterministic loopback model stub emits exactly two delayed text deltas and no tool calls inside an isolated temporary Hermes home/workspace. The panel never exposes the prompt or any run/chat control, and evidence never retains content. The exact request, response sequence, safety checks, and fail-closed behavior are defined above and mirrored in `COVERAGE.md`. [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md] [ASSUMED: provider compatibility and WebKit incremental delivery are verified by the planned real-path tests]
 
-3. **How is the current Muxy application version discovered automatically by the runner?**
-   - What we know: The official stable release is `v1.5.0`; no `muxy` CLI was found in this workspace. [CITED: https://github.com/muxy-app/muxy/releases] [VERIFIED: environment probe]
-   - What's unclear: The app/bundle command or metadata path that returns the installed build version. [ASSUMED]
-   - Recommendation: Make version capture a runner preflight. If it cannot collect a resolved Muxy version, the run emits evidence but cannot be a `Supported` qualification. [VERIFIED: 01-CONTEXT.md] [ASSUMED]
+3. **RESOLVED — How is the installed/current-stable Muxy version captured?**
+   - `scripts/resolve-versions.mjs` accepts `MUXY_APP_PATH` (default `/Applications/Muxy.app`), reads `Contents/Info.plist` with macOS `plutil`, and requires `CFBundleIdentifier=com.muxy.app`. The supported capture commands are `plutil -extract CFBundleIdentifier raw -o - "$MUXY_APP_PATH/Contents/Info.plist"`, `plutil -extract CFBundleShortVersionString raw -o - "$MUXY_APP_PATH/Contents/Info.plist"`, and `plutil -extract CFBundleVersion raw -o - "$MUXY_APP_PATH/Contents/Info.plist"`. Muxy's official Info.plist source declares those exact keys and bundle identifier. [CITED: https://github.com/muxy-app/muxy/blob/main/Muxy/Info.plist]
+   - The resolver obtains the current stable tag/publish metadata at execution time from GitHub's official `GET /repos/muxy-app/muxy/releases/latest` API, rejects draft/prerelease payloads, normalizes only the leading `v` for comparison, and records both the release tag and installed short/build versions. It must not infer a version from the extension starter, window copy, or research-time `v1.5.0`. Missing/ambiguous app path, unreadable/malformed plist, wrong bundle identifier, missing version/build, unavailable release metadata, or installed/latest mismatch emits safe evidence with the version stage `Not verified` and forces `Unverified`; it cannot establish `Supported`. [CITED: https://github.com/muxy-app/muxy/releases] [VERIFIED: D-02/D-09]
 
 ## Environment Availability
 
@@ -386,41 +385,43 @@ API_SERVER_CORS_ORIGINS=<exact-observed-origin>
 | Property | Value |
 |----------|-------|
 | Framework | Node built-in `node:test` (no framework currently installed) [VERIFIED: environment probe] |
-| Config file | none — use ESM/TypeScript compilation boundary established by the Muxy starter in Wave 0 [ASSUMED] |
+| Config file | none — use the ESM/TypeScript compilation boundary established by the Muxy starter in Plan 01-01 Task 2 [ASSUMED] |
 | Quick run command | `node --test` for emitted/pure JavaScript test modules [CITED: https://nodejs.org/api/test.html] |
 | Full suite command | `npm run build && node --test && docker compose --project-name hermes-muxy-fixture up --abort-on-container-exit` [ASSUMED] |
 
 ### Phase Requirements → Test Map
 
-| Req ID | Behavior | Test Type | Automated Command | File Exists? |
-|--------|----------|-----------|-------------------|-------------|
-| EXT-01, EXT-02 | Build emits a publish-valid `dist/` including `package.json` | build/artifact | `npm run build` plus a script asserting the expected `dist` manifest and panel entry | ❌ Wave 0 |
-| CONN-01, SEC-01 | URL/token stay panel-local and are excluded from rendered/report/artifact state | unit + static scan | `node --test` plus sentinel-token `rg` scan over build/evidence | ❌ Wave 0 |
-| CONN-02, CONN-05 | Stage model maps only observed outcomes and redacts details | unit | `node --test` | ❌ Wave 0 |
-| CONN-03 | Capability snapshot normalizes known/unknown data with no Phase 1 controls | unit | `node --test` | ❌ Wave 0 |
-| CONN-04 | URL policy rejects non-loopback HTTP and bypass attempts | unit | `node --test` | ❌ Wave 0 |
-| DEPL-01 | All fixture scenarios use one client contract and no deployment selector | unit/static | `node --test` plus manifest/source audit | ❌ Wave 0 |
-| DEPL-02 | Real host-native panel capability + incremental SSE proof twice | manual Muxy E2E + evidence validation | runner command plus two recorded fresh-session reports | ❌ Wave 0 |
-| DEPL-03 | Real Docker loopback panel proof plus refusal/interruption observations | manual Muxy E2E + Compose | runner command plus two recorded fresh-session reports | ❌ Wave 0 |
-| DEPL-04, DEPL-05, DEPL-06 | Simulations force `Unverified`, including no workspace path transmission | Compose integration + unit | `node --test` and Compose simulation runner | ❌ Wave 0 |
-| SEC-02 | Exact origin/preflight/SSE headers are fixture-recorded; wildcard/null/reflection never pass | integration + manual panel E2E | fixture-log validator plus Muxy session runner | ❌ Wave 0 |
-| SEC-04, SEC-05 | No dangerous Muxy permissions/background/process APIs | static manifest/source | `node --test` or a manifest-policy script | ❌ Wave 0 |
-| EVID-01, EVID-02 | JSON/Markdown reports, index, verdict semantics, strict redaction | unit + schema | `node --test` | ❌ Wave 0 |
-| EVID-03, EVID-04 | Failed direct gate emits redacted report, minimum contract, and stop state | unit + manual UI | `node --test` plus manual Muxy alert check | ❌ Wave 0 |
+| Req ID | Behavior | Test Type | Automated Command | Planned Owner |
+|--------|----------|-----------|-------------------|---------------|
+| EXT-01, EXT-02 | Build emits a publish-valid `dist/` including `package.json` | build/artifact | `npm run build` plus the dist validator | 01-01 Tasks 2–3 |
+| CONN-01, SEC-01 | URL/token stay panel-local and are excluded from rendered/report/artifact state | unit + static scan | focused Node tests; final sentinel scan in `npm run validate` | 01-01 Task 2; 01-06 Task 2 |
+| CONN-02, CONN-05 | Stage model maps only observed outcomes and redacts details | unit | focused probe/fixture Node tests | 01-02 Task 1; 01-04 Tasks 1–2 |
+| CONN-03 | Capability snapshot normalizes known/unknown data with no Phase 1 controls | unit | focused transport/UI Node tests | 01-01 Task 2; 01-02 Task 2 |
+| CONN-04 | URL policy rejects non-loopback HTTP and bypass attempts | unit | `node --test test/transport-tracer.test.ts` | 01-01 Task 2 |
+| DEPL-01 | All fixture scenarios use one client contract and no deployment selector | unit/static | focused verdict tests plus final source audit | 01-03 Task 2; 01-06 Task 2 |
+| DEPL-02 | Real host-native panel capability + deterministic incremental SSE proof twice | manual Muxy E2E + evidence validation | host fixture/evidence/verdict tests plus two recorded sessions | 01-04 Task 1 |
+| DEPL-03 | Real Docker loopback panel proof plus refusal/interruption observations | manual Muxy E2E + Compose | Compose config plus Docker fixture/evidence/verdict tests | 01-04 Task 2 |
+| DEPL-04, DEPL-05, DEPL-06 | Simulations force `Unverified`, including no workspace path transmission | Compose integration + unit | Compose config plus the two focused simulation suites | 01-05 Tasks 1–2 |
+| SEC-02 | Exact origin/preflight/SSE headers are fixture-recorded; wildcard/null/reflection never pass | integration + manual panel E2E | host/Docker fixture tests plus Muxy sessions | 01-04 Tasks 1–2 |
+| SEC-04, SEC-05 | No dangerous Muxy permissions/background/process APIs | static manifest/source | dist validator plus `npm run validate` | 01-01 Task 3; 01-06 Task 2 |
+| EVID-01, EVID-02 | JSON/Markdown reports, index, verdict semantics, strict redaction | unit + schema | focused evidence/verdict Node tests | 01-03 Tasks 1–2 |
+| EVID-03, EVID-04 | Failed direct gate emits redacted report, minimum contract, and stop state | unit + manual UI | focused stop-gate tests plus manual Muxy alert check | 01-06 Task 1 |
 
 ### Sampling Rate
 
-- **Per task commit:** `npm run build && node --test` once Wave 0 is established. [ASSUMED]
+- **Per task commit:** Use the exact task `<automated>` command recorded in `01-VALIDATION.md`; 01-01 Task 2 establishes the first runnable build/test command. [ASSUMED]
 - **Per wave merge:** Full build/unit/Compose-fixture suite; perform Muxy real-panel qualification whenever transport, manifest, URL policy, or fixture code changes. [VERIFIED: 01-CONTEXT.md] [ASSUMED]
 - **Phase gate:** Two fresh real Muxy panel successes each for host-native and Docker loopback; simulated classes explicitly remain `Unverified`; full redaction scan is clean. [VERIFIED: 01-CONTEXT.md]
 
-### Wave 0 Gaps
+### Execution Bootstrap Handoff
 
-- [ ] Muxy vanilla starter, strict TypeScript configuration, manifest-copy script, and build artifact assertion — covers EXT-01/EXT-02.
-- [ ] Pure unit test setup for URL policy, probe-state projection, SSE parser, redaction, evidence schema, and verdict classification.
-- [ ] Harness-owned fixture recipes for host-native Hermes, Docker loopback Hermes, simulated SSH loss, simulated HTTPS/proxy, and simulated remote workspace.
-- [ ] Evidence writer/validator plus committed non-secret fixtures and latest index.
-- [ ] Muxy installation/version-capture preflight and an operator-run real-panel qualification script.
+- Plan 01-01 Tasks 1–3 own starter/lockfile approval, the first runnable build/Node test path, and the manifest/dist validator.
+- Plan 01-03 owns the evidence writer, schema, verdict classifier, and latest index before any qualification lane consumes them.
+- Plan 01-04 owns the Muxy `plutil` version preflight, deterministic model stub, host-native recipe, Docker recipe, and operator-run real-panel qualification command.
+- Plan 01-05 owns the three local simulation recipes after the shared client/evidence interfaces exist.
+- Plan 01-06 owns the aggregate `npm run validate` command and final Muxy/change-stop checks.
+
+No separate Wave 0 exists; `01-VALIDATION.md` maps every submitted task across Waves 1–4 and records the exact automated command.
 
 ## Security Domain
 
@@ -451,7 +452,8 @@ API_SERVER_CORS_ORIGINS=<exact-observed-origin>
 - [Muxy manifest documentation](https://muxy.app/docs/extensions/manifest) — Vite/`dist`/manifest-copy contract, panels, manifest permissions, and background boundaries.
 - [Muxy panels documentation](https://muxy.app/docs/extensions/panels) — panel `WKWebView` architecture.
 - [Muxy HTTP documentation](https://muxy.app/docs/extensions/http) — native buffered API, loopback/private SSRF block, and webview-only availability.
-- [Hermes API server documentation](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md) — bearer auth, CORS, capabilities, runs events, and security posture.
+- [Muxy application Info.plist](https://github.com/muxy-app/muxy/blob/main/Muxy/Info.plist) — installed bundle identifier `com.muxy.app` and canonical short-version/build keys read by the `plutil` preflight.
+- [Hermes API server documentation](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md) — bearer auth, CORS, capabilities, stateless chat-completions SSE, tool-preserving system prompts, and security posture.
 - [MDN Fetch guide](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch) — streamed response bodies and decoding pattern.
 - [MDN EventSource constructor](https://developer.mozilla.org/en-US/docs/Web/API/EventSource/EventSource) — constructor options and lack of arbitrary request headers.
 
