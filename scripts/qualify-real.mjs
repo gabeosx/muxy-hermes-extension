@@ -180,6 +180,16 @@ export async function startOriginCaptureServer() {
 
 export async function startDeterministicModelStub() {
   let requestCount = 0;
+  const isQualificationRequest = (body) => {
+    let payload;
+    try { payload = JSON.parse(body); } catch { return false; }
+    if (payload?.model !== "hermes-agent" || payload?.stream !== true || !Array.isArray(payload?.messages)) return false;
+    return payload.messages.some((message) => {
+      if (message?.role !== "user") return false;
+      if (message.content === "HERMES_STREAM_QUALIFICATION_V1") return true;
+      return Array.isArray(message.content) && message.content.some((part) => part?.type === "text" && part?.text === "HERMES_STREAM_QUALIFICATION_V1");
+    });
+  };
   const server = createServer((request, response) => {
     if (request.method === "GET" && request.url === "/v1/models") {
       response.writeHead(200, { "Content-Type": "application/json" });
@@ -190,12 +200,12 @@ export async function startDeterministicModelStub() {
     let body = "";
     request.on("data", (chunk) => { body += chunk; });
     request.on("end", () => {
-      if (body !== FIXTURE_REQUEST || requestCount > 0) { response.writeHead(400).end(); return; }
+      if (!isQualificationRequest(body) || requestCount > 0) { response.writeHead(400).end(); return; }
       requestCount += 1;
       response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
-      response.write('data: {"choices":[{"delta":{"content":"alpha"},"finish_reason":null}]}\n\n');
+      response.write('data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":0,"model":"hermes-agent","choices":[{"index":0,"delta":{"role":"assistant","content":"alpha"},"finish_reason":null}]}\n\n');
       setTimeout(() => {
-        response.write('data: {"choices":[{"delta":{"content":"beta"},"finish_reason":"stop"}]}\n\n');
+        response.write('data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":0,"model":"hermes-agent","choices":[{"index":0,"delta":{"content":"beta"},"finish_reason":"stop"}]}\n\n');
         response.end("data: [DONE]\n\n");
       }, 250);
     });
