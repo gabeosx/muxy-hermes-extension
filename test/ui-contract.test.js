@@ -117,3 +117,28 @@ test("native styles wrap content, preserve visible interaction state, and honor 
   assert.match(css, /gateway-danger/);
   assert.doesNotMatch(css, /overflow-x:\s*(?:auto|scroll)/);
 });
+
+test("the panel requires fresh credentials and a manual run ID for truthful recovery", async () => {
+  const [panel, css] = await Promise.all([
+    readFile(new URL("../src/panel/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/styles/global.css", import.meta.url), "utf8"),
+  ]);
+
+  for (const text of [
+    "Recover a run",
+    "Run ID",
+    "Refresh status",
+    "Gateway status could not be confirmed.",
+    "Attempting to resume live updates",
+    "Live events may be missing or duplicated",
+    "Previous live activity and approval detail were not recovered.",
+    "aria-live",
+    "this.runController.recover",
+    "this.runController.refresh",
+  ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")));
+
+  assert.match(panel, /this\.tokenValue = ""/);
+  assert.doesNotMatch(panel, /localStorage|sessionStorage|muxy\.storage|background\.js|deployment selector|certificate bypass/i);
+  assert.match(css, /gateway-recovery/);
+  assert.match(css, /gateway-run-id/);
+});

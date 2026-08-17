@@ -47,6 +47,7 @@ export class HermesGatewayPanel {
     this.runUnsubscribe = null;
     this.promptValue = "";
     this.steerValue = "";
+    this.recoverRunId = "";
   }
 
   start() {
@@ -279,9 +280,11 @@ export class HermesGatewayPanel {
         h("h2", { id: "run-title" }, "Hermes run"),
         h("span", { class: `gateway-run-status gateway-run-status-${run.status}`, "aria-live": "polite" }, run.status.replaceAll("_", " ")),
       ),
+      run.runId ? h("p", { class: "gateway-run-id" }, "Run ID: ", h("code", { tabindex: "0" }, run.runId)) : null,
       !active ? h("form", { class: "gateway-run-form", onsubmit: (event) => void this.startRun(event) },
         h("label", { for: "run-prompt", class: "gateway-label" }, "Task"), prompt, start,
       ) : null,
+      run.status === "idle" ? this.recoveryForm() : null,
       run.assistant ? h("section", { class: "gateway-run-output", "aria-labelledby": "assistant-output-title" },
         h("h3", { id: "assistant-output-title" }, "Assistant"),
         h("p", { class: "gateway-assistant", "aria-live": "polite" }, run.assistant),
@@ -293,12 +296,39 @@ export class HermesGatewayPanel {
         ))),
       ) : null,
       this.approvalSection(run),
-      active ? this.runControls(run) : null,
+      active && run.status !== "status_unavailable" ? this.runControls(run) : null,
+      this.recoveryState(run),
+      run.manualRefresh ? h("button", { class: "gateway-secondary", type: "button", disabled: run.actionPending, onclick: () => void this.refreshRun() }, "Refresh status") : null,
       run.error ? h("p", { class: "gateway-inline-error", role: "alert" }, run.error) : null,
-      run.streamState === "closed" && !terminal ? h("p", { class: "gateway-note" }, "The event stream is closed. Gateway status is authoritative.") : null,
     ];
     queueMicrotask(() => this.syncRunForm());
     return h("section", { class: "gateway-card gateway-run", "aria-labelledby": "run-title" }, content);
+  }
+
+  recoveryForm() {
+    const runId = h("input", {
+      id: "recover-run-id", class: "gateway-input", type: "text", autocomplete: "off", spellcheck: "false",
+      required: true, maxlength: "128", placeholder: "run_abc12345",
+      oninput: (event) => { this.recoverRunId = event.target.value; this.syncRunForm(); },
+    });
+    runId.value = this.recoverRunId;
+    this.recoverInput = runId;
+    return h("form", { class: "gateway-recovery", onsubmit: (event) => void this.recoverRun(event) },
+      h("h3", null, "Recover a run"),
+      h("p", { class: "gateway-note" }, "Enter the Run ID after reconnecting with a fresh bearer token. Recovery fetches current Gateway status only; it does not replay earlier live events or approval detail."),
+      h("label", { for: "recover-run-id", class: "gateway-label" }, "Run ID"), runId,
+      h("button", { class: "gateway-secondary", type: "submit" }, "Recover status"),
+    );
+  }
+
+  recoveryState(run) {
+    let copy = null;
+    if (run.status === "status_unavailable") copy = "Gateway status could not be confirmed. Live updates are disconnected; use Refresh status when the Gateway is reachable.";
+    else if (run.streamState === "reconnecting") copy = `Attempting to resume live updates (attempt ${run.reconnectAttempt || 1} of 2). Gateway status is authoritative.`;
+    else if (run.streamState === "disconnected") copy = "Live updates are disconnected. Gateway status is authoritative. Live events may be missing or duplicated.";
+    else if (run.streamState === "detached" && run.runId) copy = "Previous live activity and approval detail were not recovered. Gateway status is authoritative.";
+    else if (run.recoveryNotice) copy = `Live updates resumed with limits. ${run.recoveryNotice}`;
+    return copy ? h("p", { class: "gateway-recovery-state", "aria-live": "polite" }, copy) : null;
   }
 
   approvalSection(run) {
@@ -351,6 +381,21 @@ export class HermesGatewayPanel {
     if (!prompt.trim()) return;
     this.promptValue = "";
     await this.runController.start(prompt);
+  }
+
+  async recoverRun(event) {
+    event.preventDefault();
+    const runId = this.recoverRunId.trim();
+    if (!runId) {
+      this.recoverInput?.focus();
+      return;
+    }
+    this.recoverRunId = "";
+    await this.runController.recover(runId);
+  }
+
+  async refreshRun() {
+    await this.runController.refresh();
   }
 
   async answerApproval(choice) {

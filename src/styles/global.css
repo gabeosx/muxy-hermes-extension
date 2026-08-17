@@ -71,7 +71,7 @@ button:disabled { cursor: default; color: var(--muxy-foreground-muted); backgrou
 .gateway-evidence-row { display: grid; gap: 4px; padding: 8px; border: 1px solid var(--muxy-border); border-radius: 6px; list-style-position: inside; }
 .gateway-transport-stop { border-color: var(--muxy-diff-remove); }
 .gateway-bridge-contract { max-width: 100%; margin: 0; padding: 8px; overflow-wrap: anywhere; white-space: pre-wrap; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-surface-solid); color: var(--muxy-foreground); font: 11px "SF Mono", Menlo, monospace; }
-.gateway-run, .gateway-run-form, .gateway-run-output, .gateway-run-activity, .gateway-run-controls, .gateway-approval, .gateway-steer-form { display: grid; gap: 8px; }
+.gateway-run, .gateway-run-form, .gateway-run-output, .gateway-run-activity, .gateway-run-controls, .gateway-approval, .gateway-steer-form, .gateway-recovery { display: grid; gap: 8px; }
 .gateway-run-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .gateway-run h3 { margin: 0; font-size: 12px; font-weight: 600; }
 .gateway-run-status { max-width: 50%; border: 1px solid var(--muxy-border); border-radius: 999px; padding: 2px 8px; color: var(--muxy-foreground-muted); overflow-wrap: anywhere; text-transform: capitalize; }
@@ -83,4 +83,9 @@ button:disabled { cursor: default; color: var(--muxy-foreground-muted); backgrou
 .gateway-activity span { color: var(--muxy-foreground-muted); white-space: pre-wrap; }
 .gateway-control-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .gateway-command { max-width: 100%; margin: 0; padding: 8px; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-background); color: var(--muxy-foreground); white-space: pre-wrap; overflow-wrap: anywhere; font: 11px "SF Mono", Menlo, monospace; }
+.gateway-run-id { overflow-wrap: anywhere; }
+.gateway-run-id code { color: var(--muxy-foreground); font: 11px "SF Mono", Menlo, monospace; user-select: text; }
+.gateway-recovery { border-top: 1px solid var(--muxy-border); padding-top: 8px; }
+.gateway-recovery h3 { margin: 0; }
+.gateway-recovery-state { margin: 0; border-left: 2px solid var(--muxy-accent); padding-left: 8px; color: var(--muxy-foreground-muted); line-height: 1.5; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
