@@ -101,6 +101,49 @@ test("streamJournal consumes file.changed through muxy.files without exec pollin
   assert.equal(writeIndex >= 0 && deleteIndex > writeIndex, true);
 });
 
+test("streamJournal falls back to the Promise-based webview exec bridge", async () => {
+  const subscriptions = new Map();
+  const operations = [];
+  let journal = "";
+  let finishExec;
+  const relay = new CurlRelay({
+    exec: (argv, options) => {
+      operations.push({ type: "exec", argv, options });
+      return new Promise((resolve) => { finishExec = resolve; });
+    },
+    files: {
+      async read(path) {
+        if (!journal) throw new Error("not written yet");
+        return { path, content: journal, size: new TextEncoder().encode(journal).byteLength };
+      },
+      async write(path, content) { operations.push({ type: "write", path, content }); journal = content; },
+      async delete(paths) { operations.push({ type: "delete", paths }); },
+    },
+    events: {
+      subscribe(name, handler) { subscriptions.set(name, handler); return () => subscriptions.delete(name); },
+    },
+    randomId: () => "webview-id",
+  });
+
+  const chunks = [];
+  const running = relay.streamJournal({
+    url: "http://127.0.0.1:8642/v1/chat/completions",
+    bearer: "sentinel-token",
+    onChunk: (chunk) => chunks.push(chunk),
+  });
+  journal = "data: one\n\n";
+  subscriptions.get("file.changed")({ path: ".muxy-hermes-runtime/webview-id/stream.sse" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  finishExec({ stdout: "\n__MUXY_HERMES_STATUS__:200", stderr: "", exitCode: 0, timedOut: false, truncated: false });
+
+  const result = await running;
+  assert.deepEqual(chunks, ["data: one\n\n"]);
+  assert.equal(result.executionId, null);
+  assert.equal(result.httpStatus, 200);
+  assert.equal(operations.filter((entry) => entry.type === "exec").length, 1);
+  assert.equal(operations.find((entry) => entry.type === "exec").options.stdin.includes("sentinel-token"), true);
+});
+
 test("streamJournal fails closed when the journal exceeds the Muxy read ceiling", async () => {
   let handler;
   let finishExec;

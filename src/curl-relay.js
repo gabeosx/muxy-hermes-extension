@@ -92,6 +92,10 @@ export class CurlRelay {
   async cancelActiveStream() {
     const active = this.activeStream;
     if (!active) return null;
+    if (!active.cancellable) {
+      active.cancelled = true;
+      return null;
+    }
     if (!active.cancelPromise) {
       active.cancelled = true;
       active.cancelPromise = Promise.resolve().then(() => active.handle.cancel());
@@ -151,7 +155,7 @@ export class CurlRelay {
   }
 
   async streamJournal({ url, bearer, method = "GET", body = null, onChunk, timeoutMs = 60_000 }) {
-    if (!this.execAsync || !this.files?.read || !this.files?.write || !this.files?.delete || !this.events?.subscribe) {
+    if (!this.exec || !this.files?.read || !this.files?.write || !this.files?.delete || !this.events?.subscribe) {
       throw relayError("journal_api_unavailable");
     }
     if (typeof onChunk !== "function") throw relayError("journal_consumer_required");
@@ -189,14 +193,15 @@ export class CurlRelay {
     });
 
     let primaryFailure = null;
-    const active = { handle: null, completion: null, cancelPromise: null, cancelled: false };
+    const active = { handle: null, completion: null, cancelPromise: null, cancelled: false, cancellable: Boolean(this.execAsync) };
     this.activeStream = active;
     const complete = (async () => {
       try {
-        const handle = this.execAsync(argv, {
-        stdin: buildBearerConfig(bearer),
-        timeoutMs: timeoutMs + 2_000,
-        });
+        const options = { stdin: buildBearerConfig(bearer), timeoutMs: timeoutMs + 2_000 };
+        // Current Muxy webviews expose Promise-based exec but not the cancellable execAsync surface.
+        const handle = this.execAsync
+          ? this.execAsync(argv, options)
+          : { id: null, result: Promise.resolve(this.exec(argv, options)), cancel() {} };
         if (!handle?.result || typeof handle.cancel !== "function") throw relayError("relay_async_unavailable");
         active.handle = handle;
         let result;
