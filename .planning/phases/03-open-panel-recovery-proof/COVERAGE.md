@@ -13,24 +13,24 @@ Phase 3 changes lifecycle behavior, not the deployment-neutral API surface. It r
 
 ## Runs Surface
 
-| Surface | Decision | Phase 3 behavior |
+| capability | decision | reason |
 |---|---|---|
-| `GET /v1/capabilities` | INHERITED | A fresh connection still gates all run/recovery controls from advertised names; fixture evidence records only safe capability metadata/shape. |
-| `POST /v1/runs` | INHERITED | Starts the initial run and observer exactly as Phase 2; Phase 3 adds no automatic resubmission or idempotent replay. |
+| `GET /v1/capabilities` | INTEGRATE | A fresh connection still gates all run/recovery controls from advertised names; fixture evidence records only safe capability metadata/shape. |
+| `POST /v1/runs` | INTEGRATE | Starts the initial run and observer exactly as Phase 2; Phase 3 adds no automatic resubmission or idempotent replay. |
 | `GET /v1/runs/{run_id}` | INTEGRATE | Authoritative after every stream interruption, before every reattach decision, after exhaustion, and for manual recreated-panel recovery/refresh. |
 | `GET /v1/runs/{run_id}/events` | INTEGRATE | Initial subscription plus exactly two serialized best-effort same-panel reattach attempts using a fresh parser. Recreated panels do not automatically attach. |
-| `POST /v1/runs/{run_id}/stop` | INHERITED | Remains capability-gated; recovered active runs may request stop, then reconcile authoritative status. |
-| `POST /v1/runs/{run_id}/steer` | INHERITED | Remains capability-gated; no recovery state implies delivery or replay. |
-| `POST /v1/runs/{run_id}/approval` | INHERITED | Remains capability- and exact-choice-gated. Pending approval detail is cleared on interruption/recreation and is never synthesized from status. |
+| `POST /v1/runs/{run_id}/stop` | INTEGRATE | Remains capability-gated; recovered active runs may request stop, then reconcile authoritative status. |
+| `POST /v1/runs/{run_id}/steer` | INTEGRATE | Remains capability-gated; no recovery state implies delivery or replay. |
+| `POST /v1/runs/{run_id}/approval` | INTEGRATE | Remains capability- and exact-choice-gated. Pending approval detail is cleared on interruption/recreation and is never synthesized from status. |
 
 ## Reviewed Opt-Outs
 
-| Surface | Decision | Reason |
+| capability | decision | reason |
 |---|---|---|
 | Responses/session message history endpoints | OPT-OUT | They are a different product/session contract and cannot reconstruct the active Runs event stream or approval detail. |
 | Jobs/background APIs | OPT-OUT | Durable background ownership and closed-panel attention are post-v1. |
 | Skills/toolsets/models/profile discovery | OPT-OUT | Recovery requires no new metadata or model selection. |
-| Any event cursor/resume token | NOT ADVERTISED / OPT-OUT | Current contract supplies no client-confirmed exactly-once cursor; the panel must warn about incomplete/duplicated events. |
+| Any event cursor/resume token | OPT-OUT | Current contract supplies no client-confirmed exactly-once cursor; the panel must warn about incomplete/duplicated events. |
 | Native Muxy HTTP, `EventSource`, helper daemon, or background script | OPT-OUT | They either cannot satisfy the authenticated local stream or would add a second authority/owner. |
 
 ## Fixture and Claim Boundary
