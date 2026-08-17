@@ -44,8 +44,13 @@ function normalizeCapabilities(payload) {
 
 function relayFailureReason(error) {
   if (error?.message === "relay_unavailable") return "relay_unavailable";
-  if (error?.message === "relay_request_failed") return "gateway_unreachable";
+  if (error?.message === "relay_dns") return "gateway_dns";
+  if (error?.message === "relay_tls") return "gateway_tls";
+  if (error?.message === "relay_connection_refused") return "gateway_refused";
   if (error?.message === "relay_timeout") return "gateway_timeout";
+  if (error?.message === "journal_limit_exceeded") return "journal_limit";
+  if (error?.message === "relay_protocol_error") return "protocol";
+  if (error?.message === "relay_request_failed") return "gateway_unreachable";
   return "relay_request_rejected";
 }
 
@@ -108,7 +113,11 @@ export class GatewayClient {
       if (!capabilities.chatCompletions) {
         return { ...baseResult, stream: stage("not_verified", { reason: "chat_completions_not_advertised" }) };
       }
-      return { ...baseResult, stream: await this.#qualifyStream(baseUrl, bearer) };
+      const stream = await this.#qualifyStream(baseUrl, bearer);
+      if (stream.reason === "authentication") {
+        return { ...baseResult, authentication: stage("failed"), stream };
+      }
+      return { ...baseResult, stream };
     } catch (error) {
       if (signal?.aborted || generation !== this.#generation) return this.#failed("aborted");
       return this.#failed(relayFailureReason(error));
@@ -160,7 +169,7 @@ export class GatewayClient {
     let secondDelta = false;
     let terminal = false;
     let toolShape = false;
-    await this.#relay.streamJournal({
+    const streamResult = await this.#relay.streamJournal({
       url: endpoint(baseUrl, "/v1/chat/completions"),
       bearer,
       method: "POST",
@@ -181,6 +190,13 @@ export class GatewayClient {
         }
       },
     });
+    if (streamResult.cancelled) return stage("not_verified", { reason: "cancelled", firstChunkMs, eventCount, terminal, toolShape });
+    if (streamResult.httpStatus === 401 || streamResult.httpStatus === 403) {
+      return stage("failed", { reason: "authentication", firstChunkMs, eventCount, terminal, toolShape });
+    }
+    if (streamResult.httpStatus !== null && (streamResult.httpStatus < 200 || streamResult.httpStatus >= 300)) {
+      return stage("failed", { reason: "protocol", firstChunkMs, eventCount, terminal, toolShape });
+    }
     const passed = firstDelta && secondDelta && terminal && !toolShape;
     return stage(passed ? "passed" : "not_verified", {
       reason: passed ? null : "qualification_sequence_unproved",

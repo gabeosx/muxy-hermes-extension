@@ -11,10 +11,15 @@ export const ProbeState = Object.freeze({
 export const FailureClass = Object.freeze({
   URL: "url",
   RELAY: "relay",
+  GATEWAY_DNS: "gateway_dns",
+  GATEWAY_TLS: "gateway_tls",
+  GATEWAY_REFUSED: "gateway_refused",
   GATEWAY_UNREACHABLE: "gateway_unreachable",
   GATEWAY_TIMEOUT: "gateway_timeout",
   AUTHENTICATION: "authentication",
   CAPABILITY_PROTOCOL: "capability_protocol",
+  PROTOCOL: "protocol",
+  JOURNAL_LIMIT: "journal_limit",
   STREAMING: "streaming",
 });
 
@@ -47,14 +52,21 @@ export function toSafeVerdict(result, { endpoint, startedAt, finishedAt }) {
   const capabilityOutcome = stage(result?.capabilities?.state);
   const streamOutcome = stage(result?.stream?.state);
   const relayReason = result?.relay?.reason ?? result?.request?.reason;
+  const streamReason = result?.stream?.reason;
   let failureClass = null;
-  if (relayOutcome.state === "failed" && relayReason === "gateway_unreachable") failureClass = FailureClass.GATEWAY_UNREACHABLE;
+  if (relayOutcome.state === "failed" && relayReason === "gateway_dns") failureClass = FailureClass.GATEWAY_DNS;
+  else if (relayOutcome.state === "failed" && relayReason === "gateway_tls") failureClass = FailureClass.GATEWAY_TLS;
+  else if (relayOutcome.state === "failed" && relayReason === "gateway_refused") failureClass = FailureClass.GATEWAY_REFUSED;
+  else if (relayOutcome.state === "failed" && relayReason === "gateway_unreachable") failureClass = FailureClass.GATEWAY_UNREACHABLE;
   else if (relayOutcome.state === "failed" && relayReason === "gateway_timeout") failureClass = FailureClass.GATEWAY_TIMEOUT;
+  else if (relayOutcome.state === "failed" && relayReason === "journal_limit") failureClass = FailureClass.JOURNAL_LIMIT;
+  else if (relayOutcome.state === "failed" && relayReason === "protocol") failureClass = FailureClass.PROTOCOL;
   else if (relayOutcome.state === "failed") failureClass = FailureClass.RELAY;
   else if (authenticationOutcome.state === "failed") failureClass = FailureClass.AUTHENTICATION;
   else if (capabilityOutcome.state === "failed") failureClass = FailureClass.CAPABILITY_PROTOCOL;
+  else if (streamOutcome.state === "failed" && streamReason === "protocol") failureClass = FailureClass.PROTOCOL;
   else if (streamOutcome.state === "failed") failureClass = FailureClass.STREAMING;
-  else if (capabilityOutcome.state === "passed" && streamOutcome.state === "not_verified") failureClass = FailureClass.STREAMING;
+  else if (capabilityOutcome.state === "passed" && streamOutcome.state === "not_verified" && streamReason !== "cancelled") failureClass = FailureClass.STREAMING;
 
   const allObserved = [relayOutcome, authenticationOutcome, capabilityOutcome, streamOutcome]
     .every((outcome) => outcome.state === "passed");
