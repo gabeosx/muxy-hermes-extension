@@ -31,7 +31,7 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
   4. User can inspect versioned evidence for the direct-WebKit negative result and relay behavior across the deployment matrix; only a real path may establish `Supported`, and simulated remote conditions remain `Unverified`.
   5. The extension requests only `commands:exec`, journal file read/write, and panel authority; it never performs Docker, SSH, Gateway lifecycle, terminal, Git, Muxy-source, Hermes-source, or provider-registration changes.
 
-**Plans:** 4/6 plans executed
+**Plans:** 6/6 plans executed
 
 Plans:
 **Wave 1**
@@ -46,11 +46,11 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 01-04-PLAN.md — Record the direct-WebKit negative result and implement the consented curl streaming relay.
-- [ ] 01-05-PLAN.md — Exercise SSH, HTTPS/proxy, and remote-workspace simulations as Unverified.
+- [x] 01-05-PLAN.md — Exercise SSH, HTTPS/proxy, and remote-workspace simulations as Unverified.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 01-06-PLAN.md — Render the matrix, enforce the Muxy-change stop gate, and validate the phase boundary.
+- [x] 01-06-PLAN.md — Render the matrix, enforce the Muxy-change stop gate, and validate the phase boundary.
 
 **UI hint:** yes
 
@@ -93,6 +93,6 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Verified Gateway Connectivity | 4/6 | In Progress|  |
+| 1. Verified Gateway Connectivity | 6/6 | In Progress|  |
 | 2. Capability-Driven Run Control | 0/TBD | Not started | - |
 | 3. Open-Panel Recovery Proof | 0/TBD | Not started | - |

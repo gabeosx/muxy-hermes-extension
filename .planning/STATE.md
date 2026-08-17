@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 01
-current_phase_name: Verified Gateway Connectivity
+current_phase_name: verified-gateway-connectivity
 status: executing
-stopped_at: Completed 01-04-PLAN.md; next real-panel relay tracer
-last_updated: "2026-08-17T16:22:16.621Z"
+stopped_at: Completed 01-06-PLAN.md
+last_updated: "2026-08-17T18:01:37.036Z"
 last_activity: 2026-08-17
 last_activity_desc: Approved and implemented the consented curl relay after the direct-WebKit negative result.
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 6
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-16)
 
 **Core value:** Prove secure, authenticated, streamed Hermes run control across representative Hermes deployment shapes inside a native-feeling Muxy panel before building the surrounding product.
-**Current focus:** Phase 01 — Verified Gateway Connectivity
+**Current focus:** Phase 01 — verified-gateway-connectivity
 
 ## Current Position
 
-Phase: 01 (Verified Gateway Connectivity) — EXECUTING
-Plan: 5 of 6
+Phase: 01 (verified-gateway-connectivity) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-08-17 — Consented curl relay implemented and fully automated-test verified
+Last activity: 2026-08-17 — Phase 01 execution started
 
-Progress: [███████░░░] 67%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Progress: [███████░░░] 67%
 | Phase 01 P02 | 183m | 2 tasks | 7 files |
 | Phase 01 P03 | 9m | 2 tasks | 7 files |
 | Phase 01 P04 | 1d | 2 tasks | 18 files |
+| Phase 01-verified-gateway-connectivity P06 | 8m | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Adapt stale TypeScript plan paths to the existing JavaScript panel scaffold.
 - [Phase ?]: Evidence persists only allowlisted projections and SHA-256 shape hashes; raw transport observations remain ephemeral.
 - [Phase 01]: Detailed closed-panel notifications, provider registration, and every Muxy/Hermes source change remain deferred.
+- [Phase ?]: Use a fail-closed evidence matrix: only reproducible fresh real-path origin or stream failures, or an explicit change signal, activate the Muxy-change stop gate.
+- [Phase ?]: Keep simulated SSH, direct HTTPS, and remote-workspace evidence Unverified at the panel projection boundary.
 
 ### Pending Todos
 
@@ -103,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-17T20:10:00Z
-Stopped at: Completed 01-04-PLAN.md; next real-panel relay tracer
+Last session: 2026-08-17T18:01:37.019Z
+Stopped at: Completed 01-06-PLAN.md
 Resume file: None
