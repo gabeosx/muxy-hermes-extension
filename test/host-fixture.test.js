@@ -14,6 +14,7 @@ import {
   consumeOriginHandoff,
   createQualificationRuntime,
   recordFreshSession,
+  startDeterministicModelStub,
   startOriginCaptureServer,
   validateCapturedOrigin,
 } from "../scripts/qualify-real.mjs";
@@ -69,6 +70,43 @@ test("host fixture creates a permission-restricted empty home/workspace and no d
     assert.equal(runtime.environment.API_SERVER_KEY, "test-only-secret");
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("deterministic model fixture permits Hermes metadata while rejecting title probes and replay", async () => {
+  const stub = await startDeterministicModelStub();
+  const endpoint = `${stub.baseUrl}/chat/completions`;
+  const post = (body) => fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  try {
+    const titleProbe = await post({
+      model: "hermes-agent",
+      messages: [{ role: "user", content: "Create a title" }],
+      stream: false,
+    });
+    assert.equal(titleProbe.status, 400);
+
+    const qualifiedBody = {
+      model: "hermes-agent",
+      messages: [
+        { role: "system", content: "Hermes runtime metadata" },
+        { role: "user", content: "HERMES_STREAM_QUALIFICATION_V1" },
+      ],
+      stream: true,
+      tools: [{ type: "function", function: { name: "fixture_tool", parameters: { type: "object" } } }],
+    };
+    const qualified = await post(qualifiedBody);
+    assert.equal(qualified.status, 200);
+    assert.match(await qualified.text(), /alpha[\s\S]*beta[\s\S]*\[DONE\]/);
+    assert.equal(stub.requestCount(), 1);
+
+    const replay = await post(qualifiedBody);
+    assert.equal(replay.status, 400);
+  } finally {
+    await stub.close();
   }
 });
 
