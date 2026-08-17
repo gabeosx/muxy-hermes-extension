@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { mkdtemp, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -46,7 +45,7 @@ test("installed Muxy identity requires its exact bundle identifier and safe vers
 });
 
 test("host fixture creates a permission-restricted empty home/workspace and no durable bearer", async () => {
-  const root = await mkdtemp(join(tmpdir(), "hermes-host-fixture-test-"));
+  const root = await mkdtemp("/private/tmp/hermes-host-fixture-test-");
   try {
     const runtime = await createQualificationRuntime({ root, token: "test-only-secret" });
     assert.equal(await stat(runtime.home).then((value) => value.mode & 0o777), 0o700);
