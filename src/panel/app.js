@@ -33,6 +33,7 @@ export class HermesGatewayPanel {
     this.copyState = "idle";
     this.contractState = "idle";
     this.bridgeContract = null;
+    this.releasePromise = null;
   }
 
   start() {
@@ -58,14 +59,21 @@ export class HermesGatewayPanel {
     window.muxy?.onFocus?.(() => {
       if (this.snapshot.status !== ProbeState.TESTING) this.urlInput?.focus();
     });
-    window.addEventListener("pagehide", () => this.release(), { once: true });
+    window.muxy?.lifecycle?.onBeforeClose?.(async () => this.release());
+    window.addEventListener("pagehide", () => { void this.release(); }, { once: true });
   }
 
   release() {
-    this.probe.abort();
-    this.tokenValue = "";
-    if (this.tokenInput) this.tokenInput.value = "";
-    this.unsubscribe?.();
+    if (!this.releasePromise) {
+      this.releasePromise = (async () => {
+        await this.probe.abort();
+        this.tokenValue = "";
+        if (this.tokenInput) this.tokenInput.value = "";
+        this.unsubscribe?.();
+        this.unsubscribe = null;
+      })();
+    }
+    return this.releasePromise;
   }
 
   render() {

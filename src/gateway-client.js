@@ -54,6 +54,7 @@ export class GatewayClient {
   #generation = 0;
   #inFlight = false;
   #prepared = null;
+  #teardown = Promise.resolve();
 
   constructor({ relay = new CurlRelay() } = {}) {
     this.#relay = relay;
@@ -73,8 +74,10 @@ export class GatewayClient {
     return this.#prepared;
   }
 
-  teardown() {
+  async teardown() {
     this.#generation += 1;
+    this.#teardown = this.#teardown.then(() => this.#relay.cancelActiveStream?.());
+    return this.#teardown;
   }
 
   async probe(rawUrl, bearer, { signal = null } = {}) {

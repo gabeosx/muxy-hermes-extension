@@ -50,9 +50,10 @@ test("streamJournal consumes file.changed through muxy.files without exec pollin
   let finishExec;
   const execDone = new Promise((resolve) => { finishExec = resolve; });
   const relay = new CurlRelay({
-    exec: (argv, options) => {
+    exec: async () => ({ stdout: "", exitCode: 0 }),
+    execAsync: (argv, options) => {
       operations.push({ type: "exec", argv, options });
-      return execDone;
+      return { id: "stream-1", result: execDone, cancel() {} };
     },
     files: {
       async read(path) {
@@ -87,7 +88,7 @@ test("streamJournal consumes file.changed through muxy.files without exec pollin
   journal += "event: message\ndata: two\n\n";
   subscriptions.get("file.changed")({ path: ".muxy-hermes-runtime/fixed-id/stream.sse" });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  finishExec({ stdout: "", stderr: "", exitCode: 0, timedOut: false, truncated: false });
+  finishExec({ stdout: "\n__MUXY_HERMES_STATUS__:200", stderr: "", exitCode: 0, timedOut: false, truncated: false });
 
   const result = await running;
   assert.deepEqual(chunks, ["event: message\ndata: one\n\n", "event: message\ndata: two\n\n"]);
@@ -104,7 +105,8 @@ test("streamJournal fails closed when the journal exceeds the Muxy read ceiling"
   let handler;
   let finishExec;
   const relay = new CurlRelay({
-    exec: () => new Promise((resolve) => { finishExec = resolve; }),
+    exec: async () => ({ stdout: "", exitCode: 0 }),
+    execAsync: () => ({ id: "stream-2", result: new Promise((resolve) => { finishExec = resolve; }), cancel() {} }),
     files: {
       async read(path) { return { path, content: "x", size: MAX_JOURNAL_BYTES + 1 }; },
       async write() {},
@@ -115,7 +117,7 @@ test("streamJournal fails closed when the journal exceeds the Muxy read ceiling"
   });
   const running = relay.streamJournal({ url: "http://127.0.0.1:8642/events", bearer: "token", onChunk() {} });
   handler({ path: ".muxy-hermes-runtime/too-large/stream.sse" });
-  finishExec({ stdout: "", stderr: "", exitCode: 0, timedOut: false, truncated: false });
+  finishExec({ stdout: "\n__MUXY_HERMES_STATUS__:200", stderr: "", exitCode: 0, timedOut: false, truncated: false });
   await assert.rejects(running, /journal_limit_exceeded/);
 });
 

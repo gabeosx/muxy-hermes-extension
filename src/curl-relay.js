@@ -52,6 +52,26 @@ function parseStatusOutput(result) {
   return { status: Number(statusText), body };
 }
 
+function streamStatus(result) {
+  const stdout = typeof result?.stdout === "string" ? result.stdout : "";
+  const match = stdout.match(new RegExp(`(?:^|\\n)${STATUS_MARKER}(\\d{3})\\s*$`));
+  const status = match ? Number(match[1]) : null;
+  return status && status >= 100 ? status : null;
+}
+
+function curlExitClass(result, cancelled) {
+  if (cancelled || result?.cancelled || result?.code === "cancelled") return "cancelled";
+  if (result?.timedOut || result?.exitCode === 28) return "timeout";
+  if (result?.exitCode === 6) return "dns";
+  if (result?.exitCode === 7) return "connection_refused";
+  if ([35, 51, 58, 59, 60].includes(result?.exitCode)) return "tls";
+  return result?.exitCode === 0 ? "success" : "stream_failed";
+}
+
+function cancellation(error) {
+  return error?.cancelled === true || error?.code === "cancelled";
+}
+
 function defaultBridge() {
   const muxy = globalThis.window?.muxy;
   if (!muxy?.exec) throw relayError("relay_unavailable");
@@ -59,12 +79,25 @@ function defaultBridge() {
 }
 
 export class CurlRelay {
-  constructor({ exec, files, events, randomId } = {}) {
+  constructor({ exec, execAsync, files, events, randomId } = {}) {
     const bridge = exec ? null : defaultBridge();
     this.exec = exec ?? bridge.exec.bind(bridge);
+    this.execAsync = execAsync ?? bridge?.execAsync?.bind(bridge) ?? null;
     this.files = files ?? bridge?.files ?? null;
     this.events = events ?? bridge?.events ?? null;
     this.randomId = randomId ?? (() => globalThis.crypto.randomUUID());
+    this.activeStream = null;
+  }
+
+  async cancelActiveStream() {
+    const active = this.activeStream;
+    if (!active) return null;
+    if (!active.cancelPromise) {
+      active.cancelled = true;
+      active.cancelPromise = Promise.resolve().then(() => active.handle.cancel());
+    }
+    await active.cancelPromise;
+    return active.completion;
   }
 
   async cleanupStaleJournals() {
@@ -118,7 +151,7 @@ export class CurlRelay {
   }
 
   async streamJournal({ url, bearer, method = "GET", body = null, onChunk, timeoutMs = 60_000 }) {
-    if (!this.files?.read || !this.files?.write || !this.files?.delete || !this.events?.subscribe) {
+    if (!this.execAsync || !this.files?.read || !this.files?.write || !this.files?.delete || !this.events?.subscribe) {
       throw relayError("journal_api_unavailable");
     }
     if (typeof onChunk !== "function") throw relayError("journal_consumer_required");
@@ -129,7 +162,7 @@ export class CurlRelay {
     if (body !== null) {
       argv.splice(argv.length - 1, 0, "--header", "Content-Type: application/json", "--data-binary", JSON.stringify(body));
     }
-    argv.splice(argv.length - 1, 0, "--create-dirs", "--output", journalPath);
+    argv.splice(argv.length - 1, 0, "--create-dirs", "--output", journalPath, "--write-out", `\\n${STATUS_MARKER}%{http_code}`);
 
     let offset = 0;
     let bytes = 0;
@@ -156,28 +189,52 @@ export class CurlRelay {
     });
 
     let primaryFailure = null;
-    try {
-      const result = await this.exec(argv, {
+    const active = { handle: null, completion: null, cancelPromise: null, cancelled: false };
+    this.activeStream = active;
+    const complete = (async () => {
+      try {
+        const handle = this.execAsync(argv, {
         stdin: buildBearerConfig(bearer),
         timeoutMs: timeoutMs + 2_000,
-      });
-      await readQueue;
-      await consume({ optional: true });
-      if (journalFailure) throw journalFailure;
-      if (!result || result.timedOut) throw relayError("relay_timeout");
-      if (result.exitCode !== 0) throw relayError("relay_stream_failed");
-      return { bytes, journalPath };
-    } catch (error) {
-      primaryFailure = error;
-      throw error;
-    } finally {
-      unsubscribe?.();
-      try {
-        await this.files.write(journalPath, "");
-        await this.files.delete([runDirectory]);
-      } catch {
-        if (!primaryFailure) throw relayError("journal_cleanup_failed");
+        });
+        if (!handle?.result || typeof handle.cancel !== "function") throw relayError("relay_async_unavailable");
+        active.handle = handle;
+        let result;
+        try {
+          result = await handle.result;
+        } catch (error) {
+          if (!active.cancelled && !cancellation(error)) throw relayError("relay_stream_failed");
+          result = { cancelled: true, code: "cancelled", stdout: "", exitCode: null };
+        }
+        await readQueue;
+        await consume({ optional: true });
+        if (journalFailure) throw journalFailure;
+        const cancelled = active.cancelled || cancellation(result);
+        const exitClass = curlExitClass(result, cancelled);
+        if (!cancelled && exitClass !== "success") throw relayError(`relay_${exitClass}`);
+        return {
+          executionId: handle.id ?? null,
+          httpStatus: streamStatus(result),
+          bytes,
+          cancelled,
+          curlExitClass: exitClass,
+          journalOutcome: "scrubbed_removed",
+        };
+      } catch (error) {
+        primaryFailure = error;
+        throw error;
+      } finally {
+        unsubscribe?.();
+        try {
+          await this.files.write(journalPath, "");
+          await this.files.delete([runDirectory]);
+        } catch {
+          if (!primaryFailure) throw relayError("journal_cleanup_failed");
+        }
+        if (this.activeStream === active) this.activeStream = null;
       }
-    }
+    })();
+    active.completion = complete;
+    return complete;
   }
 }

@@ -83,6 +83,7 @@ export class ConnectionProbe {
   #now;
   #attempt = 0;
   #controller = null;
+  #abortPromise = Promise.resolve();
   #listeners = new Set();
   #snapshot = freeze({ status: ProbeState.IDLE, previousResult: null });
 
@@ -103,12 +104,18 @@ export class ConnectionProbe {
   }
 
   abort() {
-    this.#controller?.abort();
+    const controller = this.#controller;
+    if (!controller) return null;
+    this.#attempt += 1;
+    controller.abort();
     this.#controller = null;
+    this.#abortPromise = Promise.resolve(this.#client.teardown?.());
+    return this.#abortPromise;
   }
 
   async start({ url, token }) {
-    this.abort();
+    const release = this.abort();
+    if (release) await release;
     const attempt = ++this.#attempt;
     const startedAt = this.#now();
     let endpoint;
