@@ -31,7 +31,7 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
   4. User can inspect versioned protocol fixtures and a deployment matrix that record the Muxy and Hermes versions, capabilities, representative event frames, and `Supported`, `Unsupported`, or `Unverified` verdict for every required deployment condition; only a real-path end-to-end test may establish `Supported`, simulated remote conditions remain `Unverified`, and the extension requests no Docker, SSH, process, terminal, Git-write, or filesystem-write authority.
   5. If direct authenticated WebKit transport is unsafe or fails for either real-qualified deployment class, or validation reveals that a Muxy source change, bridge, or agent/provider registration change is required, user receives a reproducible failure report and the smallest required change contract; v1 expansion pauses for an explicit user decision, and no Muxy or registration change is performed automatically.
 
-**Plans:** 1/6 plans executed
+**Plans:** 2/6 plans executed
 
 Plans:
 **Wave 1**
@@ -40,7 +40,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Complete fact-first diagnostics and the native Muxy UI state contract.
+- [x] 01-02-PLAN.md — Complete fact-first diagnostics and the native Muxy UI state contract.
 - [ ] 01-03-PLAN.md — Build redacted evidence, verdict classification, and version history.
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -93,6 +93,6 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Verified Gateway Connectivity | 1/6 | In Progress|  |
+| 1. Verified Gateway Connectivity | 2/6 | In Progress|  |
 | 2. Capability-Driven Run Control | 0/TBD | Not started | - |
 | 3. Open-Panel Recovery Proof | 0/TBD | Not started | - |

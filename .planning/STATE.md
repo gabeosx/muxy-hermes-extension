@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: Verified Gateway Connectivity
 status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-08-17T13:50:41.751Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-08-17T14:08:10.737Z"
 last_activity: 2026-08-16
 last_activity_desc: Approved v1 requirements mapped into a vertical MVP roadmap.
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-16)
 ## Current Position
 
 Phase: 01 (Verified Gateway Connectivity) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-08-16 — Phase 01 execution started
 
-Progress: [██░░░░░░░░] 17%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [██░░░░░░░░] 17%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P01 | 15m | 3 tasks | 15 files |
+| Phase 01 P02 | 183m | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 3]: Run ownership and the bearer token exist only while the panel is open; status reconciliation is the fallback for interruptions.
 - [Phase 01]: Plan 01-01 leaves real Muxy controlled-fixture streaming Not verified and qualification Unverified until Plan 01-04.
 - [Phase 01]: Plan 01-01 ships a permissionless declarative panel with no background entry.
+- [Phase ?]: Keep browser-origin outcomes Not verified unless controlled evidence proves an exact origin.
+- [Phase ?]: Render capability names strictly as read-only data; no capability creates a Phase 1 control.
+- [Phase ?]: Adapt stale TypeScript plan paths to the existing JavaScript panel scaffold.
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-17T13:50:41.735Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-08-17T14:08:10.723Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
