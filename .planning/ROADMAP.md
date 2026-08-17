@@ -33,6 +33,8 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
 
 **Plans:** 9/15 plans executed
 
+**Fast-path decision (2026-08-17):** Plans 10-15 are intentionally deferred. The retained MVP is the built and native-loaded URL/token → consented relay → capabilities → incremental stream → awaited cleanup path. Phase completion now depends on one live test against a user-operated Gateway, not on expanding the qualification/evidence harness.
+
 Plans:
 
 **Wave 1**

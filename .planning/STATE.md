@@ -5,10 +5,10 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: verified-gateway-connectivity
 status: executing
-stopped_at: Completed 01-09-PLAN.md
-last_updated: "2026-08-17T19:48:36.851Z"
+stopped_at: Fast-path build validated and loaded in Muxy; live Gateway connection pending
+last_updated: "2026-08-17T19:56:00.000Z"
 last_activity: 2026-08-17
-last_activity_desc: Phase 01 gap-closure planning complete — 9 plans ready
+last_activity_desc: Fast path selected — build validated and native Muxy panel loaded; Plans 10-15 deferred
 progress:
   total_phases: 1
   completed_phases: 0
@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (updated 2026-08-16)
 ## Current Position
 
 Phase: 01 (verified-gateway-connectivity) — EXECUTING
-Plan: 4 of 15
-Status: Ready to execute
-Last activity: 2026-08-17 — Phase 01 execution started
+Plan: 9 of 15 complete; 10-15 deferred by fast-path decision
+Status: Awaiting one live user-operated Gateway connection test
+Last activity: 2026-08-17 — Consolidated validation passed and the DEV extension loaded in Muxy
 
 Progress: [██████░░░░] 60%
 
@@ -94,6 +94,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Only buildVerifiedEvidenceRecord may create a schema-v2 support-eligible record.
 - [Phase ?]: The generic CLI accepts only fixed failure/incomplete metadata and always emits supportEligible false.
 - [Phase ?]: Schema-v1 artifacts remain readable historical evidence but expose no support eligibility marker.
+- [Phase 01]: Stop the multi-plan qualification expansion after Plan 09; keep the working connect/stream/cancel vertical slice, defer Plans 10-15, and validate once against a user-operated Gateway.
 
 ### Pending Todos
 
@@ -102,6 +103,7 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 1]: Actual Muxy consent prompts, file.changed delivery, incremental relay rendering, audit-token absence, and stale-journal cleanup still require real-panel verification before real user run content.
+- [Phase 1]: No Hermes Gateway is currently listening at the default loopback address, so the final live URL/token connection proof remains pending.
 
 ### Roadmap Evolution
 
