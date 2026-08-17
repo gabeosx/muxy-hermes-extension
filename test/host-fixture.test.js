@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -11,8 +11,10 @@ import {
 } from "../scripts/resolve-versions.mjs";
 import {
   FIXTURE_REQUEST,
+  consumeOriginHandoff,
   createQualificationRuntime,
   recordFreshSession,
+  startOriginCaptureServer,
   validateCapturedOrigin,
 } from "../scripts/qualify-real.mjs";
 
@@ -70,9 +72,9 @@ test("host fixture creates a permission-restricted empty home/workspace and no d
   }
 });
 
-test("captured origins must be stable exact non-null values and two sessions must be freshly distinct", () => {
-  assert.equal(validateCapturedOrigin(["muxy-extension://panel", "muxy-extension://panel"]), "muxy-extension://panel");
-  for (const origins of [["null"], ["*"], ["one", "two"], []]) {
+test("captured origins must be stable, syntactically exact non-null values and two sessions must be freshly distinct", () => {
+  assert.equal(validateCapturedOrigin(["muxy-extension://panel"]), "muxy-extension://panel");
+  for (const origins of [["muxy-extension://panel", "muxy-extension://panel"], ["null"], ["*"], ["one", "two"], [], ["https://gateway.example/path"], ["https://user:pass@gateway.example"], ["javascript://unsafe"]]) {
     assert.throws(() => validateCapturedOrigin(origins), /qualification_origin_/);
   }
   const first = recordFreshSession({ sessionOrdinal: 1, panelSessionId: "panel-a", requiredStages: "passed" });
@@ -80,4 +82,71 @@ test("captured origins must be stable exact non-null values and two sessions mus
   assert.equal(first.freshPanelSession, true);
   assert.equal(second.freshPanelSession, true);
   assert.throws(() => recordFreshSession({ sessionOrdinal: 2, panelSessionId: "panel-a", requiredStages: "passed", previous: first }), /qualification_fresh_panel_required/);
+});
+
+test("origin capture survives listener exit in a 0600 allowlisted one-use handoff", async () => {
+  const capture = await startOriginCaptureServer();
+  try {
+    const response = await fetch(`${capture.url}/v1/capabilities`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "muxy-extension://panel",
+        "Access-Control-Request-Method": "GET",
+        "X-Not-For-Handoff": "test-only-secret",
+      },
+    });
+    assert.equal(response.status, 204);
+    const handoff = await capture.waitForOrigin();
+    await capture.closed;
+    assert.equal(await stat(handoff.path).then((value) => value.mode & 0o777), 0o600);
+    const stored = JSON.parse(await readFile(handoff.path, "utf8"));
+    assert.deepEqual(Object.keys(stored).sort(), ["captureId", "capturedAt", "origin"]);
+    assert.equal(stored.origin, "muxy-extension://panel");
+    assert.equal(JSON.stringify(stored).includes("test-only-secret"), false);
+  } finally {
+    await capture.cleanup();
+  }
+});
+
+test("capture rejects invalid, multiple, null, wildcard, and reflected-input requests without a handoff or retry", async () => {
+  const cases = [
+    { origin: "null", method: "OPTIONS", path: "/v1/capabilities", requestMethod: "GET" },
+    { origin: "*", method: "OPTIONS", path: "/v1/capabilities", requestMethod: "GET" },
+    { origin: "https://gateway.example/path", method: "OPTIONS", path: "/v1/capabilities", requestMethod: "GET" },
+    { origin: "muxy-extension://panel", method: "GET", path: "/v1/capabilities", requestMethod: "GET" },
+    { origin: "muxy-extension://panel", method: "OPTIONS", path: "/origin?origin=muxy-extension://panel", requestMethod: "GET" },
+  ];
+  for (const scenario of cases) {
+    const capture = await startOriginCaptureServer();
+    const waiting = capture.waitForOrigin();
+    try {
+      const response = await fetch(`${capture.url}${scenario.path}`, {
+        method: scenario.method,
+        headers: { Origin: scenario.origin, "Access-Control-Request-Method": scenario.requestMethod },
+      });
+      assert.equal(response.status, 400);
+      await assert.rejects(waiting, /qualification_origin_/);
+    } finally {
+      await capture.cleanup();
+    }
+  }
+});
+
+test("captured origin is consumed once and deleted immediately after the exact-origin configuration", async () => {
+  const capture = await startOriginCaptureServer();
+  try {
+    await fetch(`${capture.url}/v1/capabilities`, {
+      method: "OPTIONS",
+      headers: { Origin: "muxy-extension://panel", "Access-Control-Request-Method": "GET" },
+    });
+    const handoff = await capture.waitForOrigin();
+    await capture.closed;
+    const configured = [];
+    await consumeOriginHandoff({ path: handoff.path, configure: async (origin) => configured.push(origin) });
+    assert.deepEqual(configured, ["muxy-extension://panel"]);
+    await assert.rejects(stat(handoff.path));
+    await assert.rejects(consumeOriginHandoff({ path: handoff.path, configure: async () => {} }), /qualification_origin_handoff_/);
+  } finally {
+    await capture.cleanup();
+  }
 });

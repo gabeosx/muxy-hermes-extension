@@ -1,13 +1,16 @@
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { chmod, mkdir, mkdtemp, open, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
 import { createServer } from "node:http";
 
 import { resolveVersionTuple } from "./resolve-versions.mjs";
 
 export const FIXTURE_REQUEST = "{\"model\":\"hermes-agent\",\"messages\":[{\"role\":\"user\",\"content\":\"HERMES_STREAM_QUALIFICATION_V1\"}],\"stream\":true}";
 const FIXTURE_ROOT_PREFIX = "/private/tmp/";
+const ORIGIN_HANDOFF_PREFIX = "hermes-origin-handoff-";
+const ORIGIN_HANDOFF_NAME = "captured-origin.json";
+const ORIGIN_CAPTURE_PATH = "/v1/capabilities";
 
 function securePath(value, name) {
   const resolved = resolve(value);
@@ -16,12 +19,75 @@ function securePath(value, name) {
 }
 
 export function validateCapturedOrigin(origins) {
-  const values = [...new Set((origins ?? []).filter((value) => typeof value === "string" && value.length > 0))];
-  if (values.length === 0) throw new Error("qualification_origin_missing");
+  const values = origins ?? [];
+  if (!Array.isArray(values) || values.length === 0) throw new Error("qualification_origin_missing");
   if (values.length !== 1) throw new Error("qualification_origin_unstable");
   const [origin] = values;
-  if (origin === "null" || origin === "*" || /[\r\n]/.test(origin)) throw new Error("qualification_origin_unsafe");
+  if (typeof origin !== "string" || origin.length === 0 || origin === "null" || origin === "*" || /[\r\n]/.test(origin)) throw new Error("qualification_origin_unsafe");
+  let parsed;
+  try { parsed = new URL(origin); } catch { throw new Error("qualification_origin_invalid"); }
+  if (!/^(https?|muxy-extension):\/\//.test(origin) || !parsed.hostname || parsed.username || parsed.password || !["", "/"].includes(parsed.pathname) || parsed.search || parsed.hash) {
+    throw new Error("qualification_origin_invalid");
+  }
   return origin;
+}
+
+function requireOriginHandoffPath(value) {
+  const path = securePath(value, "origin_handoff");
+  if (basename(path) !== ORIGIN_HANDOFF_NAME || !path.includes(`/${ORIGIN_HANDOFF_PREFIX}`)) throw new Error("qualification_origin_handoff_unsafe");
+  return path;
+}
+
+function allowlistedOriginHandoff(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("qualification_origin_handoff_invalid");
+  const keys = Object.keys(payload).sort();
+  if (keys.length !== 3 || keys.join(",") !== "captureId,capturedAt,origin") throw new Error("qualification_origin_handoff_invalid");
+  if (typeof payload.captureId !== "string" || !/^[A-Za-z0-9_-]{16,}$/.test(payload.captureId) || typeof payload.capturedAt !== "string" || Number.isNaN(Date.parse(payload.capturedAt))) {
+    throw new Error("qualification_origin_handoff_invalid");
+  }
+  return validateCapturedOrigin([payload.origin]);
+}
+
+async function createOriginHandoffDestination() {
+  const directory = await mkdtemp(`${FIXTURE_ROOT_PREFIX}${ORIGIN_HANDOFF_PREFIX}`);
+  const path = join(directory, ORIGIN_HANDOFF_NAME);
+  await chmod(directory, 0o700);
+  return Object.freeze({ path, directory });
+}
+
+async function writeOriginHandoff(origin, destination) {
+  const { path, directory } = destination;
+  requireOriginHandoffPath(path);
+  const pendingPath = join(directory, ".captured-origin.pending");
+  const payload = JSON.stringify({ origin: validateCapturedOrigin([origin]), capturedAt: new Date().toISOString(), captureId: randomBytes(16).toString("base64url") });
+  const handle = await open(pendingPath, "wx", 0o600);
+  try {
+    await handle.writeFile(payload, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  await rename(pendingPath, path);
+  await chmod(path, 0o600);
+  return destination;
+}
+
+export async function consumeOriginHandoff({ path, configure } = {}) {
+  const handoffPath = requireOriginHandoffPath(path);
+  if (typeof configure !== "function") throw new Error("qualification_origin_handoff_configure_required");
+  let origin;
+  try {
+    const mode = (await stat(handoffPath)).mode & 0o777;
+    if (mode !== 0o600) throw new Error("qualification_origin_handoff_mode");
+    origin = allowlistedOriginHandoff(JSON.parse(await readFile(handoffPath, "utf8")));
+    await configure(origin);
+  } catch (error) {
+    if (/^ENOENT$/.test(error?.code ?? "")) throw new Error("qualification_origin_handoff_missing");
+    throw error;
+  } finally {
+    await unlink(handoffPath).catch(() => {});
+  }
+  return Object.freeze({ consumed: true });
 }
 
 export async function createQualificationRuntime({ root, token = randomBytes(32).toString("base64url") } = {}) {
@@ -58,20 +124,57 @@ function close(server) {
 }
 
 export async function startOriginCaptureServer() {
-  const origins = [];
+  const destination = await createOriginHandoffDestination();
+  let settleOrigin;
+  let rejectOrigin;
+  let settleClosed;
+  let terminal = false;
+  const originResult = new Promise((resolveOrigin, reject) => { settleOrigin = resolveOrigin; rejectOrigin = reject; });
+  originResult.catch(() => {});
+  const closed = new Promise((resolveClosed) => { settleClosed = resolveClosed; });
+  const finish = async ({ origin, error } = {}) => {
+    if (terminal) return;
+    terminal = true;
+    if (error) rejectOrigin(error);
+    else {
+      try { settleOrigin(await writeOriginHandoff(origin, destination)); }
+      catch (handoffError) { rejectOrigin(handoffError); }
+    }
+    server.close(() => settleClosed());
+  };
   const server = createServer((request, response) => {
-    if (request.headers.origin) origins.push(request.headers.origin);
-    response.writeHead(204).end();
+    const originHeaders = [];
+    for (let index = 0; index < request.rawHeaders.length; index += 2) {
+      if (request.rawHeaders[index].toLowerCase() === "origin") originHeaders.push(request.rawHeaders[index + 1]);
+    }
+    const isExpectedPreflight = request.method === "OPTIONS" && request.url === ORIGIN_CAPTURE_PATH && request.headers["access-control-request-method"] === "GET";
+    if (!isExpectedPreflight) {
+      response.writeHead(400, { Connection: "close" }).end();
+      void finish({ error: new Error("qualification_origin_reflected_or_unexpected_request") });
+      return;
+    }
+    try {
+      const origin = validateCapturedOrigin(originHeaders);
+      response.writeHead(204, { Connection: "close" }).end();
+      void finish({ origin });
+    } catch (error) {
+      response.writeHead(400, { Connection: "close" }).end();
+      void finish({ error });
+    }
   });
   const port = await listen(server);
   return {
     url: `http://127.0.0.1:${port}`,
-    waitForOrigin: () => new Promise((resolveOrigin) => {
-      const timer = setInterval(() => {
-        if (origins.length > 0) { clearInterval(timer); resolveOrigin(validateCapturedOrigin(origins)); }
-      }, 100);
-    }),
-    close: () => close(server),
+    handoffPath: destination.path,
+    waitForOrigin: () => originResult,
+    closed,
+    close: () => finish({ error: new Error("qualification_origin_capture_cancelled") }),
+    cleanup: async () => {
+      await finish({ error: new Error("qualification_origin_capture_cancelled") });
+      await closed;
+      await originResult.catch(() => null);
+      await rm(destination.directory, { recursive: true, force: true });
+    },
   };
 }
 
@@ -139,6 +242,15 @@ export async function startHostGateway({ runtime, origin, executable = process.e
   return { url, stop };
 }
 
+export async function startHostGatewayFromOriginHandoff({ runtime, handoffPath, executable = process.env.HERMES_QUALIFICATION_EXECUTABLE, modelStub }) {
+  let gateway;
+  await consumeOriginHandoff({
+    path: handoffPath,
+    configure: async (origin) => { gateway = await startHostGateway({ runtime, origin, executable, modelStub }); },
+  });
+  return gateway;
+}
+
 export async function qualifyRealDeployment({ fixture = "host-native", runtimeRoot = process.env.QUALIFICATION_RUNTIME_ROOT } = {}) {
   if (fixture !== "host-native") throw new Error("qualification_fixture_unsupported");
   if (!runtimeRoot) throw new Error("qualification_runtime_root_required");
@@ -176,11 +288,30 @@ async function runInteractiveHostQualification(runtimeRoot) {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const fixture = process.argv[3] && process.argv[2] === "--fixture" ? process.argv[3] : "";
+async function runOriginCaptureOnly() {
+  const capture = await startOriginCaptureServer();
+  process.stdout.write(`${JSON.stringify({ status: "awaiting_origin_capture", fixture: "host-native", captureUrl: capture.url, panelToken: "origin-capture-only", handoffPath: capture.handoffPath, requestContract: "capabilities_preflight_only" })}\n`);
+  let captured = false;
   try {
-    if (fixture !== "host-native") throw new Error("qualification_fixture_unsupported");
-    await runInteractiveHostQualification(process.env.QUALIFICATION_RUNTIME_ROOT);
+    await capture.waitForOrigin();
+    await capture.closed;
+    captured = true;
+    process.stdout.write(`${JSON.stringify({ status: "origin_captured", fixture: "host-native", handoffPath: capture.handoffPath })}\n`);
+  } finally {
+    if (!captured) await capture.cleanup();
+    // The one-use handoff is deliberately retained for the explicit consume step.
+  }
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  try {
+    if (process.argv[2] === "--capture-origin" && process.argv.length === 3) {
+      await runOriginCaptureOnly();
+    } else {
+      const fixture = process.argv[3] && process.argv[2] === "--fixture" ? process.argv[3] : "";
+      if (fixture !== "host-native") throw new Error("qualification_fixture_unsupported");
+      await runInteractiveHostQualification(process.env.QUALIFICATION_RUNTIME_ROOT);
+    }
   } catch (error) {
     process.stderr.write(`${/^qualification_/.test(error?.message ?? "") ? error.message : "qualification_failed"}\n`);
     process.exitCode = 1;
