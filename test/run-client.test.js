@@ -36,6 +36,31 @@ test("run client submits once, starts the authenticated event stream, and valida
   assert.equal(JSON.stringify(status).includes("discard"), false);
 });
 
+test("each observer uses the fixed run events endpoint and a fresh parser", async () => {
+  const streams = [];
+  const relay = {
+    async streamJournal(request) {
+      streams.push(request);
+      request.onChunk('data: {"event":"message.delta","run_id":"run_abc12345","delta":"one"}\n\n');
+      return { httpStatus: 200 };
+    },
+  };
+  const client = new RunClient({ relay });
+  const first = [];
+  const second = [];
+
+  await client.observe({ baseUrl: "https://gateway.example", bearer: "secret", runId: "run_abc12345", onEvent: (event) => first.push(event) });
+  await client.observe({ baseUrl: "https://gateway.example", bearer: "secret", runId: "run_abc12345", onEvent: (event) => second.push(event) });
+
+  assert.equal(streams.length, 2);
+  assert.equal(streams[0].url, "https://gateway.example/v1/runs/run_abc12345/events");
+  assert.equal(streams[1].url, "https://gateway.example/v1/runs/run_abc12345/events");
+  assert.equal(streams[0].bearer, "secret");
+  assert.deepEqual(first, [{ type: "message.delta", delta: "one" }]);
+  assert.deepEqual(second, [{ type: "message.delta", delta: "one" }]);
+  assert.throws(() => client.observe({ baseUrl: "https://gateway.example", bearer: "secret", runId: "../escape", onEvent() {} }), /invalid_run_id/);
+});
+
 test("run client uses fixed action endpoints and rejects arbitrary approval choices", async () => {
   const requests = [];
   const relay = { async requestJson(request) { requests.push(request); return { status: 200, body: { status: "running" } }; } };

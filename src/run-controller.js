@@ -1,8 +1,10 @@
 import { RUN_FEATURES, RunClient, supportsCoreRun, TERMINAL_RUN_STATUSES } from "./run-client.js";
+import { isSafeRunId } from "./run-events.js";
 
 const MAX_ASSISTANT_CHARS = 128 * 1024;
 const MAX_ACTIVITY_ITEMS = 100;
-const ACTIVE = new Set(["starting", "queued", "started", "running", "waiting_for_approval", "stopping", "reconciling"]);
+const ACTIVE = new Set(["starting", "queued", "started", "running", "waiting_for_approval", "stopping", "reconciling", "status_unavailable"]);
+const REPLAY_LIMIT_NOTICE = "Live events may be missing or duplicated after an interruption. Earlier approval detail is unavailable.";
 
 function freezeSnapshot(snapshot) {
   return Object.freeze({
@@ -37,23 +39,21 @@ export class RunController {
   #generation = 0;
   #actionPending = false;
   #snapshot;
+  #recoveryDelays;
+  #sleep;
 
-  constructor({ baseUrl, bearer, capabilities, client = new RunClient() }) {
+  constructor({ baseUrl, bearer, capabilities, client = new RunClient(), recoveryDelays = [500, 1500], sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay)) }) {
     this.#client = client;
     this.#baseUrl = baseUrl;
     this.#bearer = bearer;
     this.#features = new Set(capabilities ?? []);
+    this.#recoveryDelays = Object.freeze([...recoveryDelays]);
+    this.#sleep = sleep;
     this.#snapshot = freezeSnapshot({
-      supported: supportsCoreRun(this.#features),
-      capabilities: this.#features,
-      status: "idle",
-      runId: null,
-      assistant: "",
-      activity: [],
-      pendingApproval: null,
-      actionPending: false,
-      error: null,
-      streamState: "idle",
+      supported: supportsCoreRun(this.#features), capabilities: this.#features,
+      status: "idle", runId: null, assistant: "", activity: [], pendingApproval: null,
+      actionPending: false, error: null, streamState: "idle", reconnectAttempt: 0,
+      recoveryNotice: null, manualRefresh: false,
     });
   }
 
@@ -70,23 +70,33 @@ export class RunController {
     if (!this.#snapshot.supported) throw new Error("run_not_supported");
     if (this.isActive()) throw new Error("run_already_active");
     const generation = ++this.#generation;
-    this.#publish({ status: "starting", runId: null, assistant: "", activity: [], pendingApproval: null, error: null, streamState: "connecting" });
+    this.#publish({ status: "starting", runId: null, assistant: "", activity: [], pendingApproval: null, error: null, streamState: "connecting", reconnectAttempt: 0, recoveryNotice: null, manualRefresh: false });
     try {
-      const started = await this.#client.start({
-        baseUrl: this.#baseUrl,
-        bearer: this.#bearer,
-        input,
-        onEvent: (event) => this.#handleEvent(event, generation),
-      });
+      const started = await this.#client.start({ baseUrl: this.#baseUrl, bearer: this.#bearer, input, onEvent: (event) => this.#handleEvent(event, generation) });
       if (generation !== this.#generation) return;
       this.#publish({ runId: started.runId, status: this.#snapshot.pendingApproval ? "waiting_for_approval" : "running", streamState: "streaming" });
-      void Promise.resolve(started.stream).then(
-        () => this.#streamEnded(generation),
-        () => this.#streamEnded(generation, "The live event stream ended before a terminal status was confirmed."),
-      );
+      this.#watchStream(started.stream, generation, 0);
     } catch {
       if (generation === this.#generation) this.#publish({ status: "failed", error: "The run could not be started.", streamState: "closed" });
     }
+  }
+
+  async recover(runId) {
+    if (!isSafeRunId(runId)) throw new Error("invalid_run_id");
+    const generation = ++this.#generation;
+    await this.#client.teardown();
+    if (generation !== this.#generation) return;
+    this.#publish({
+      status: "reconciling", runId, assistant: "", activity: [], pendingApproval: null, error: null,
+      streamState: "detached", reconnectAttempt: 0, manualRefresh: true,
+      recoveryNotice: "Previous live activity and approval detail were not recovered. Gateway status is authoritative.",
+    });
+    await this.reconcile({ generation, interruption: true, detached: true });
+  }
+
+  async refresh() {
+    if (!this.#snapshot.runId) throw new Error("run_not_available");
+    await this.reconcile({ generation: this.#generation, interruption: true, detached: this.#snapshot.streamState === "detached" });
   }
 
   async approve(choice) {
@@ -117,16 +127,27 @@ export class RunController {
     });
   }
 
-  async reconcile({ preserveStopping = false } = {}) {
+  async reconcile({ preserveStopping = false, generation = this.#generation, interruption = false, detached = false } = {}) {
     const runId = this.#snapshot.runId;
-    if (!runId) return;
+    if (!runId || generation !== this.#generation) return "unavailable";
     try {
       const status = await this.#client.status({ baseUrl: this.#baseUrl, bearer: this.#bearer, runId });
-      const nextStatus = preserveStopping && !TERMINAL_RUN_STATUSES.has(status.status) ? "stopping" : status.status;
-      const assistant = this.#snapshot.assistant || status.output || "";
-      this.#publish({ status: nextStatus, assistant, pendingApproval: nextStatus === "waiting_for_approval" ? this.#snapshot.pendingApproval : null, error: null });
+      if (generation !== this.#generation) return "unavailable";
+      const terminal = TERMINAL_RUN_STATUSES.has(status.status);
+      const nextStatus = preserveStopping && !terminal ? "stopping" : status.status;
+      this.#publish({
+        status: nextStatus, assistant: this.#snapshot.assistant || status.output || "",
+        pendingApproval: nextStatus === "waiting_for_approval" && !interruption ? this.#snapshot.pendingApproval : null,
+        error: null, streamState: terminal ? (detached ? "detached" : this.#snapshot.streamState === "disconnected" ? "disconnected" : "closed") : this.#snapshot.streamState,
+        manualRefresh: !terminal && (detached || this.#snapshot.streamState === "disconnected"),
+      });
+      return terminal ? "terminal" : "active";
     } catch {
-      this.#publish({ error: "The Gateway status could not be reconciled." });
+      if (generation !== this.#generation) return "unavailable";
+      if (interruption) {
+        this.#publish({ status: "status_unavailable", streamState: "disconnected", pendingApproval: null, error: "Gateway status could not be confirmed.", manualRefresh: true, recoveryNotice: this.#snapshot.recoveryNotice || REPLAY_LIMIT_NOTICE });
+      } else this.#publish({ error: "The Gateway status could not be reconciled." });
+      return "unavailable";
     }
   }
 
@@ -137,6 +158,31 @@ export class RunController {
     await this.#client.teardown();
   }
 
+  #watchStream(stream, generation, attempt) {
+    void Promise.resolve(stream).then(() => this.#streamSettled(generation, attempt), () => this.#streamSettled(generation, attempt));
+  }
+
+  async #streamSettled(generation, attempt) {
+    if (generation !== this.#generation) return;
+    this.#publish({ status: TERMINAL_RUN_STATUSES.has(this.#snapshot.status) ? this.#snapshot.status : "reconciling", streamState: "reconnecting", pendingApproval: null, error: null, recoveryNotice: REPLAY_LIMIT_NOTICE });
+    const outcome = await this.reconcile({ generation, interruption: true });
+    if (generation !== this.#generation || outcome !== "active") return;
+    if (attempt >= this.#recoveryDelays.length) {
+      this.#publish({ streamState: "disconnected", manualRefresh: true, recoveryNotice: REPLAY_LIMIT_NOTICE });
+      return;
+    }
+    const reconnectAttempt = attempt + 1;
+    this.#publish({ streamState: "reconnecting", reconnectAttempt, manualRefresh: false, recoveryNotice: REPLAY_LIMIT_NOTICE });
+    await this.#sleep(this.#recoveryDelays[attempt]);
+    if (generation !== this.#generation) return;
+    try {
+      const stream = this.#client.observe({ baseUrl: this.#baseUrl, bearer: this.#bearer, runId: this.#snapshot.runId, onEvent: (event) => this.#handleEvent(event, generation) });
+      this.#watchStream(stream, generation, reconnectAttempt);
+    } catch {
+      this.#watchStream(Promise.reject(new Error("observer_failed")), generation, reconnectAttempt);
+    }
+  }
+
   #handleEvent(event, generation) {
     if (generation !== this.#generation) return;
     if (event.type === "message.delta") {
@@ -145,17 +191,8 @@ export class RunController {
     }
     const activity = activityFor(event);
     if (activity) this.#append(activity);
-    if (event.type === "approval.request") {
-      this.#publish({ status: "waiting_for_approval", pendingApproval: { command: event.command, choices: event.choices } });
-    } else if (event.type === "approval.responded") {
-      this.#publish({ status: "running", pendingApproval: null });
-    }
-  }
-
-  async #streamEnded(generation, error = null) {
-    if (generation !== this.#generation) return;
-    this.#publish({ streamState: "closed", status: TERMINAL_RUN_STATUSES.has(this.#snapshot.status) ? this.#snapshot.status : "reconciling", error });
-    await this.reconcile();
+    if (event.type === "approval.request") this.#publish({ status: "waiting_for_approval", pendingApproval: { command: event.command, choices: event.choices } });
+    else if (event.type === "approval.responded") this.#publish({ status: "running", pendingApproval: null });
   }
 
   async #action(operation) {
@@ -173,9 +210,7 @@ export class RunController {
     }
   }
 
-  #append(item) {
-    this.#publish({ activity: [...this.#snapshot.activity, item].slice(-MAX_ACTIVITY_ITEMS) });
-  }
+  #append(item) { this.#publish({ activity: [...this.#snapshot.activity, item].slice(-MAX_ACTIVITY_ITEMS) }); }
 
   #publish(changes) {
     this.#snapshot = freezeSnapshot({ ...this.#snapshot, ...changes, capabilities: this.#features });

@@ -60,15 +60,22 @@ export class RunClient {
     }), 202);
     if (!isSafeRunId(payload?.run_id)) throw new Error("run_protocol_error");
     const runId = payload.run_id;
+    const stream = this.observe({ baseUrl, bearer, runId, onEvent });
+    return Object.freeze({ runId, stream });
+  }
+
+  observe({ baseUrl: rawBaseUrl, bearer, runId, onEvent }) {
+    const baseUrl = normalizeGatewayUrl(rawBaseUrl);
+    if (!isSafeRunId(runId)) throw new Error("invalid_run_id");
+    if (typeof onEvent !== "function") throw new Error("run_event_consumer_required");
     const parser = new RunEventParser(runId);
-    const stream = this.#relay.streamJournal({
+    return this.#relay.streamJournal({
       url: runEndpoint(baseUrl, runId, "/events"),
       bearer,
       onChunk: (chunk) => {
         for (const event of parser.push(chunk)) onEvent(event);
       },
     });
-    return Object.freeze({ runId, stream });
   }
 
   async status({ baseUrl: rawBaseUrl, bearer, runId }) {
