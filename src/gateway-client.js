@@ -42,6 +42,13 @@ function normalizeCapabilities(payload) {
   return { names, version, chatCompletions: features.chat_completions === true };
 }
 
+function relayFailureReason(error) {
+  if (error?.message === "relay_unavailable") return "relay_unavailable";
+  if (error?.message === "relay_request_failed") return "gateway_unreachable";
+  if (error?.message === "relay_timeout") return "gateway_timeout";
+  return "relay_request_rejected";
+}
+
 export class GatewayClient {
   #relay;
   #generation = 0;
@@ -101,7 +108,7 @@ export class GatewayClient {
       return { ...baseResult, stream: await this.#qualifyStream(baseUrl, bearer) };
     } catch (error) {
       if (signal?.aborted || generation !== this.#generation) return this.#failed("aborted");
-      return this.#failed(error?.message === "relay_unavailable" ? "relay_unavailable" : "relay_request_rejected");
+      return this.#failed(relayFailureReason(error));
     } finally {
       bearer = null;
       this.#inFlight = false;

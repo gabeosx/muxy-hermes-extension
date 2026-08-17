@@ -10,6 +10,8 @@ function resultCopy(result) {
   if (result.failureClass === FailureClass.STREAMING) return ["The Gateway connected, but live streaming was not verified.", "Review the redacted failure report before claiming this deployment is supported."];
   if (result.failureClass === FailureClass.AUTHENTICATION) return ["Connection not verified", "The Gateway rejected this bearer token. Check the token, then test the connection again."];
   if (result.failureClass === FailureClass.URL) return ["Connection not verified", "Correct the Gateway URL, then test the connection again."];
+  if (result.failureClass === FailureClass.GATEWAY_UNREACHABLE) return ["Gateway unreachable", "The relay ran, but could not reach this Gateway. Check that it is running and that the URL and port are reachable, then retry."];
+  if (result.failureClass === FailureClass.GATEWAY_TIMEOUT) return ["Gateway timed out", "The relay ran, but the Gateway did not respond before the timeout. Check reachability and retry."];
   if (result.failureClass === FailureClass.RELAY) return ["Relay not available", "Allow Muxy to run the displayed curl command, or review the relay details before retrying."];
   return ["Connection not verified", "Check the Gateway URL and token, then test the consented relay again."];
 }

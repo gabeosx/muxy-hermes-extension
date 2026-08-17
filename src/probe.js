@@ -11,6 +11,8 @@ export const ProbeState = Object.freeze({
 export const FailureClass = Object.freeze({
   URL: "url",
   RELAY: "relay",
+  GATEWAY_UNREACHABLE: "gateway_unreachable",
+  GATEWAY_TIMEOUT: "gateway_timeout",
   AUTHENTICATION: "authentication",
   CAPABILITY_PROTOCOL: "capability_protocol",
   STREAMING: "streaming",
@@ -44,8 +46,11 @@ export function toSafeVerdict(result, { endpoint, startedAt, finishedAt }) {
   const authenticationOutcome = stage(result?.authentication?.state);
   const capabilityOutcome = stage(result?.capabilities?.state);
   const streamOutcome = stage(result?.stream?.state);
+  const relayReason = result?.relay?.reason ?? result?.request?.reason;
   let failureClass = null;
-  if (relayOutcome.state === "failed") failureClass = FailureClass.RELAY;
+  if (relayOutcome.state === "failed" && relayReason === "gateway_unreachable") failureClass = FailureClass.GATEWAY_UNREACHABLE;
+  else if (relayOutcome.state === "failed" && relayReason === "gateway_timeout") failureClass = FailureClass.GATEWAY_TIMEOUT;
+  else if (relayOutcome.state === "failed") failureClass = FailureClass.RELAY;
   else if (authenticationOutcome.state === "failed") failureClass = FailureClass.AUTHENTICATION;
   else if (capabilityOutcome.state === "failed") failureClass = FailureClass.CAPABILITY_PROTOCOL;
   else if (streamOutcome.state === "failed") failureClass = FailureClass.STREAMING;
