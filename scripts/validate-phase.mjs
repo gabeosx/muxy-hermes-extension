@@ -1,0 +1,134 @@
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { readdir, readFile } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { promisify } from "node:util";
+
+import { renderEvidenceMarkdown, validateEvidenceRecord } from "../src/evidence.js";
+import { toSafeVerdict } from "../src/probe.js";
+import { copyRedactedReport, evaluateStopGate, sanitizeEvidenceIndex } from "../src/stop-gate.js";
+import { classifyVerdict } from "../src/verdict.js";
+
+const run = promisify(execFile);
+const root = resolve(import.meta.dirname, "..");
+const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const evidenceDir = join(root, "public", "evidence");
+const canonicalConditions = ["host_native_loopback", "docker_published_loopback", "ssh_local_forward", "direct_remote_https", "remote_muxy_workspace"];
+const simulatedConditions = new Set(canonicalConditions.slice(2));
+const forbiddenSourcePatterns = [
+  /muxy\.http\b/, /EventSource\b/, /muxy\.storage\b/, /muxy\.git\b/, /muxy\.execAsync\b/,
+  /rejectUnauthorized\b/, /NODE_TLS_REJECT_UNAUTHORIZED\b/, /background\.js\b/,
+];
+const forbiddenPanelPatterns = [/Start run|Stop run|Steer|Approve/i, /workspace path/i, /certificate bypass/i];
+const indexRowKeys = new Set(["id", "verdict", "reasonCode", "latest", "latestPair", "lastVerifiedPair", "carriedForward", "history"]);
+const indexEntryKeys = new Set(["runId", "recordedAt", "muxyVersion", "hermesVersion", "hermesRevisionOrDigest", "trustClass", "realPath", "simulation", "freshPanelSession", "sessionOrdinal", "requiredStages", "originVerdict", "capabilityShapeHash", "sseFrames", "verdict", "reasonCode", "reportJson", "reportMarkdown"]);
+
+function rejectUnknownKeys(value, allowed, label) {
+  assert.ok(value && typeof value === "object" && !Array.isArray(value), `${label} must be an object`);
+  for (const key of Object.keys(value)) assert.ok(allowed.has(key), `${label} contains forbidden field: ${key}`);
+}
+
+function within(base, candidate) {
+  const fromBase = relative(base, candidate);
+  return fromBase !== "" && !fromBase.startsWith("..") && !isAbsolute(fromBase);
+}
+
+async function filesUnder(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const target = join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...await filesUnder(target));
+    else if (entry.isFile()) files.push(target);
+  }
+  return files;
+}
+
+async function validateEvidence() {
+  const indexPath = join(evidenceDir, "index.json");
+  const index = JSON.parse(await readFile(indexPath, "utf8"));
+  const safeIndex = sanitizeEvidenceIndex(index);
+  assert.deepEqual(safeIndex.conditions.map((row) => row.id), canonicalConditions, "index must contain the five canonical conditions in order");
+  const recordsByCondition = new Map(canonicalConditions.map((id) => [id, []]));
+
+  for (const row of index.conditions) {
+    rejectUnknownKeys(row, indexRowKeys, `index row ${row.id}`);
+    assert.ok(Array.isArray(row.history), `index row ${row.id} history must be an array`);
+    if (simulatedConditions.has(row.id)) assert.equal(row.verdict, "Unverified", `${row.id} simulation cannot be Supported or Unsupported`);
+    for (const entry of row.history) {
+      rejectUnknownKeys(entry, indexEntryKeys, `index entry ${row.id}`);
+      assert.equal(entry.deploymentCondition, undefined, "index entries must not duplicate untrusted deployment fields");
+      for (const field of ["reportJson", "reportMarkdown"]) {
+        assert.equal(typeof entry[field], "string", `${row.id} evidence pair requires ${field}`);
+        assert.ok(!entry[field].startsWith("/") && !entry[field].includes(".."), `${row.id} ${field} must stay within evidence`);
+      }
+      const reportJson = resolve(evidenceDir, entry.reportJson);
+      const reportMarkdown = resolve(evidenceDir, entry.reportMarkdown);
+      assert.ok(within(evidenceDir, reportJson) && within(evidenceDir, reportMarkdown), "report pair path escapes evidence");
+      const record = JSON.parse(await readFile(reportJson, "utf8"));
+      validateEvidenceRecord(record);
+      assert.equal(record.deploymentCondition, row.id, "report condition must match index row");
+      assert.equal(await readFile(reportMarkdown, "utf8"), renderEvidenceMarkdown(record), "report Markdown must be the safe projection of its JSON record");
+      recordsByCondition.get(row.id).push(record);
+    }
+  }
+
+  for (const row of index.conditions) {
+    const records = recordsByCondition.get(row.id);
+    const classified = classifyVerdict({ records, latestStablePair: row.latestPair });
+    assert.equal(row.verdict, classified.verdict, `${row.id} index verdict must be classifier-backed`);
+    assert.equal(row.reasonCode, classified.reasonCode, `${row.id} index reason must be classifier-backed`);
+  }
+
+  const stopGate = evaluateStopGate({ evidenceIndex: index });
+  assert.equal(stopGate.active, false, "real qualification stop gate is active; do not expand Phase 1");
+  return index;
+}
+
+async function validateBoundary() {
+  const productionSources = [
+    join(root, "src", "main.js"),
+    join(root, "src", "panel", "app.js"),
+    join(root, "src", "gateway-client.js"),
+    join(root, "src", "probe.js"),
+    join(root, "src", "curl-relay.js"),
+    join(root, "src", "sse-parser.js"),
+    join(root, "src", "capabilities.js"),
+    join(root, "src", "stop-gate.js"),
+  ];
+  for (const file of productionSources) {
+    const source = await readFile(file, "utf8");
+    for (const pattern of forbiddenSourcePatterns) assert.doesNotMatch(source, pattern, `${relative(root, file)} exceeds the Phase 1 authority boundary`);
+  }
+  const panel = await readFile(join(root, "src", "panel", "app.js"), "utf8");
+  for (const pattern of forbiddenPanelPatterns) assert.doesNotMatch(panel, pattern, "panel renders an out-of-scope authority");
+}
+
+async function validateSentinel(index) {
+  const sentinel = `PHASE1_SECRET_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+  const safeProbe = toSafeVerdict({
+    url: { state: "passed" }, relay: { state: "failed", reason: "relay_request_rejected", rawError: sentinel },
+    request: { state: "failed", rawError: sentinel }, authentication: { state: "not_verified" },
+    capabilities: { state: "not_verified" }, stream: { state: "not_verified", rawFrame: sentinel },
+  }, { endpoint: "https://gateway.example", startedAt: "2026-08-17T00:00:00.000Z", finishedAt: "2026-08-17T00:00:01.000Z" });
+  const report = copyRedactedReport(evaluateStopGate({ evidenceIndex: index, requiresMuxyChange: true }));
+  const checked = [JSON.stringify(safeProbe), report, JSON.stringify(index)];
+  for (const file of await filesUnder(join(root, "dist"))) checked.push(await readFile(file, "utf8"));
+  for (const value of checked) assert.equal(value.includes(sentinel), false, "high-entropy secret sentinel reached a durable or rendered artifact");
+}
+
+async function main() {
+  await run(npm, ["run", "build"], { cwd: root });
+  const testFiles = (await readdir(join(root, "test"))).filter((name) => name.endsWith(".js")).sort().map((name) => join("test", name));
+  await run(process.execPath, ["--test", ...testFiles], { cwd: root });
+  await run(process.execPath, ["scripts/validate-dist.mjs"], { cwd: root });
+  const index = await validateEvidence();
+  await validateBoundary();
+  await validateSentinel(index);
+  process.stdout.write("Phase 1 build, test, evidence, redaction, and authority boundary validation passed.\n");
+}
+
+main().catch((error) => {
+  process.stderr.write(`${error?.message ?? "phase_validation_failed"}\n`);
+  process.exitCode = 1;
+});
