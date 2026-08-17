@@ -12,11 +12,13 @@ import {
 import {
   FIXTURE_REQUEST,
   consumeOriginHandoff,
+  cleanupQualificationRuntime,
   createQualificationRuntime,
   recordFreshSession,
   startDeterministicModelStub,
   startOriginCaptureServer,
   validateCapturedOrigin,
+  verifyQualificationExecutable,
 } from "../scripts/qualify-real.mjs";
 
 const muxyRelease = { tag_name: "v1.5.0", draft: false, prerelease: false, published_at: "2026-08-16T00:00:00Z" };
@@ -71,6 +73,21 @@ test("host fixture creates a permission-restricted empty home/workspace and no d
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("host qualification accepts only the explicit pinned temporary executable and scrubs its owned runtime", async () => {
+  const executable = "/private/tmp/hermes-qualification-v2026.8.16/hermes";
+  const verified = await verifyQualificationExecutable({ executable, execFile: async (command, args) => {
+    assert.equal(command, executable);
+    assert.deepEqual(args, ["--version"]);
+    return { stdout: "Hermes Agent v0.20.2 (2026.8.16) df4b65147d7ddd74dd449f9067aabbca5aef0ec7\n" };
+  } });
+  assert.deepEqual(verified, { version: "0.20.2", release: "2026.8.16", revision: "df4b65147d7ddd74dd449f9067aabbca5aef0ec7" });
+  await assert.rejects(verifyQualificationExecutable({ executable: "/Applications/hermes", execFile: async () => ({ stdout: "" }) }), /qualification_executable_unsafe/);
+
+  const root = await mkdtemp("/private/tmp/hermes-host-fixture-cleanup-");
+  await cleanupQualificationRuntime({ root });
+  await assert.rejects(stat(root));
 });
 
 test("deterministic model fixture permits Hermes metadata while rejecting title probes and replay", async () => {
