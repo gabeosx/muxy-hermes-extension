@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 1
+current_phase: 01
 current_phase_name: Verified Gateway Connectivity
 status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-08-17T01:06:53.912Z"
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-08-17T13:50:41.751Z"
 last_activity: 2026-08-16
 last_activity_desc: Approved v1 requirements mapped into a vertical MVP roadmap.
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-16)
 
 **Core value:** Prove secure, authenticated, streamed Hermes run control across representative Hermes deployment shapes inside a native-feeling Muxy panel before building the surrounding product.
-**Current focus:** Phase 1 — Verified Gateway Connectivity
+**Current focus:** Phase 01 — Verified Gateway Connectivity
 
 ## Current Position
 
-Phase: 1 of 3 (Verified Gateway Connectivity)
-Plan: Not yet planned
+Phase: 01 (Verified Gateway Connectivity) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-08-16 — Approved v1 requirements mapped into a vertical MVP roadmap.
+Last activity: 2026-08-16 — Phase 01 execution started
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 17%
 
 ## Performance Metrics
 
@@ -54,6 +54,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P01 | 15m | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -65,6 +70,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 1]: Direct WebKit transport is a hard gate; a failed class produces a bridge contract and an explicit user alert rather than an upstream implementation.
 - [Phase 1]: V1 is extension-only; Muxy agent/provider registration and all Muxy source changes remain deferred.
 - [Phase 3]: Run ownership and the bearer token exist only while the panel is open; status reconciliation is the fallback for interruptions.
+- [Phase 01]: Plan 01-01 leaves real Muxy controlled-fixture streaming Not verified and qualification Unverified until Plan 01-04.
+- [Phase 01]: Plan 01-01 ships a permissionless declarative panel with no background entry.
 
 ### Pending Todos
 
@@ -88,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-17T00:06:02.375Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-verified-gateway-connectivity/01-CONTEXT.md
+Last session: 2026-08-17T13:50:41.735Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None
