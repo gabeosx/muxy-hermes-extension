@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
-import { spawn } from "node:child_process";
+import { execFile as execFileCallback, spawn } from "node:child_process";
 import { chmod, mkdir, mkdtemp, open, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { createServer } from "node:http";
+import { promisify } from "node:util";
 
 import { resolveVersionTuple } from "./resolve-versions.mjs";
 
@@ -11,6 +12,10 @@ const FIXTURE_ROOT_PREFIX = "/private/tmp/";
 const ORIGIN_HANDOFF_PREFIX = "hermes-origin-handoff-";
 const ORIGIN_HANDOFF_NAME = "captured-origin.json";
 const ORIGIN_CAPTURE_PATH = "/v1/capabilities";
+const execFile = promisify(execFileCallback);
+const PINNED_HERMES_VERSION = "0.20.2";
+const PINNED_HERMES_RELEASE = "2026.8.16";
+const PINNED_HERMES_REVISION = "df4b65147d7ddd74dd449f9067aabbca5aef0ec7";
 
 function securePath(value, name) {
   const resolved = resolve(value);
@@ -101,6 +106,30 @@ export async function createQualificationRuntime({ root, token = randomBytes(32)
     home, workspace, tokenFile,
     environment: Object.freeze({ HERMES_HOME: home, API_SERVER_KEY: token, HERMES_QUALIFICATION_WORKSPACE: workspace }),
   };
+}
+
+/** Verify one user-supplied temporary binary; discovery and fallback installs are forbidden. */
+export async function verifyQualificationExecutable({ executable, execFile: execute = execFile } = {}) {
+  if (typeof executable !== "string" || !executable.startsWith(FIXTURE_ROOT_PREFIX) || !executable.endsWith("/hermes") || executable.includes("\n")) {
+    throw new Error("qualification_executable_unsafe");
+  }
+  let stdout;
+  try { ({ stdout } = await execute(executable, ["--version"], { timeout: 10_000 })); }
+  catch { throw new Error("qualification_executable_unreadable"); }
+  const output = String(stdout);
+  if (!output.includes(`v${PINNED_HERMES_VERSION}`) || !output.includes(PINNED_HERMES_RELEASE) || !output.includes(PINNED_HERMES_REVISION)) {
+    throw new Error("qualification_executable_identity_mismatch");
+  }
+  return Object.freeze({ version: PINNED_HERMES_VERSION, release: PINNED_HERMES_RELEASE, revision: PINNED_HERMES_REVISION });
+}
+
+/** Remove only a harness-owned temporary root after children have been stopped. */
+export async function cleanupQualificationRuntime({ root } = {}) {
+  const fixtureRoot = securePath(root, "runtime_root");
+  if (!basename(fixtureRoot).startsWith("hermes-")) throw new Error("qualification_runtime_root_unsafe");
+  await rm(fixtureRoot, { recursive: true, force: true });
+  try { await stat(fixtureRoot); } catch (error) { if (error?.code === "ENOENT") return Object.freeze({ cleanup: "scrubbed_removed" }); throw error; }
+  throw new Error("qualification_runtime_cleanup_failed");
 }
 
 export function recordFreshSession({ sessionOrdinal, panelSessionId, requiredStages, previous = null } = {}) {
@@ -215,7 +244,7 @@ export async function startDeterministicModelStub() {
 }
 
 export async function startHostGateway({ runtime, origin, executable = process.env.HERMES_QUALIFICATION_EXECUTABLE, modelStub, logStderr = false }) {
-  if (typeof executable !== "string" || !executable.startsWith(FIXTURE_ROOT_PREFIX) || !executable.endsWith("/hermes")) throw new Error("qualification_executable_unsafe");
+  await verifyQualificationExecutable({ executable });
   const server = createServer();
   const port = await listen(server);
   await close(server);
