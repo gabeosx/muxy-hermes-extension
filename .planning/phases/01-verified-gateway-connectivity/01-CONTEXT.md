@@ -1,12 +1,14 @@
 # Phase 1: Verified Gateway Connectivity - Context
 
 **Gathered:** 2026-08-16
-**Status:** Requirements alignment required before planning
+**Status:** Architecture pivot approved during execution on 2026-08-17
 
 <domain>
 ## Phase Boundary
 
-Build and validate the extension-only connection proof: a publish-valid Muxy panel accepts one runtime Gateway URL and bearer token, proves exact-origin authenticated WebKit streaming, reports secret-safe diagnostics, and records compatibility evidence. The extension does not manage deployments, persist credentials, expose run-control UI, modify Muxy, or register Hermes as a provider.
+Build and validate the extension-only connection proof: a publish-valid Muxy panel accepts one runtime Gateway URL and bearer token, uses the explicitly consented curl relay to prove authenticated capability and streaming behavior, reports secret-safe diagnostics, and records compatibility evidence. The extension does not manage deployments, persist credentials, expose Phase 2 run-control UI, modify Muxy/Hermes, or register Hermes as a provider.
+
+Execution disproved the direct-WebKit premise: requests from the `muxy-ext://` panel did not reach a controlled loopback listener. The user approved an extension-only fallback with no Muxy/Hermes source changes or external infrastructure: one consented argv-form curl process per SSE stream, a bounded ephemeral workspace journal, `file.changed` plus `muxy.files` reads in the open panel, and Runs status reconciliation. This paragraph supersedes direct-WebKit/CORS instructions below where they conflict.
 
 The discussion intentionally narrows the real v1 support claim. Host-native and local Docker receive real end-to-end validation. SSH-forwarded, direct remote HTTPS, and remote-Muxy-workspace conditions are simulated locally and remain `Unverified` until later real infrastructure testing. This conflicts with the current wording of DEPL-04, DEPL-05, DEPL-06 and the Phase 1 roadmap claim; those planning artifacts must be aligned before Phase 1 planning starts.
 
@@ -44,6 +46,14 @@ The discussion intentionally narrows the real v1 support claim. Host-native and 
 - Hash algorithm and canonicalization rules for sanitized SSE evidence.
 - Probe-stage sequencing and implementation details, provided observed checks remain visible and unobserved checks remain `Not verified`.
 
+### Approved Architecture Pivot
+- **D-16:** Direct WebKit transport is a recorded negative result and is no longer the v1 implementation path.
+- **D-17:** V1 uses argv-form curl through `muxy.exec`; one long-lived exec owns each SSE stream and repeated exec-based journal reads are prohibited.
+- **D-18:** Bearer material crosses only exec stdin and must not appear in argv, URL, environment, journal, storage, diagnostics, audit summaries, or evidence.
+- **D-19:** The open panel consumes a bounded extension-owned workspace journal through `file.changed` and `muxy.files`; it scrubs and removes the journal on orderly terminal/close paths and cleans stale journals at startup.
+- **D-20:** Hermes run status is authoritative. A disconnected event subscriber is not reconnectable on the tested Hermes release; status/final output may be recovered, but missed transcript and approval detail may not.
+- **D-21:** Detailed closed-panel notifications remain out of scope. No Muxy source change, provider registration, external daemon, public ingress, or hosted relay is authorized.
+
 </decisions>
 
 <canonical_refs>
@@ -59,7 +69,7 @@ The discussion intentionally narrows the real v1 support claim. Host-native and 
 
 ### Technical Research
 - `.planning/research/SUMMARY.md` — Deployment trust classes, architecture, sequencing, and open transport risks.
-- `.planning/research/STACK.md` — Vanilla TypeScript/Vite choice, direct WebKit `fetch()` transport, manual SSE parser, and forbidden alternatives.
+- `.planning/research/STACK.md` — Original direct-WebKit hypothesis and supporting stack; D-16 through D-21 supersede its transport choice while preserving the Vanilla/Vite and parser decisions.
 
 ### UI Contract
 - `.planning/phases/01-verified-gateway-connectivity/01-UI-SPEC.md` — Approved Phase 1 layout, copy, states, design tokens, evidence matrix, and Muxy-change alert behavior.

@@ -1,19 +1,57 @@
 # Hermes Agent Extension for Muxy
 
-Research status: 2026-08-16
+Research status: 2026-08-17
+
+## Final v1 architecture decision
+
+The direct `WKWebView` transport has been rejected for v1. In Muxy 1.5.0, requests from the
+`muxy-ext://` panel did not reach a controlled loopback listener, `muxy.http.fetch` rejects
+loopback/private destinations and buffers complete responses, and the webview bridge exposes no
+incremental subprocess stdout API. Repeating `muxy.exec` as an IPC poll would also create one audit
+entry per read and is not shippable.
+
+V1 therefore uses a panel-owned, consented subprocess relay:
+
+1. The panel calls Hermes's Runs API through explicit `muxy.exec`/`curl` operations.
+2. One long-lived, audited `curl --no-buffer` process owns the run's SSE connection.
+3. Curl writes a bounded, per-run journal below the active workspace. The open panel reacts to
+   `file.changed` and reads complete SSE frames with `muxy.files.read`; it never polls the journal
+   through `exec`.
+4. The bearer token is supplied through exec `stdin`. It is forbidden in argv, URLs, environment,
+   journal files, persisted storage, diagnostics, and committed evidence.
+5. `GET /v1/runs/{id}` is authoritative. The panel reconciles after submission, controls, stream
+   closure/interruption, and panel recreation rather than treating the journal as application state.
+6. The panel scrubs then removes its ephemeral journal on terminal completion or orderly close.
+   A startup cleanup path handles stale extension-owned journals. Journal size is capped below
+   Muxy's 5 MiB file-read limit; exceeding the cap stops rich rendering and falls back to status
+   reconciliation.
+
+This is intentionally panel-centric. Detailed approval data and incremental transcript events are
+available only while the one SSE consumer remains attached. Hermes removes a run's event queue when
+that subscriber disconnects, so v1 makes no reconnect/replay guarantee. Polling can recover current
+run status and final output, but not missed approval details or incremental history.
+
+The relay requires the extension permissions `commands:exec`, `files:read`, and `files:write`, plus
+the declared `file.changed` event. The user sees Muxy's normal subprocess and file-write consent.
+Remembering an argv-style curl grant authorizes the curl executable broadly; this is the principal
+v1 security compromise and must be disclosed in the UI.
+
+No Muxy source change, Hermes source change, agent/provider registration, background daemon, public
+ingress, or hosted relay is required. Rich closed-panel notifications would require either a later
+Muxy primitive (`execStream` or extension-private background file read/watch) or a separately
+approved durable helper architecture and remain out of scope.
 
 ## Executive summary
 
-A Hermes Agent integration for Muxy is viable now. The existing Hermes Gateway already provides most of the backend required for an embedded client: streamed responses, structured tool events, persistent conversations, approvals, steer, and run cancellation.
+A Hermes Agent integration for Muxy is viable now as an explicitly consented, panel-owned development proof. The existing Hermes Gateway already provides most of the backend required for an embedded client: streamed responses, structured tool events, persistent conversations, approvals, steer, and run cancellation.
 
 The long-term product is a Muxy panel backed by the Hermes Gateway, potentially accompanied by:
 
-1. A small Hermes plugin that reports lifecycle and approval state to Muxy.
-2. A small upstream Muxy provider registration so Hermes appears in agent-focused layouts and status indicators.
-3. A deployment-neutral connection profile that works with host-native, Docker, tunneled, and remote Gateways.
-4. A focused Hermes API addition for validated per-run working directories.
+1. A deployment-neutral connection profile that works with host-native, Docker, tunneled, and remote Gateways.
+2. A focused Hermes API addition for validated per-run working directories.
+3. Optional Muxy-native background streaming/notification support, only if the later product requires it.
 
-Those companion integrations are not part of v1. The approved v1 is an extension-only technical proof that answers the riskiest question first: can a Muxy panel securely connect to an authenticated Hermes Gateway, consume its run stream, and control a live run across the deployment shapes Hermes users actually operate? It uses one development connection at a time, keeps its bearer token in panel memory, and owns status and approvals only while the panel is open.
+Those companion integrations are not part of v1. The approved v1 is an extension-only technical proof that answers the riskiest question first: can a Muxy panel securely connect to an authenticated Hermes Gateway through Muxy's consent boundary, consume its run stream, and control a live run across the deployment shapes Hermes users actually operate? It uses one development connection at a time, keeps its bearer token only in transient panel/exec-stdin memory, and owns rich status and approvals only while the panel is open.
 
 The extension must never assume how Hermes is deployed or attempt to manage Docker. The long-term design connects to an authenticated Gateway URL, discovers capabilities at runtime, and translates the active Muxy workspace path through user-configured mappings. The original concern that embedded chat would require a new agent backend was incorrect.
 
@@ -30,11 +68,11 @@ v1 is a development-only Muxy extension for a Hermes user who already has a reac
 - Scaffold an npm/Vite Muxy extension whose build copies `package.json` into `dist/`.
 - Prompt for one development Gateway URL and bearer token at panel load; never embed or persist the token. The same connection form must accept host-native, Docker-published, SSH-forwarded, and direct HTTPS Gateway URLs without topology-specific code paths.
 - Fetch `/v1/capabilities` and enable only advertised run controls.
-- Prove direct WebKit connectivity, record the actual request `Origin`, and establish a narrow CORS configuration. Classify loopback HTTP, remote HTTPS, authentication, DNS, TLS, CORS, timeout, and connection-loss failures from observed facts rather than guessed deployment labels.
-- Parse authenticated SSE with streamed `fetch()` rather than `EventSource`, because the bearer token must be sent in an `Authorization` header.
+- Use explicit, consented argv-form `curl` calls for Hermes request/response operations; keep secrets in exec stdin and retain normal TLS validation.
+- Parse authenticated Runs SSE from one long-lived curl-owned workspace journal while the panel is open. Never use repeated `exec` calls to read that journal.
 - Start one run and render token, tool, approval, steer, completion, failure, and cancellation behavior supported by the connected Gateway.
 - Respond to approvals and expose steer and stop only when capability discovery permits them.
-- Reconnect to an active run within the Gateway's supported replay window and reconcile terminal state through the run-status endpoint.
+- Reconcile current and terminal truth through the run-status endpoint. Do not claim SSE reconnection or lossless replay after the sole subscriber disconnects.
 - Capture versioned protocol fixtures: Muxy version, Hermes version/commit, `/v1/capabilities`, representative SSE frames, approval payloads, steer responses, and reconnect observations.
 - Exercise the same client contract against representative host-native, local Docker, SSH local-forward, direct remote HTTPS, and remote-Muxy-workspace fixtures. A remote Muxy workspace is a path-namespace case, not a different network transport.
 - Follow Muxy's native UI contract: `--muxy-*` theme tokens, the documented spacing/type/control scale, visible focus/hover states, reduced-motion support, and least-privilege permissions.
@@ -44,14 +82,14 @@ v1 is a development-only Muxy extension for a Hermes user who already has a reac
 - Multiple connection profiles, profile CRUD, import/export, and persisted non-secret settings.
 - Workspace path mapping, unmapped-workspace policies, or tool-capable execution in the active Muxy worktree.
 - A Hermes `cwd` API change or any edits to the Hermes repository.
-- A Hermes lifecycle plugin, Muxy provider registration, or other Muxy core changes.
+- A Hermes lifecycle plugin, Muxy provider registration, or any Muxy core change.
 - Durable background ownership of runs, topbar/status updates while the panel is closed, or approval notifications outside the open panel.
 - Optional terminal/TUI launchers.
 - Marketplace publication, production credential storage, production infrastructure automation, or a polished general-purpose chat client.
 
 ### v1 completion gate
 
-v1 is complete when a user can load the unpacked extension against pinned representative Gateways, provide a token without persisting it, prove an exact safe origin policy, run a multi-tool prompt, handle an approval, steer or stop when advertised, observe the terminal result, close/reopen the panel during an active run, and document the precise recovery behavior. The validation matrix must cover host-native, local Docker, SSH local-forward, direct remote HTTPS, and a remote Muxy workspace; where a fixture is unavailable, the report must name the unverified class instead of claiming support. If direct authenticated streaming from the WebKit panel cannot be made safe for a class, v1 succeeds for that class by producing a reproducible failure report and the contract for the smallest required Muxy streaming bridge; it does not hide the limitation behind topology-specific behavior.
+v1 is complete when a user can load the unpacked extension against representative Gateways, provide a token without persisting or auditing it, explicitly authorize the curl relay, run a controlled prompt, handle an approval while the panel remains attached, steer or stop when advertised, observe the authoritative terminal result, and receive truthful recovery guidance after interruption or panel recreation. The validation matrix must cover host-native and local Docker for real, with SSH local-forward, direct remote HTTPS, and remote-workspace conditions simulated and left `Unverified`. If the relay is unavailable or denied, the extension reports that observed fact and stops; it never silently asks for a Muxy source change or provider registration.
 
 ## Repositories and documentation reviewed
 
