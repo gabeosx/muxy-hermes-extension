@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   normaliseReleaseVersion,
   readInstalledMuxyVersion,
+  resolveHermesRevision,
   resolveLatestStable,
 } from "../scripts/resolve-versions.mjs";
 import {
@@ -26,6 +27,17 @@ test("latest-release resolution rejects mutable and prerelease metadata without 
   );
   const resolved = await resolveLatestStable({ repository: "muxy-app/muxy", fetchImpl: async () => new Response(JSON.stringify(muxyRelease), { status: 200 }) });
   assert.deepEqual(resolved, { tag: "v1.5.0", version: "1.5.0", publishedAt: "2026-08-16T00:00:00Z" });
+});
+
+test("Hermes falls back only to an unambiguous official annotated-tag peel when the commit API is unavailable", async () => {
+  const fetchImpl = async (url) => {
+    if (url.endsWith("/releases/latest")) return new Response(JSON.stringify({ tag_name: "v2026.8.16", name: "Hermes Agent v0.20.2", draft: false, prerelease: false, published_at: "2026-08-16T00:00:00Z" }), { status: 200 });
+    return new Response("gateway timeout", { status: 504 });
+  };
+  const execFile = async () => ({ stdout: "bbc20510676c48c6bfa0ef5c2eeefbf676449456\trefs/tags/v2026.8.16\ndf4b65147d7ddd74dd449f9067aabbca5aef0ec7\trefs/tags/v2026.8.16^{}\n" });
+  const resolved = await resolveHermesRevision({ fetchImpl, execFile });
+  assert.equal(resolved.installedVersion, "0.20.2");
+  assert.equal(resolved.revision, "df4b65147d7ddd74dd449f9067aabbca5aef0ec7");
 });
 
 test("installed Muxy identity requires its exact bundle identifier and safe version fields", async () => {
