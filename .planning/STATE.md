@@ -113,7 +113,7 @@ None yet.
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
 | 260817-mp9 | Close Phase 1 using the verified ephemeral fast path | 2026-08-17 | a2d0a31 | Passed | [260817-mp9-close-phase-1-using-the-verified-ephemer](./quick/260817-mp9-close-phase-1-using-the-verified-ephemer/) |
-| 260817-mzi | Implement Phase 2 capability-driven Hermes run control | 2026-08-17 | af516a5 | Passed | [260817-mzi-implement-phase-2-capability-driven-herm](./quick/260817-mzi-implement-phase-2-capability-driven-herm/) |
+| 260817-mzi | Implement Phase 2 capability-driven Hermes run control | 2026-08-17 | 9f57c20 | Passed | [260817-mzi-implement-phase-2-capability-driven-herm](./quick/260817-mzi-implement-phase-2-capability-driven-herm/) |
 
 ### Roadmap Evolution
 

@@ -6,6 +6,7 @@ duration: 20m
 commits:
   - 2414c6f
   - af516a5
+  - 9f57c20
 ---
 
 # Implement Capability-Driven Hermes Run Control — Summary
@@ -17,6 +18,7 @@ Phase 2 is complete through the user-approved fast path.
 - Added a bounded, incremental Hermes run SSE parser that retains only recognized events for the active run.
 - Added a fixed-endpoint run client for submission, status, approval, steer, and stop over the existing bearer-in-stdin curl relay.
 - Added a one-run controller with bounded assistant/activity state, exact approval-choice enforcement, serialized controls, cleanup, and authoritative status reconciliation.
+- Reconciled rejected controls as well, so a failed stop request cannot leave the UI stuck in a transient stopping state.
 - Added the native Muxy run composer, live assistant/activity/status surfaces, approval card, and independently advertised steer/stop controls.
 - Cleared the visible bearer field after connection and the controller credential on panel release.
 - Updated the aggregate validator and added focused parser/client/controller/UI coverage without changing permissions.

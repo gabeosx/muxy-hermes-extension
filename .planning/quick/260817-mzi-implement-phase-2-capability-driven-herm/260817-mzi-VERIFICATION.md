@@ -13,7 +13,7 @@ PASS. The extension now owns one open-panel Hermes run through the existing cons
 ## Automated Evidence
 
 - `npm run validate` — PASS. Rebuilt `dist/`, ran all repository tests with loopback fixture binding, validated packaging/evidence/redaction, and enforced the Phase 2 authority boundary.
-- Focused run suites — PASS for incremental SSE framing, wrong-run/unknown/oversized rejection, exact approval choices, endpoint construction, advertised feature gating, streamed controller state, stop semantics, and authoritative terminal reconciliation.
+- Focused run suites — PASS for incremental SSE framing, wrong-run/unknown/oversized rejection, exact approval choices, endpoint construction, advertised feature gating, streamed controller state, stop semantics, rejected-control recovery, and authoritative terminal reconciliation.
 - Manifest authority remains unchanged: `commands:exec`, `files:read`, `files:write`, and `panels:write`; no storage, background, native HTTP, deployment, terminal, Git, or TLS-bypass authority was added.
 
 ## Native Muxy Evidence
