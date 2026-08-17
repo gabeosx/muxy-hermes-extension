@@ -31,9 +31,10 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
   4. User can inspect versioned evidence for the direct-WebKit negative result and relay behavior across the deployment matrix; only a real path may establish `Supported`, and simulated remote conditions remain `Unverified`.
   5. The extension requests only `commands:exec`, journal file read/write, and panel authority; it never performs Docker, SSH, Gateway lifecycle, terminal, Git, Muxy-source, Hermes-source, or provider-registration changes.
 
-**Plans:** 6/6 plans executed
+**Plans:** 6/15 plans executed
 
 Plans:
+
 **Wave 1**
 
 - [x] 01-01-PLAN.md — Prove the publish-valid panel-to-capabilities-and-SSE walking skeleton.
@@ -51,6 +52,36 @@ Plans:
 **Wave 4** *(blocked on Wave 3 completion)*
 
 - [x] 01-06-PLAN.md — Render the matrix, enforce the Muxy-change stop gate, and validate the phase boundary.
+
+**Wave 6** *(gap closure; blocked on the executed-plan DAG through Wave 5)*
+
+- [ ] 01-07-PLAN.md — Close relay cancellation and diagnostic gaps, then repair the MVP goal contract.
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 01-08-PLAN.md — Reconcile authoritative contracts to the curl relay and emit safe verifier-bound receipts.
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 01-09-PLAN.md — Publish verifier-owned receipt bundles through the versioned evidence contract.
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 01-10-PLAN.md — Classify receipt-backed evidence and restrict the stop gate to current-pair failures.
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
+- [ ] 01-11-PLAN.md — Qualify host-native two-session evidence and preserve the direct-WebKit negative result.
+- [ ] 01-13-PLAN.md — Exercise HTTPS/proxy, SSH-forward, and remote-workspace simulations as Unverified.
+- [ ] 01-14-PLAN.md — Stage native Muxy UI and current-pair stop-state verification.
+
+**Wave 11** *(blocked on Wave 10 host and simulation completion)*
+
+- [ ] 01-12-PLAN.md — Extend real qualification through Docker lifecycle, faults, recovery, and cleanup.
+
+**Wave 12** *(blocked on Waves 10–11 completion)*
+
+- [ ] 01-15-PLAN.md — Run the aggregate automated gate and actual-Muxy qualification checklist.
 
 **UI hint:** yes
 
@@ -93,6 +124,6 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Verified Gateway Connectivity | 6/6 | In Progress|  |
+| 1. Verified Gateway Connectivity | 6/15 | In Progress|  |
 | 2. Capability-Driven Run Control | 0/TBD | Not started | - |
 | 3. Open-Panel Recovery Proof | 0/TBD | Not started | - |
