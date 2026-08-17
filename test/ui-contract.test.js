@@ -31,7 +31,7 @@ test("capability normalization keeps only safe documented metadata and names", (
   assert.deepEqual(normalizeCapabilities(null), { state: "unavailable", version: null, names: [] });
 });
 
-test("the manifest exposes only the permission-free Hermes panel toggle command", async () => {
+test("the manifest exposes only the Hermes panel toggle command and its empirically required permission", async () => {
   const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
   assert.deepEqual(manifest.muxy.commands, [{
@@ -39,7 +39,9 @@ test("the manifest exposes only the permission-free Hermes panel toggle command"
     title: "Hermes: Toggle Gateway Panel",
     action: { kind: "togglePanel", panel: "hermes-gateway" },
   }]);
-  assert.equal(Object.hasOwn(manifest.muxy, "permissions"), false);
+  // Real Muxy invocation closed the command palette but did not open the panel until
+  // panels:write was declared; keep the least-privilege exception structurally exact.
+  assert.deepEqual(manifest.muxy.permissions, ["panels:write"]);
   for (const forbiddenSurface of ["background", "topbarItems", "statusbarItems", "scripts"]) {
     assert.equal(Object.hasOwn(manifest.muxy, forbiddenSurface), false, `manifest must not declare ${forbiddenSurface}`);
   }

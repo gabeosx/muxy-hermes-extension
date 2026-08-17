@@ -28,6 +28,9 @@
         "position" : "right",
         "title" : "Hermes Gateway"
       }
+    ],
+    "permissions" : [
+      "panels:write"
     ]
   },
   "name" : "muxy-hermes-extension",
