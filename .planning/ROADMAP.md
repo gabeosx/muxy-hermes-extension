@@ -23,11 +23,19 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
 **Requirements:** EXT-01, EXT-02, CONN-01, CONN-02, CONN-03, CONN-04, CONN-05, DEPL-01, DEPL-02, DEPL-03, DEPL-04, DEPL-05, DEPL-06, SEC-01, SEC-02, SEC-04, SEC-05, EVID-01, EVID-02, EVID-03, EVID-04
 **Success Criteria** (what must be TRUE):
   1. User can build the Vite extension, load its `dist/` directory unpacked, enter one Gateway URL and bearer token, and see an authenticated capability probe result without the token being persisted or disclosed.
-  2. User can use the same URL/token flow—without selecting or detecting a deployment type—to verify host-native loopback, Docker-published loopback, SSH local-forward, direct remote HTTPS, and remote Muxy workspace cases; the remote-workspace proof never sends a workspace path to Hermes.
+  2. User can use the same URL/token flow—without selecting or detecting a deployment type—to complete real end-to-end verification for host-native loopback and local Docker-published loopback; Docker simulations exercise SSH local-forward, direct remote HTTPS, and remote Muxy workspace conditions, remain `Unverified`, and never send a workspace path to Hermes.
   3. User can see observed, secret-safe connection verdicts for URL, DNS, TLS, refusal, timeout, CORS/origin, authentication, protocol, and streaming failures; non-loopback connections require normally trusted HTTPS and successful connections require an exact observed origin rather than wildcard, `null`, or reflected CORS.
-  4. User can inspect versioned protocol fixtures and a deployment matrix that record the Muxy and Hermes versions, capabilities, representative event frames, and supported/unsupported/unverified verdict for every required deployment fixture—without the extension requesting Docker, SSH, process, terminal, Git-write, or filesystem-write authority.
-  5. If direct authenticated WebKit transport is unsafe or fails for any claimed deployment class, user receives a reproducible failure report and the smallest required Muxy bridge contract; v1 expansion pauses for an explicit user decision, with no Muxy source change or agent/provider registration performed.
-**Plans:** TBD
+  4. User can inspect versioned protocol fixtures and a deployment matrix that record the Muxy and Hermes versions, capabilities, representative event frames, and `Supported`, `Unsupported`, or `Unverified` verdict for every required deployment condition; only a real-path end-to-end test may establish `Supported`, simulated remote conditions remain `Unverified`, and the extension requests no Docker, SSH, process, terminal, Git-write, or filesystem-write authority.
+  5. If direct authenticated WebKit transport is unsafe or fails for either real-qualified deployment class, or validation reveals that a Muxy source change, bridge, or agent/provider registration change is required, user receives a reproducible failure report and the smallest required change contract; v1 expansion pauses for an explicit user decision, and no Muxy or registration change is performed automatically.
+**Plans:** 6 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Prove the publish-valid panel-to-capabilities-and-SSE walking skeleton.
+- [ ] 01-02-PLAN.md — Complete fact-first diagnostics and the native Muxy UI state contract.
+- [ ] 01-03-PLAN.md — Build redacted evidence, verdict classification, and version history.
+- [ ] 01-04-PLAN.md — Qualify host-native and Docker loopback through real Muxy paths.
+- [ ] 01-05-PLAN.md — Exercise SSH, HTTPS/proxy, and remote-workspace simulations as Unverified.
+- [ ] 01-06-PLAN.md — Render the matrix, enforce the Muxy-change stop gate, and validate the phase boundary.
 **UI hint:** yes
 
 ### Phase 2: Capability-Driven Run Control
@@ -63,6 +71,6 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Verified Gateway Connectivity | 0/TBD | Not started | - |
+| 1. Verified Gateway Connectivity | 0/6 | Not started | - |
 | 2. Capability-Driven Run Control | 0/TBD | Not started | - |
 | 3. Open-Panel Recovery Proof | 0/TBD | Not started | - |
