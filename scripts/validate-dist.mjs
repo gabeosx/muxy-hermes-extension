@@ -13,7 +13,7 @@ const allowedManifestKeys = new Set(["$schema", "description", "commands", "even
 const allowedPanelKeys = new Set(["entry", "icon", "id", "mode", "position", "title"]);
 const allowedCommandKeys = new Set(["id", "title", "action"]);
 const allowedCommandActionKeys = new Set(["kind", "panel"]);
-const allowedPublicAssets = new Set(["evidence/index.json", "evidence/schema-v1.json"]);
+const allowedPublicAssets = new Set(["evidence/index.json", "evidence/schema-v1.json", "evidence/schema-v2.json"]);
 
 function insideDist(path) {
   const pathFromDist = relative(dist, path);
