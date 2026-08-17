@@ -4,15 +4,15 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 03
 current_phase_name: open-panel-recovery-proof
-status: ready_to_plan
-stopped_at: Phase 2 fast path verified; Phase 3 recovery proof is next
-last_updated: "2026-08-17T20:48:49.000Z"
+status: ready_to_execute
+stopped_at: Phase 3 planned in two waves; Plan 03-01 is ready to execute
+last_updated: "2026-08-17T21:05:39.154Z"
 last_activity: 2026-08-17
-last_activity_desc: Phase 2 fast path passed — capability-gated run control, native completion/steer/stop proof, cleanup, and validator complete
+last_activity_desc: Phase 3 recovery behavior and evidence proof planned in two executable waves
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 16
+  total_plans: 18
   completed_plans: 16
 ---
 
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-08-16)
 
 ## Current Position
 
-Phase: 03 (open-panel-recovery-proof) — READY TO PLAN
-Plan: Phase 2 completed through quick task 260817-mzi
-Status: Phase 2 fast-path exit gate passed; ready to plan recovery behavior
-Last activity: 2026-08-17 — Native Muxy run completion, steer, authoritative cancellation, cleanup, and aggregate validation passed
+Phase: 03 (open-panel-recovery-proof) — READY TO EXECUTE
+Plan: 03-01 of 2 plans
+Status: Planning complete; bounded runtime recovery is Wave 1 and evidence/native proof is Wave 2
+Last activity: 2026-08-17 — Phase 3 recovery behavior and evidence proof planned
 
 Progress: [███████░░░] 67%
 
