@@ -2,6 +2,8 @@ import { clear, h } from "@/lib/dom";
 import { normalizeGatewayUrl } from "@/gateway-client";
 import { normalizeCapabilities } from "@/capabilities";
 import { ConnectionProbe, FailureClass, ProbeState } from "@/probe";
+import { RUN_FEATURES, supportsCoreRun } from "@/run-client";
+import { RunController } from "@/run-controller";
 import { buildBridgeContract, copyRedactedReport, evaluateStopGate, loadEvidenceIndex, renderDeploymentMatrix } from "@/stop-gate";
 
 const STAGE_LABEL = Object.freeze({ passed: "Observed", failed: "Failed", not_verified: "Not verified" });
@@ -39,6 +41,12 @@ export class HermesGatewayPanel {
     this.contractState = "idle";
     this.bridgeContract = null;
     this.releasePromise = null;
+    this.connectedResult = null;
+    this.runController = null;
+    this.runSnapshot = null;
+    this.runUnsubscribe = null;
+    this.promptValue = "";
+    this.steerValue = "";
   }
 
   start() {
@@ -71,6 +79,7 @@ export class HermesGatewayPanel {
   release() {
     if (!this.releasePromise) {
       this.releasePromise = (async () => {
+        await this.disconnectRun();
         await this.probe.abort();
         this.tokenValue = "";
         if (this.tokenInput) this.tokenInput.value = "";
@@ -91,22 +100,23 @@ export class HermesGatewayPanel {
 
   view() {
     const testing = this.snapshot.status === ProbeState.TESTING;
+    const runActive = this.runController?.isActive() ?? false;
     const url = h("input", {
       id: "gateway-url", class: "gateway-input", type: "url", autocomplete: "off", spellcheck: "false",
-      placeholder: "https://gateway.example", required: true, disabled: testing,
+      placeholder: "https://gateway.example", required: true, disabled: testing || runActive,
       "aria-describedby": "gateway-url-error",
       oninput: (event) => { this.urlValue = event.target.value; this.validationMessage = ""; this.syncForm(); },
     });
     url.value = this.urlValue;
     const token = h("input", {
       id: "bearer-token", class: "gateway-input", type: "password", autocomplete: "off", spellcheck: "false",
-      required: true, disabled: testing, "aria-describedby": "gateway-token-error",
+      required: true, disabled: testing || runActive, "aria-describedby": "gateway-token-error",
       oninput: (event) => { this.tokenValue = event.target.value; this.validationMessage = ""; this.syncForm(); },
     });
     token.value = this.tokenValue;
-    const statusCopy = this.preparing ? "Cleaning previous relay journal…" : testing ? "Testing connection…" : "";
+    const statusCopy = this.preparing ? "Cleaning previous relay journal…" : testing ? "Testing connection…" : runActive ? "One run owns the live stream." : "";
     const status = h("p", { class: "gateway-live", "aria-live": "polite" }, statusCopy);
-    const submit = h("button", { class: "gateway-submit", type: "submit" }, this.preparing ? "Preparing relay…" : testing ? "Testing connection…" : "Test connection");
+    const submit = h("button", { class: "gateway-submit", type: "submit" }, this.preparing ? "Preparing relay…" : testing ? "Testing connection…" : runActive ? "Run active" : "Test connection");
     this.urlInput = url;
     this.tokenInput = token;
     this.submitButton = submit;
@@ -115,7 +125,7 @@ export class HermesGatewayPanel {
       "main", { class: "gateway-panel" },
       h("header", { class: "gateway-header" },
         h("h1", { class: "gateway-title" }, "Hermes Gateway"),
-        h("p", { class: "gateway-purpose" }, "Test one authenticated Gateway through the consented streaming relay."),
+        h("p", { class: "gateway-purpose" }, "Connect to one authenticated Gateway and control one advertised Hermes run."),
         h("p", { class: "gateway-footnote" }, "Panel-only credentials — your bearer token is cleared when the panel closes."),
       ),
       h("form", { class: "gateway-card gateway-form", onsubmit: (event) => this.submit(event) },
@@ -130,6 +140,7 @@ export class HermesGatewayPanel {
       this.snapshot.status === ProbeState.IDLE
         ? h("section", { class: "gateway-card gateway-empty" }, h("h2", null, "Connect a Hermes Gateway"), h("p", null, "Enter the Gateway URL and bearer token for this panel session. Your token is cleared when the panel closes."))
         : this.verdictSection(),
+      this.runSection(),
       this.evidenceShell(),
       this.stopGate.active ? this.transportStopShell() : null,
     );
@@ -139,12 +150,12 @@ export class HermesGatewayPanel {
     if (!this.submitButton) return;
     let validUrl = false;
     try { normalizeGatewayUrl(this.urlValue); validUrl = true; } catch { /* local validation renders on submit */ }
-    this.submitButton.disabled = this.preparing || this.cleanupFailed || this.snapshot.status === ProbeState.TESTING || !validUrl || !this.tokenValue;
+    this.submitButton.disabled = this.preparing || this.cleanupFailed || this.snapshot.status === ProbeState.TESTING || (this.runController?.isActive() ?? false) || !validUrl || !this.tokenValue;
   }
 
   async submit(event) {
     event.preventDefault();
-    if (this.preparing || this.cleanupFailed || this.snapshot.status === ProbeState.TESTING) return;
+    if (this.preparing || this.cleanupFailed || this.snapshot.status === ProbeState.TESTING || this.runController?.isActive()) return;
     if (!this.urlValue.trim()) {
       this.validationMessage = "Enter a Gateway URL.";
       this.render();
@@ -163,7 +174,28 @@ export class HermesGatewayPanel {
       this.urlInput?.focus();
       return;
     }
-    await this.probe.start({ url: this.urlValue, token: this.tokenValue });
+    const bearer = this.tokenValue;
+    await this.disconnectRun();
+    this.connectedResult = null;
+    const result = await this.probe.start({ url: this.urlValue, token: bearer });
+    if (result.status === ProbeState.SUCCESS) {
+      this.connectedResult = result;
+      if (supportsCoreRun(result.capabilityNames)) {
+        this.runController = new RunController({
+          baseUrl: result.endpoint,
+          bearer,
+          capabilities: result.capabilityNames,
+        });
+        this.runSnapshot = this.runController.snapshot;
+        this.runUnsubscribe = this.runController.subscribe((snapshot) => {
+          this.runSnapshot = snapshot;
+          this.render();
+        });
+      }
+      this.tokenValue = "";
+      if (this.tokenInput) this.tokenInput.value = "";
+      this.render();
+    }
   }
 
   verdictSection() {
@@ -198,7 +230,7 @@ export class HermesGatewayPanel {
       return h("section", { class: "gateway-capability-summary", "aria-labelledby": "capability-summary-title" },
         h("h3", { id: "capability-summary-title", class: "gateway-capability-title" }, "Capability summary"),
         h("p", null, "Capability discovery is Not verified."),
-        h("p", { class: "gateway-footnote" }, "Run controls appear in Phase 2."),
+        h("p", { class: "gateway-footnote" }, "Run controls require successful capability discovery."),
       );
     }
 
@@ -214,8 +246,136 @@ export class HermesGatewayPanel {
         ? h("p", null, "This Gateway did not advertise any controls for this client.")
         : h("ul", { class: "gateway-capabilities", "aria-label": "Advertised capabilities" }, summary.names.map((name) => h("li", null, name))),
       h("p", { class: "gateway-capability-version" }, summary.version ? `Protocol or fixture version: ${summary.version}` : "Protocol or fixture version: Not recorded"),
-      h("p", { class: "gateway-footnote" }, "Run controls appear in Phase 2."),
+      h("p", { class: "gateway-footnote" }, "Controls below are derived only from this advertised capability set."),
     );
+  }
+
+  runSection() {
+    if (!this.connectedResult) return null;
+    if (!supportsCoreRun(this.connectedResult.capabilityNames)) {
+      const missing = [RUN_FEATURES.submit, RUN_FEATURES.status, RUN_FEATURES.events]
+        .filter((name) => !this.connectedResult.capabilityNames.includes(name));
+      return h("section", { class: "gateway-card gateway-run", "aria-labelledby": "run-title" },
+        h("h2", { id: "run-title" }, "Run control unavailable"),
+        h("p", null, "This Gateway did not advertise the complete run submission, status, and event-stream contract."),
+        h("p", { class: "gateway-footnote" }, `Missing: ${missing.join(", ")}`),
+      );
+    }
+    const run = this.runSnapshot;
+    if (!run) return null;
+    const active = this.runController.isActive();
+    const terminal = ["completed", "failed", "cancelled"].includes(run.status);
+    const prompt = h("textarea", {
+      id: "run-prompt", class: "gateway-textarea", rows: "4", maxlength: String(64 * 1024),
+      placeholder: "Ask Hermes to work on a task…", disabled: active,
+      oninput: (event) => { this.promptValue = event.target.value; this.syncRunForm(); },
+    });
+    prompt.value = this.promptValue;
+    const start = h("button", { class: "gateway-submit", type: "submit" }, terminal ? "Start another run" : "Start run");
+    this.runPrompt = prompt;
+    this.runSubmit = start;
+    const content = [
+      h("div", { class: "gateway-run-heading" },
+        h("h2", { id: "run-title" }, "Hermes run"),
+        h("span", { class: `gateway-run-status gateway-run-status-${run.status}`, "aria-live": "polite" }, run.status.replaceAll("_", " ")),
+      ),
+      !active ? h("form", { class: "gateway-run-form", onsubmit: (event) => void this.startRun(event) },
+        h("label", { for: "run-prompt", class: "gateway-label" }, "Task"), prompt, start,
+      ) : null,
+      run.assistant ? h("section", { class: "gateway-run-output", "aria-labelledby": "assistant-output-title" },
+        h("h3", { id: "assistant-output-title" }, "Assistant"),
+        h("p", { class: "gateway-assistant", "aria-live": "polite" }, run.assistant),
+      ) : null,
+      run.activity.length ? h("section", { class: "gateway-run-activity", "aria-labelledby": "run-activity-title" },
+        h("h3", { id: "run-activity-title" }, "Activity"),
+        h("ol", { class: "gateway-activity-list" }, run.activity.map((item) => h("li", { class: `gateway-activity gateway-activity-${item.kind}` },
+          h("strong", null, item.label), item.detail ? h("span", null, item.detail) : null,
+        ))),
+      ) : null,
+      this.approvalSection(run),
+      active ? this.runControls(run) : null,
+      run.error ? h("p", { class: "gateway-inline-error", role: "alert" }, run.error) : null,
+      run.streamState === "closed" && !terminal ? h("p", { class: "gateway-note" }, "The event stream is closed. Gateway status is authoritative.") : null,
+    ];
+    queueMicrotask(() => this.syncRunForm());
+    return h("section", { class: "gateway-card gateway-run", "aria-labelledby": "run-title" }, content);
+  }
+
+  approvalSection(run) {
+    if (!run.pendingApproval) return null;
+    const canRespond = this.runController.has(RUN_FEATURES.approval);
+    return h("section", { class: "gateway-approval", "aria-labelledby": "approval-title" },
+      h("h3", { id: "approval-title" }, "Approval required"),
+      run.pendingApproval.command ? h("pre", { class: "gateway-command" }, run.pendingApproval.command) : null,
+      canRespond
+        ? h("div", { class: "gateway-control-row" }, run.pendingApproval.choices.map((choice) => h("button", {
+          class: "gateway-secondary", type: "button", disabled: run.actionPending,
+          onclick: () => void this.answerApproval(choice),
+        }, choice === "once" ? "Allow once" : choice === "session" ? "Allow for session" : choice === "always" ? "Always allow" : "Deny")))
+        : h("p", { class: "gateway-inline-error" }, "The Gateway requested approval without advertising approval responses."),
+    );
+  }
+
+  runControls(run) {
+    const canSteer = this.runController.has(RUN_FEATURES.steer);
+    const canStop = this.runController.has(RUN_FEATURES.stop);
+    const steer = h("input", {
+      id: "run-steer", class: "gateway-input", type: "text", maxlength: String(64 * 1024),
+      placeholder: "Add guidance…", disabled: run.actionPending,
+      oninput: (event) => { this.steerValue = event.target.value; this.syncRunForm(); },
+    });
+    steer.value = this.steerValue;
+    const steerButton = h("button", { class: "gateway-secondary", type: "submit", disabled: run.actionPending }, "Send guidance");
+    this.steerInput = steer;
+    this.steerButton = steerButton;
+    return h("section", { class: "gateway-run-controls", "aria-labelledby": "run-controls-title" },
+      h("h3", { id: "run-controls-title" }, "Run controls"),
+      canSteer ? h("form", { class: "gateway-steer-form", onsubmit: (event) => void this.steerRun(event) },
+        h("label", { for: "run-steer", class: "gateway-label" }, "Steer"), steer, steerButton,
+      ) : null,
+      canStop ? h("button", {
+        class: "gateway-danger", type: "button", disabled: run.actionPending || run.status === "stopping",
+        onclick: () => void this.stopRun(),
+      }, run.status === "stopping" ? "Stop requested…" : "Request stop") : null,
+    );
+  }
+
+  syncRunForm() {
+    if (this.runSubmit) this.runSubmit.disabled = !this.promptValue.trim() || (this.runController?.isActive() ?? false);
+    if (this.steerButton) this.steerButton.disabled = !this.steerValue.trim() || Boolean(this.runSnapshot?.actionPending);
+  }
+
+  async startRun(event) {
+    event.preventDefault();
+    const prompt = this.promptValue;
+    if (!prompt.trim()) return;
+    this.promptValue = "";
+    await this.runController.start(prompt);
+  }
+
+  async answerApproval(choice) {
+    await this.runController.approve(choice);
+  }
+
+  async steerRun(event) {
+    event.preventDefault();
+    const guidance = this.steerValue;
+    if (!guidance.trim()) return;
+    this.steerValue = "";
+    await this.runController.steer(guidance);
+  }
+
+  async stopRun() {
+    await this.runController.stop();
+  }
+
+  async disconnectRun() {
+    this.runUnsubscribe?.();
+    this.runUnsubscribe = null;
+    const controller = this.runController;
+    this.runController = null;
+    this.runSnapshot = null;
+    if (controller) await controller.release();
   }
 
   evidenceShell() {

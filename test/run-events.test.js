@@ -34,3 +34,10 @@ test("run event parser fails closed on oversized unterminated frames", () => {
   const parser = new RunEventParser("run_abc12345");
   assert.throws(() => parser.push("x".repeat(MAX_RUN_FRAME_CHARS + 1)), /run_event_too_large/);
 });
+
+test("a large journal chunk may contain many individually bounded frames", () => {
+  const parser = new RunEventParser("run_abc12345");
+  const frame = 'data: {"event":"message.delta","run_id":"run_abc12345","delta":"x"}\n\n';
+  const events = parser.push(frame.repeat(5_000));
+  assert.equal(events.length, 5_000);
+});

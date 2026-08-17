@@ -49,12 +49,14 @@ button:disabled { cursor: default; color: var(--muxy-foreground-muted); backgrou
 .gateway-footnote { font-size: 11px; }
 .gateway-card { border: 1px solid var(--muxy-border); border-radius: 8px; background: var(--muxy-surface-solid); padding: 16px; }
 .gateway-input { min-width: 0; height: 28px; box-sizing: border-box; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-surface-solid); color: var(--muxy-foreground); padding: 0 8px; font-size: 13px; }
-.gateway-input:focus-visible, .gateway-submit:focus-visible, .gateway-details-toggle:focus-visible, .gateway-retry:focus-visible, .gateway-evidence-row:focus-visible, .gateway-transport-stop button:focus-visible, .gateway-transport-stop h2:focus-visible { outline: 2px solid var(--muxy-accent); outline-offset: 2px; }
+.gateway-textarea { min-width: 0; box-sizing: border-box; resize: vertical; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-surface-solid); color: var(--muxy-foreground); padding: 8px; font-size: 13px; line-height: 1.4; }
+.gateway-input:focus-visible, .gateway-textarea:focus-visible, .gateway-submit:focus-visible, .gateway-secondary:focus-visible, .gateway-danger:focus-visible, .gateway-details-toggle:focus-visible, .gateway-retry:focus-visible, .gateway-evidence-row:focus-visible, .gateway-transport-stop button:focus-visible, .gateway-transport-stop h2:focus-visible { outline: 2px solid var(--muxy-accent); outline-offset: 2px; }
 .gateway-label { font-size: 13px; }
 .gateway-submit { height: 28px; border: 0; border-radius: 6px; background: var(--muxy-accent); color: var(--muxy-accent-foreground); padding: 0 10px; font-size: 13px; }
 .gateway-submit:hover:not(:disabled) { background: var(--muxy-hover); color: var(--muxy-foreground); }
-.gateway-details-toggle, .gateway-retry, .gateway-transport-stop button { min-height: 28px; width: fit-content; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-surface-solid); color: var(--muxy-foreground); padding: 0 8px; }
-.gateway-details-toggle:hover, .gateway-retry:hover, .gateway-transport-stop button:hover { background: var(--muxy-hover); border-color: var(--muxy-accent); }
+.gateway-details-toggle, .gateway-retry, .gateway-transport-stop button, .gateway-secondary, .gateway-danger { min-height: 28px; width: fit-content; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-surface-solid); color: var(--muxy-foreground); padding: 0 8px; }
+.gateway-details-toggle:hover, .gateway-retry:hover, .gateway-transport-stop button:hover, .gateway-secondary:hover:not(:disabled), .gateway-danger:hover:not(:disabled) { background: var(--muxy-hover); border-color: var(--muxy-accent); }
+.gateway-danger { border-color: var(--muxy-diff-remove); color: var(--muxy-diff-remove); }
 .gateway-live { min-height: 18px; margin: 0; color: var(--muxy-foreground-muted); }
 .gateway-inline-error { min-height: 18px; margin: 0; color: var(--muxy-diff-remove); }
 .gateway-result, .gateway-capability-summary, .gateway-evidence, .gateway-transport-stop { display: grid; gap: 8px; }
@@ -69,4 +71,16 @@ button:disabled { cursor: default; color: var(--muxy-foreground-muted); backgrou
 .gateway-evidence-row { display: grid; gap: 4px; padding: 8px; border: 1px solid var(--muxy-border); border-radius: 6px; list-style-position: inside; }
 .gateway-transport-stop { border-color: var(--muxy-diff-remove); }
 .gateway-bridge-contract { max-width: 100%; margin: 0; padding: 8px; overflow-wrap: anywhere; white-space: pre-wrap; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-surface-solid); color: var(--muxy-foreground); font: 11px "SF Mono", Menlo, monospace; }
+.gateway-run, .gateway-run-form, .gateway-run-output, .gateway-run-activity, .gateway-run-controls, .gateway-approval, .gateway-steer-form { display: grid; gap: 8px; }
+.gateway-run-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gateway-run h3 { margin: 0; font-size: 12px; font-weight: 600; }
+.gateway-run-status { max-width: 50%; border: 1px solid var(--muxy-border); border-radius: 999px; padding: 2px 8px; color: var(--muxy-foreground-muted); overflow-wrap: anywhere; text-transform: capitalize; }
+.gateway-run-status-completed { color: var(--muxy-diff-add); }
+.gateway-run-status-failed, .gateway-run-status-cancelled { color: var(--muxy-diff-remove); }
+.gateway-assistant { margin: 0; color: var(--muxy-foreground); white-space: pre-wrap; overflow-wrap: anywhere; }
+.gateway-activity-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.gateway-activity { display: grid; gap: 2px; border-left: 2px solid var(--muxy-border); padding-left: 8px; overflow-wrap: anywhere; }
+.gateway-activity span { color: var(--muxy-foreground-muted); white-space: pre-wrap; }
+.gateway-control-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.gateway-command { max-width: 100%; margin: 0; padding: 8px; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-background); color: var(--muxy-foreground); white-space: pre-wrap; overflow-wrap: anywhere; font: 11px "SF Mono", Menlo, monospace; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

@@ -19,7 +19,7 @@ const forbiddenSourcePatterns = [
   /muxy\.http\b/, /EventSource\b/, /muxy\.storage\b/, /muxy\.git\b/, /muxy\.execAsync\b/,
   /rejectUnauthorized\b/, /NODE_TLS_REJECT_UNAUTHORIZED\b/, /background\.js\b/,
 ];
-const forbiddenPanelPatterns = [/Start run|Stop run|Steer|Approve/i, /workspace path/i, /certificate bypass/i];
+const forbiddenPanelPatterns = [/workspace path/i, /certificate bypass/i, /auto.?approve/i, /install bridge|register.*agent|provider registration/i];
 const indexRowKeys = new Set(["id", "verdict", "reasonCode", "latest", "latestPair", "lastVerifiedPair", "carriedForward", "history"]);
 const indexEntryKeys = new Set(["runId", "recordedAt", "muxyVersion", "hermesVersion", "hermesRevisionOrDigest", "trustClass", "realPath", "simulation", "freshPanelSession", "sessionOrdinal", "requiredStages", "originVerdict", "capabilityShapeHash", "sseFrames", "verdict", "reasonCode", "reportJson", "reportMarkdown"]);
 
@@ -95,13 +95,19 @@ async function validateBoundary() {
     join(root, "src", "sse-parser.js"),
     join(root, "src", "capabilities.js"),
     join(root, "src", "stop-gate.js"),
+    join(root, "src", "run-events.js"),
+    join(root, "src", "run-client.js"),
+    join(root, "src", "run-controller.js"),
   ];
   for (const file of productionSources) {
     const source = await readFile(file, "utf8");
-    for (const pattern of forbiddenSourcePatterns) assert.doesNotMatch(source, pattern, `${relative(root, file)} exceeds the Phase 1 authority boundary`);
+    for (const pattern of forbiddenSourcePatterns) assert.doesNotMatch(source, pattern, `${relative(root, file)} exceeds the extension authority boundary`);
   }
   const panel = await readFile(join(root, "src", "panel", "app.js"), "utf8");
   for (const pattern of forbiddenPanelPatterns) assert.doesNotMatch(panel, pattern, "panel renders an out-of-scope authority");
+  for (const requiredGate of ["supportsCoreRun", "RUN_FEATURES.approval", "RUN_FEATURES.stop", "RUN_FEATURES.steer"]) {
+    assert.match(panel, new RegExp(requiredGate.replace(".", "\\.")), `panel is missing advertised capability gate ${requiredGate}`);
+  }
 }
 
 async function validateSentinel(index) {
@@ -125,7 +131,7 @@ async function main() {
   const index = await validateEvidence();
   await validateBoundary();
   await validateSentinel(index);
-  process.stdout.write("Phase 1 build, test, evidence, redaction, and authority boundary validation passed.\n");
+  process.stdout.write("Phase 1 transport/evidence and Phase 2 run-control authority validation passed.\n");
 }
 
 main().catch((error) => {

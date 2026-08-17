@@ -79,7 +79,7 @@ export class RunController {
         onEvent: (event) => this.#handleEvent(event, generation),
       });
       if (generation !== this.#generation) return;
-      this.#publish({ runId: started.runId, status: "running", streamState: "streaming" });
+      this.#publish({ runId: started.runId, status: this.#snapshot.pendingApproval ? "waiting_for_approval" : "running", streamState: "streaming" });
       void Promise.resolve(started.stream).then(
         () => this.#streamEnded(generation),
         () => this.#streamEnded(generation, "The live event stream ended before a terminal status was confirmed."),

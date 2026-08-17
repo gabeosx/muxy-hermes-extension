@@ -72,6 +72,7 @@ export function normalizeRunEvent(payload, expectedRunId) {
 export class RunEventParser {
   #buffer = "";
   #lines = [];
+  #frameChars = 0;
   #runId;
 
   constructor(runId) {
@@ -82,7 +83,6 @@ export class RunEventParser {
   push(chunk) {
     if (typeof chunk !== "string") throw new Error("invalid_run_stream_chunk");
     this.#buffer += chunk;
-    if (this.#buffer.length > MAX_RUN_FRAME_CHARS) throw new Error("run_event_too_large");
     const events = [];
     let newline;
     while ((newline = this.#buffer.indexOf("\n")) !== -1) {
@@ -94,11 +94,13 @@ export class RunEventParser {
         if (event) events.push(event);
       } else if (!line.startsWith(":")) {
         this.#lines.push(line);
-        if (this.#lines.reduce((size, item) => size + item.length, 0) > MAX_RUN_FRAME_CHARS) {
+        this.#frameChars += line.length;
+        if (this.#frameChars > MAX_RUN_FRAME_CHARS) {
           throw new Error("run_event_too_large");
         }
       }
     }
+    if (this.#buffer.length + this.#frameChars > MAX_RUN_FRAME_CHARS) throw new Error("run_event_too_large");
     return events;
   }
 
@@ -112,6 +114,7 @@ export class RunEventParser {
       if (field === "data") data.push(value);
     }
     this.#lines = [];
+    this.#frameChars = 0;
     if (data.length === 0) return null;
     try {
       return normalizeRunEvent(JSON.parse(data.join("\n")), this.#runId);

@@ -46,13 +46,13 @@ test("the manifest exposes the panel plus only the approved relay and journal pe
   }
 });
 
-test("the panel keeps capability and evidence output read-only and uses contract copy", async () => {
+test("the panel keeps capability and evidence output safe while deriving run availability from advertised names", async () => {
   const panel = await readFile(new URL("../src/panel/app.js", import.meta.url), "utf8");
 
   for (const text of [
     "No capabilities advertised",
     "This Gateway did not advertise any controls for this client.",
-    "Run controls appear in Phase 2.",
+    "Controls below are derived only from this advertised capability set.",
     "Validation evidence",
     "No versioned fixture result has been recorded for this deployment condition.",
     "Muxy will ask before running curl and before scrubbing a temporary journal in this worktree.",
@@ -65,11 +65,25 @@ test("the panel keeps capability and evidence output read-only and uses contract
   assert.match(panel, /Cleaning previous relay journal/);
   assert.match(panel, /this\.probe\.prepare\(\)/);
 
-  assert.doesNotMatch(panel, /Start run|Stop run|Steer|Approve|terminal|workspace path/i);
+  for (const contract of [
+    "supportsCoreRun(result.capabilityNames)",
+    "RUN_FEATURES.submit",
+    "RUN_FEATURES.status",
+    "RUN_FEATURES.events",
+    "RUN_FEATURES.approval",
+    "RUN_FEATURES.steer",
+    "RUN_FEATURES.stop",
+    "Start run",
+    "Request stop",
+    "Gateway status is authoritative",
+  ]) assert.match(panel, new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(panel, /workspace path|certificate bypass|auto.?approve/i);
   assert.match(panel, /type: "password", autocomplete: "off"/);
+  assert.match(panel, /this\.tokenValue = ""/);
+  assert.match(panel, /this\.disconnectRun\(\)/);
 });
 
-test("the panel loads the five-row safe evidence index and exposes only stop-boundary actions", async () => {
+test("the panel preserves the five-row evidence boundary alongside capability-gated run controls", async () => {
   const panel = await readFile(new URL("../src/panel/app.js", import.meta.url), "utf8");
 
   for (const text of [
@@ -84,7 +98,9 @@ test("the panel loads the five-row safe evidence index and exposes only stop-bou
     "Could not load the bridge contract.",
   ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")));
 
-  assert.doesNotMatch(panel, /install bridge|register.*agent|provider registration|certificate bypass|Start run|Stop run|Steer|Approve/i);
+  assert.doesNotMatch(panel, /install bridge|register.*agent|provider registration|certificate bypass/i);
+  assert.match(panel, /run\.pendingApproval\.choices\.map/);
+  assert.match(panel, /this\.runController\.has\(RUN_FEATURES\.approval\)/);
 });
 
 test("native styles wrap content, preserve visible interaction state, and honor reduced motion", async () => {
@@ -97,5 +113,7 @@ test("native styles wrap content, preserve visible interaction state, and honor 
   assert.match(css, /overflow-y:\s*auto/);
   assert.match(css, /overflow-wrap:\s*anywhere/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
+  assert.match(css, /gateway-run/);
+  assert.match(css, /gateway-danger/);
   assert.doesNotMatch(css, /overflow-x:\s*(?:auto|scroll)/);
 });

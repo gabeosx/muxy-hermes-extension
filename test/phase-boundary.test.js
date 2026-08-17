@@ -16,7 +16,7 @@ test("the committed evidence index is a complete safe matrix with simulated remo
   assert.equal(evaluateStopGate({ evidenceIndex: safe }).active, false);
 });
 
-test("the aggregate validator is non-watch and the panel exposes no forbidden Phase 1 controls", async () => {
+test("the aggregate validator is non-watch and Phase 2 controls remain inside the existing authority boundary", async () => {
   const [manifest, validator, panel] = await Promise.all([
     readFile(new URL("package.json", root), "utf8"),
     readFile(new URL("scripts/validate-phase.mjs", root), "utf8"),
@@ -25,5 +25,7 @@ test("the aggregate validator is non-watch and the panel exposes no forbidden Ph
   assert.match(manifest, /"validate"\s*:\s*"node scripts\/validate-phase\.mjs"/);
   assert.doesNotMatch(manifest, /"validate"[^\n]*(?:watch|--watch)/i);
   assert.match(validator, /validateEvidence/);
-  assert.doesNotMatch(panel, /install bridge|register.*agent|provider registration|certificate bypass|Start run|Stop run|Steer|Approve/i);
+  assert.match(panel, /supportsCoreRun/);
+  assert.match(panel, /RUN_FEATURES\.(?:approval|stop|steer)/);
+  assert.doesNotMatch(panel, /install bridge|register.*agent|provider registration|certificate bypass|workspace path/i);
 });
