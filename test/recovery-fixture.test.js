@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import test from "node:test";
 
@@ -37,4 +38,13 @@ test("recovery proxy stays loopback and interrupts only the first fixed event st
 
 test("recovery proxy rejects non-loopback upstreams and non-fixed routes", async () => {
   await assert.rejects(startRecoveryProxy({ upstream: "https://gateway.example", runId: "run_fixture" }), /recovery_proxy_upstream_unsafe/);
+});
+
+test("recovery scenario records observed behavior, not inferred topology, and keeps remote analogues unverified", async () => {
+  const scenarios = JSON.parse(await readFile(new URL("../fixtures/simulations/recovery-scenarios.json", import.meta.url), "utf8"));
+  assert.deepEqual(scenarios.conditions.map((row) => row.id), [
+    "gateway_refusal", "interrupted_restored_stream", "proxy_buffering", "panel_recreation", "ssh_local_forward", "direct_remote_https", "remote_muxy_workspace",
+  ]);
+  for (const row of scenarios.conditions.slice(-3)) assert.equal(row.forced_unverified, true);
+  assert.equal(JSON.stringify(scenarios).toLowerCase().includes("workspacepath"), false);
 });
