@@ -46,6 +46,7 @@ export class GatewayClient {
   #relay;
   #generation = 0;
   #inFlight = false;
+  #prepared = null;
 
   constructor({ relay = new CurlRelay() } = {}) {
     this.#relay = relay;
@@ -53,6 +54,16 @@ export class GatewayClient {
 
   get inFlight() {
     return this.#inFlight;
+  }
+
+  prepare() {
+    if (!this.#prepared) {
+      this.#prepared = Promise.resolve(this.#relay.cleanupStaleJournals?.()).catch((error) => {
+        this.#prepared = null;
+        throw error;
+      });
+    }
+    return this.#prepared;
   }
 
   teardown() {
@@ -66,6 +77,7 @@ export class GatewayClient {
     this.#inFlight = true;
     const generation = ++this.#generation;
     try {
+      await this.prepare();
       const capabilitiesResponse = await this.#relay.requestJson({
         url: endpoint(baseUrl, "/v1/capabilities"),
         bearer,

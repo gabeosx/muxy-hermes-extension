@@ -88,6 +88,10 @@ export class ConnectionProbe {
 
   get snapshot() { return this.#snapshot; }
 
+  prepare() {
+    return this.#client.prepare?.() ?? Promise.resolve();
+  }
+
   subscribe(listener) {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);

@@ -22,6 +22,8 @@ export class HermesGatewayPanel {
     this.urlValue = "";
     this.tokenValue = "";
     this.validationMessage = "";
+    this.preparing = true;
+    this.cleanupFailed = false;
     this.detailsOpen = false;
     this.evidenceState = Object.freeze({ state: "empty", rows: [] });
   }
@@ -36,6 +38,15 @@ export class HermesGatewayPanel {
       if (snapshot.status === ProbeState.FAILURE && snapshot.failureClass === FailureClass.URL) this.urlInput?.focus();
     });
     this.render();
+    this.probe.prepare().then(() => {
+      this.preparing = false;
+      this.render();
+    }, () => {
+      this.preparing = false;
+      this.cleanupFailed = true;
+      this.validationMessage = "A previous relay journal could not be safely cleared. Reload the extension and review its worktree files before connecting.";
+      this.render();
+    });
     window.muxy?.onFocus?.(() => {
       if (this.snapshot.status !== ProbeState.TESTING) this.urlInput?.focus();
     });
@@ -70,8 +81,9 @@ export class HermesGatewayPanel {
       oninput: (event) => { this.tokenValue = event.target.value; this.validationMessage = ""; this.syncForm(); },
     });
     token.value = this.tokenValue;
-    const status = h("p", { class: "gateway-live", "aria-live": "polite" }, testing ? "Testing connection…" : "");
-    const submit = h("button", { class: "gateway-submit", type: "submit" }, testing ? "Testing connection…" : "Test connection");
+    const statusCopy = this.preparing ? "Cleaning previous relay journal…" : testing ? "Testing connection…" : "";
+    const status = h("p", { class: "gateway-live", "aria-live": "polite" }, statusCopy);
+    const submit = h("button", { class: "gateway-submit", type: "submit" }, this.preparing ? "Preparing relay…" : testing ? "Testing connection…" : "Test connection");
     this.urlInput = url;
     this.tokenInput = token;
     this.submitButton = submit;
@@ -102,12 +114,12 @@ export class HermesGatewayPanel {
     if (!this.submitButton) return;
     let validUrl = false;
     try { normalizeGatewayUrl(this.urlValue); validUrl = true; } catch { /* local validation renders on submit */ }
-    this.submitButton.disabled = this.snapshot.status === ProbeState.TESTING || !validUrl || !this.tokenValue;
+    this.submitButton.disabled = this.preparing || this.cleanupFailed || this.snapshot.status === ProbeState.TESTING || !validUrl || !this.tokenValue;
   }
 
   async submit(event) {
     event.preventDefault();
-    if (this.snapshot.status === ProbeState.TESTING) return;
+    if (this.preparing || this.cleanupFailed || this.snapshot.status === ProbeState.TESTING) return;
     if (!this.urlValue.trim()) {
       this.validationMessage = "Enter a Gateway URL.";
       this.render();

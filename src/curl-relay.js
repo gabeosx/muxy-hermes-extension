@@ -67,6 +67,42 @@ export class CurlRelay {
     this.randomId = randomId ?? (() => globalThis.crypto.randomUUID());
   }
 
+  async cleanupStaleJournals() {
+    if (!this.files?.list) {
+      throw relayError("journal_api_unavailable");
+    }
+    let entries;
+    try {
+      entries = await this.files.list(RUNTIME_ROOT);
+    } catch (error) {
+      if (error?.code === "ENOENT" || /(?:ENOENT|No such file|does not exist)/i.test(error?.message ?? "")) {
+        return { cleaned: 0 };
+      }
+      throw relayError("journal_cleanup_failed");
+    }
+    if (entries.length > 0 && (!this.files.write || !this.files.delete)) {
+      throw relayError("journal_api_unavailable");
+    }
+    let cleaned = 0;
+    for (const entry of entries) {
+      const expectedPath = `${RUNTIME_ROOT}/${entry?.name ?? ""}`;
+      if (!entry?.isDirectory || entry.path !== expectedPath || !/^[A-Za-z0-9-]{8,64}$/.test(entry.name)) {
+        throw relayError("journal_cleanup_unexpected_entry");
+      }
+      const children = await this.files.list(entry.path);
+      if (children.length > 1) throw relayError("journal_cleanup_unexpected_entry");
+      for (const child of children) {
+        if (child?.isDirectory || child?.name !== "stream.sse" || child.path !== `${entry.path}/stream.sse`) {
+          throw relayError("journal_cleanup_unexpected_entry");
+        }
+        await this.files.write(child.path, "");
+      }
+      await this.files.delete([entry.path]);
+      cleaned += 1;
+    }
+    return { cleaned };
+  }
+
   async requestJson({ url, bearer, method = "GET", body = null, timeoutMs = 15_000 }) {
     const timeoutSeconds = Math.max(1, Math.ceil(timeoutMs / 1000));
     const argv = commonArgv({ url, method, accept: "application/json", timeoutSeconds });
