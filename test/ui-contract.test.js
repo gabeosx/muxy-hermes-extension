@@ -31,6 +31,20 @@ test("capability normalization keeps only safe documented metadata and names", (
   assert.deepEqual(normalizeCapabilities(null), { state: "unavailable", version: null, names: [] });
 });
 
+test("the manifest exposes only the permission-free Hermes panel toggle command", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+
+  assert.deepEqual(manifest.muxy.commands, [{
+    id: "toggle-hermes-gateway",
+    title: "Hermes: Toggle Gateway Panel",
+    action: { kind: "togglePanel", panel: "hermes-gateway" },
+  }]);
+  assert.equal(Object.hasOwn(manifest.muxy, "permissions"), false);
+  for (const forbiddenSurface of ["background", "topbarItems", "statusbarItems", "scripts"]) {
+    assert.equal(Object.hasOwn(manifest.muxy, forbiddenSurface), false, `manifest must not declare ${forbiddenSurface}`);
+  }
+});
+
 test("the panel keeps capability and evidence output read-only and uses contract copy", async () => {
   const panel = await readFile(new URL("../src/panel/app.js", import.meta.url), "utf8");
 

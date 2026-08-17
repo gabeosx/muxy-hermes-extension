@@ -7,9 +7,13 @@ import { isAbsolute, relative, resolve } from "node:path";
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "..");
 const dist = resolve(root, "dist");
+const publicDir = resolve(root, "public");
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const allowedManifestKeys = new Set(["$schema", "description", "panels"]);
+const allowedManifestKeys = new Set(["$schema", "description", "commands", "panels"]);
 const allowedPanelKeys = new Set(["entry", "icon", "id", "mode", "position", "title"]);
+const allowedCommandKeys = new Set(["id", "title", "action"]);
+const allowedCommandActionKeys = new Set(["kind", "panel"]);
+const allowedPublicAssets = new Set(["evidence/index.json", "evidence/schema-v1.json"]);
 
 function insideDist(path) {
   const pathFromDist = relative(dist, path);
@@ -46,6 +50,19 @@ function assertManifestShape(manifest, label) {
   }
   assert.equal(typeof panel.entry, "string", `${label} panel entry must be a string`);
   assert.ok(panel.entry.length > 0, `${label} panel entry must not be empty`);
+
+  assert.ok(Array.isArray(manifest.muxy.commands) && manifest.muxy.commands.length === 1, `${label} must declare exactly one panel opener command`);
+  const [command] = manifest.muxy.commands;
+  for (const key of Object.keys(command)) {
+    assert.ok(allowedCommandKeys.has(key), `${label} command contains unauthorized surface: ${key}`);
+  }
+  assert.equal(command.id, "toggle-hermes-gateway", `${label} command id must be the stable Hermes panel opener`);
+  assert.equal(command.title, "Hermes: Toggle Gateway Panel", `${label} command title must identify the Hermes panel opener`);
+  assert.ok(command.action && typeof command.action === "object" && !Array.isArray(command.action), `${label} command must contain an action object`);
+  for (const key of Object.keys(command.action)) {
+    assert.ok(allowedCommandActionKeys.has(key), `${label} command action contains unauthorized surface: ${key}`);
+  }
+  assert.deepEqual(command.action, { kind: "togglePanel", panel: panel.id }, `${label} command may only toggle the declared panel`);
   assert.equal(Object.hasOwn(manifest.muxy, "permissions"), false, `${label} must not request permissions`);
   return panel.entry;
 }
@@ -74,6 +91,16 @@ async function validateCurrentBuild() {
     assert.ok(insideDist(assetPath), `panel entry asset escapes dist: ${asset}`);
     assert.ok((await stat(assetPath)).isFile(), `panel entry asset is missing: ${asset}`);
     declared.add(relative(dist, assetPath));
+  }
+
+  const publicAssets = await filesUnder(publicDir);
+  assert.deepEqual(publicAssets, [...allowedPublicAssets].sort(), "public must contain only the declared redacted evidence assets");
+  for (const asset of publicAssets) {
+    const publishedAsset = resolve(dist, asset);
+    assert.ok(insideDist(publishedAsset), `public asset escapes dist: ${asset}`);
+    assert.ok((await stat(publishedAsset)).isFile(), `published public asset is missing: ${asset}`);
+    assert.equal(await readFile(publishedAsset, "utf8"), await readFile(resolve(publicDir, asset), "utf8"), `published public asset differs from source: ${asset}`);
+    declared.add(asset);
   }
 
   const emitted = await filesUnder(dist);

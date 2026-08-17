@@ -7,6 +7,16 @@
   "muxy" : {
     "$schema" : "https:\/\/raw.githubusercontent.com\/muxy-app\/muxy\/main\/docs\/extensions\/schema\/manifest.schema.json",
     "description" : "Connects Muxy to an existing Hermes Gateway",
+    "commands" : [
+      {
+        "id" : "toggle-hermes-gateway",
+        "title" : "Hermes: Toggle Gateway Panel",
+        "action" : {
+          "kind" : "togglePanel",
+          "panel" : "hermes-gateway"
+        }
+      }
+    ],
     "panels" : [
       {
         "entry" : "panel\/index.html",
