@@ -75,7 +75,7 @@ export class CurlRelay {
     try {
       entries = await this.files.list(RUNTIME_ROOT);
     } catch (error) {
-      if (error?.code === "ENOENT" || /(?:ENOENT|No such file|does not exist)/i.test(error?.message ?? "")) {
+      if (error?.code === "ENOENT" || /(?:ENOENT|No such file|does not exist|no longer exists)/i.test(error?.message ?? "")) {
         return { cleaned: 0 };
       }
       throw relayError("journal_cleanup_failed");
