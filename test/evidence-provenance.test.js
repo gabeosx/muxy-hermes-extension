@@ -5,6 +5,8 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  appendEvidenceIndex,
+  buildEvidenceRecord,
   buildVerifiedEvidenceRecord,
   validateEvidenceRecord,
   writeEvidencePair,
@@ -12,19 +14,22 @@ import {
 
 const DIGEST = (letter) => letter.repeat(64);
 
-function receiptBundle(overrides = {}) {
-  const qualificationId = overrides.qualificationId ?? "qualification-20260817-0001";
-  const panelDigest = overrides.panelDigest ?? DIGEST("a");
-  const relayDigest = overrides.relayDigest ?? DIGEST("b");
-  const fixtureDigest = overrides.fixtureDigest ?? DIGEST("c");
-  const challengeDigest = overrides.challengeDigest ?? DIGEST("d");
-  const tuple = overrides.versionTuple ?? {
+function receiptBundle({
+  qualificationId = "qualification-20260817-0001",
+  panelDigest = DIGEST("a"),
+  relayDigest = DIGEST("b"),
+  fixtureDigest = DIGEST("c"),
+  challengeDigest = DIGEST("d"),
+  versionTuple: tuple = {
     muxyVersion: "1.2.3",
     hermesVersion: "0.17.0",
     hermesRevisionOrDigest: "sha256:fixture1234",
-  };
+  },
+  runId = "run-20260817-000000-0001",
+  ...overrides
+} = {}) {
   return {
-    runId: overrides.runId ?? "run-20260817-000000-0001",
+    runId,
     recordedAt: "2026-08-17T12:00:00.000Z",
     deploymentCondition: "host_native_loopback",
     trustClass: "loopback_http",
@@ -79,7 +84,7 @@ test("receipt mismatches, unsafe fields, and replays fail before positive eviden
   assert.throws(() => buildVerifiedEvidenceRecord(receiptBundle({
     qualificationId: "qualification-20260817-mixed-version",
     fixture: { ...receiptBundle({ qualificationId: "qualification-20260817-mixed-version" }).fixture, versionTuple: { muxyVersion: "9.9.9", hermesVersion: "0.17.0", hermesRevisionOrDigest: "sha256:fixture1234" } },
-  })), /evidence_invalid_versionTuple/);
+  })), /evidence_invalid_receiptCorrelation/);
   assert.throws(() => buildVerifiedEvidenceRecord(receiptBundle({
     qualificationId: "qualification-20260817-unsafe",
     relay: { ...receiptBundle({ qualificationId: "qualification-20260817-unsafe" }).relay, rawBody: "Bearer secret" },
@@ -95,10 +100,25 @@ test("verified reports publish JSON and Markdown as an atomic pair without raw r
   try {
     const record = buildVerifiedEvidenceRecord(receiptBundle({ qualificationId: "qualification-20260817-paired", runId: "run-20260817-000000-0002" }));
     const paths = await writeEvidencePair({ outputDir: output, record });
+    const index = await appendEvidenceIndex({ outputDir: output, record });
     const durable = `${await readFile(paths.jsonPath, "utf8")}\n${await readFile(paths.markdownPath, "utf8")}`;
     assert.match(durable, /verifier_receipt_bundle/);
     assert.equal(durable.includes("Bearer secret"), false);
+    assert.deepEqual(index.history.map((entry) => entry.runId), [record.runId]);
+    await assert.rejects(() => appendEvidenceIndex({ outputDir: output, record }), /evidence_run_already_indexed/);
   } finally {
     await rm(output, { recursive: true, force: true });
   }
+});
+
+test("schema-v1 evidence remains readable history but has no relay support eligibility", () => {
+  const historical = buildEvidenceRecord({
+    runId: "run-20260817-000000-0003", recordedAt: "2026-08-17T12:00:00.000Z",
+    deploymentCondition: "host_native_loopback", trustClass: "loopback_http", realPath: true, simulation: false,
+    muxyVersion: "1.2.3", hermesVersion: "0.17.0", hermesRevisionOrDigest: "sha256:fixture1234",
+    requiredStages: { url: "passed", request: "passed", authentication: "passed", origin: "passed", capabilities: "passed", stream: "passed" },
+    freshPanelSession: true, sessionOrdinal: 1, originVerdict: "exact_origin_passed", capabilityShape: {}, sseFrames: [],
+  });
+  assert.equal(validateEvidenceRecord(historical), true);
+  assert.equal("supportEligible" in historical, false);
 });
