@@ -31,32 +31,26 @@ test("frames split SSE fields, delimiters, repeated data, comments, and incomple
   ]);
 });
 
-test("probe sends the bearer only in Authorization, normalizes capabilities, and verifies a streamed fixture sequence", async () => {
-  const requests = [];
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(encoder.encode('event: chat.completion.chunk\ndata: {"choices":[{"delta":{"content":"a"}}]}\n\n'));
-      setTimeout(() => {
-        controller.enqueue(encoder.encode('event: chat.completion.chunk\ndata: {"choices":[{"delta":{"content":"b"},"finish_reason":"stop"}]}\n\n'));
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
-      }, 5);
+test("probe delegates bearer handling to the consented relay, normalizes capabilities, and verifies a streamed fixture sequence", async () => {
+  const calls = [];
+  const relay = {
+    async requestJson(request) {
+      calls.push({ type: "request", request });
+      return { status: 200, body: { version: "v0.20.2", features: { chat_completions: true, run_stop: true }, secret: "discard" } };
     },
-  });
-  const fetchImpl = async (url, options) => {
-    requests.push({ url, options });
-    if (url.endsWith("/v1/capabilities")) {
-      return new Response(JSON.stringify({ version: "v0.20.2", features: { chat_completions: true, run_stop: true }, secret: "discard" }), { status: 200 });
-    }
-    return new Response(stream, { status: 200, headers: { "content-type": "text/event-stream" } });
+    async streamJournal(request) {
+      calls.push({ type: "stream", request: { ...request, bearer: "redacted", onChunk: null } });
+      request.onChunk('event: chat.completion.chunk\ndata: {"choices":[{"delta":{"content":"a"}}]}\n\n');
+      request.onChunk('event: chat.completion.chunk\ndata: {"choices":[{"delta":{"content":"b"},"finish_reason":"stop"}]}\n\n');
+      request.onChunk("data: [DONE]\n\n");
+      return { bytes: 128 };
+    },
   };
 
-  const result = await new GatewayClient({ fetchImpl }).probe("http://127.0.0.1:8642", "sentinel-token");
-  assert.equal(requests.length, 2);
-  assert.equal(requests[0].options.headers.Authorization, "Bearer sentinel-token");
-  assert.equal(requests[0].options.headers.Accept, "application/json");
-  assert.equal(requests[1].options.headers.Accept, "text/event-stream");
+  const result = await new GatewayClient({ relay }).probe("http://127.0.0.1:8642", "sentinel-token");
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].request.bearer, "sentinel-token");
+  assert.equal(calls[1].request.bearer, "redacted");
   assert.deepEqual(result.capabilities.names, ["chat_completions", "run_stop"]);
   assert.equal(result.stream.state, "passed");
   assert.equal(result.stream.eventCount, 3);
@@ -64,14 +58,14 @@ test("probe sends the bearer only in Authorization, normalizes capabilities, and
   assert.equal(JSON.stringify(result).includes("discard"), false);
 });
 
-test("probe serializes concurrent use and teardown aborts the current request", async () => {
+test("probe serializes concurrent use and teardown invalidates the current request", async () => {
   let release;
   const stalled = new Promise((resolve) => { release = resolve; });
   const client = new GatewayClient({
-    fetchImpl: async () => {
+    relay: { requestJson: async () => {
       await stalled;
-      return new Response(JSON.stringify({ features: {} }), { status: 200 });
-    },
+      return { status: 200, body: { features: {} } };
+    } },
   });
   const first = client.probe("http://127.0.0.1:8642", "sentinel-token");
   await assert.rejects(() => client.probe("http://127.0.0.1:8642", "sentinel-token"), /already in progress/);
