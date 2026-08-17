@@ -19,7 +19,7 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
 
 ### Phase 1: Verified Gateway Connectivity
 
-**Goal:** Users can build, load, and safely prove an authenticated Hermes Gateway connection through one explicitly consented, deployment-neutral relay contract.
+**Goal:** As a Hermes Gateway user, I want to build and load a Muxy panel and safely prove an authenticated Gateway connection through one explicitly consented, deployment-neutral relay contract, so that I can confirm the connection works without exposing credentials or expanding extension authority.
 **Mode:** mvp
 **Depends on:** Nothing (first phase)
 **Requirements:** EXT-01, EXT-02, CONN-01, CONN-02, CONN-03, CONN-04, CONN-05, DEPL-01, DEPL-02, DEPL-03, DEPL-04, DEPL-05, DEPL-06, SEC-01, SEC-02, SEC-04, SEC-05, EVID-01, EVID-02, EVID-03, EVID-04
