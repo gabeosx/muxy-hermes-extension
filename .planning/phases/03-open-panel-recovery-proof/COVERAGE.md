@@ -36,7 +36,7 @@ Phase 3 changes lifecycle behavior, not the deployment-neutral API surface. It r
 ## Fixture and Claim Boundary
 
 - The pinned Docker-published-loopback fixture may establish only the recovery facts actually observed in the final Muxy panel.
-- Host-native remains Unverified or Blocked when no disposable real fixture runs.
+- DEPL-02 completes only after the explicitly pinned host Hermes executable runs with a fresh HOME/workspace through the final native Muxy panel and proves authenticated capabilities plus incremental Runs SSE and cleanup; `not_run` is not accepted.
 - Simulated SSH loss/restoration, proxy/TLS/buffering, and remote-workspace independence remain Unverified and cannot establish their deployment class.
 - Recovery evidence stores version/capability/event/control/status/recovery/cleanup metadata only. It excludes bearer, URL, content, raw errors/headers/bodies, journal/subprocess data, and workspace paths.
 - The existing transport evidence index, classifier, and stop gate remain authoritative and unchanged; Phase 3 recovery facts use a separate schema-versioned document.

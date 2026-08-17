@@ -10,7 +10,7 @@ Phase 3 must distinguish two recovery situations.  While the *same panel* remain
 
 A recreated Muxy panel is a different lifecycle boundary. The existing project prohibits bearer persistence, background ownership, and storage-backed recovery. The user must reconnect with the URL and bearer token, enter the non-secret run ID, and receive a status-only reconciliation. The UI must say that prior streamed activity and approval detail are unavailable; it must not imply a durable subscriber, stored token, event replay, or a deployment-specific recovery path. This preserves the existing one-URL/one-token topology-neutral client contract. [VERIFIED: .planning/STATE.md] [VERIFIED: .planning/REQUIREMENTS.md]
 
-**Primary recommendation:** Add a bounded, generation-guarded same-panel event observer with fixed backoff and guaranteed status reconciliation; add an explicit status-only "Recover a run" workflow after fresh token entry; record only safe recovery facts in versioned fixture evidence.
+**Primary recommendation:** Add a bounded, generation-guarded same-panel event observer with fixed backoff and a status request after every interruption; represent GET failure explicitly as `status_unavailable`/`disconnected` with manual Refresh rather than claiming reconciliation; add a status-only "Recover a run" workflow after fresh token entry; record only safe recovery facts in versioned fixture evidence.
 
 ## Project Constraints (from AGENTS.md)
 
@@ -26,11 +26,11 @@ A recreated Muxy panel is a different lifecycle boundary. The existing project p
 | ID | Description | Research support |
 |---|---|---|
 | RECV-01 | Bounded reconnect attempts with backoff while open | Same-panel observer retries a fixed number of times only after a stream ends/fails; show attempt state and stop after the bound. |
-| RECV-02 | Reconciled status after an interruption | Invoke status reconciliation after every failed/closed observer and after retry exhaustion, independent of reattach outcome. |
+| RECV-02 | Reconciled status after an interruption | Invoke status after every failed/closed observer; on success adopt authoritative truth, and on GET failure expose `status_unavailable`/`disconnected`, halt automatic reattach, and keep manual Refresh without a false reconciliation claim. |
 | RECV-03 | Close/reopen token re-entry and supported recovery | Fresh connection clears the input token; status-only recovery accepts user-entered run ID and never assumes a retained subscriber. |
 | RECV-04 | Distinguish failure classes in evidence without topology claims | Record observed fixture scenario IDs (`stream_interrupted`, `gateway_unreachable`, `proxy_buffered`, `panel_recreated`) separately from deployment labels. |
 | RECV-05 | No lossless replay promise | Permanent recovery copy says buffered events are time-limited and may be incomplete; only status/final output are authoritative. |
-| DEPL-02 | Host-native fixture | Run a disposable loopback fixture if available; otherwise retain a versioned `Unverified` record, not an inferred result. |
+| DEPL-02 | Host-native fixture | Use the existing qualification harness with the explicitly supplied pinned `v0.20.2 (2026.8.16)` temporary Hermes executable, fresh HOME/HERMES_HOME/workspace, native Muxy panel, fixed harmless task, version capture, and verified cleanup. A not-run row does not satisfy this requirement. |
 | DEPL-03 | Docker interruption/recovery fixture | Use the existing pinned compose Gateway as an external fixture, not as panel-managed infrastructure; test refused and interrupted conditions. |
 | DEPL-04 | Simulated SSH loss/restoration | Keep the simulation `Unverified`; its signal is transport loss/restoration, never a detected tunnel type. |
 | DEPL-05 | Simulated proxy/TLS/buffering | Keep local proxy evidence `Unverified` for direct remote HTTPS; record certificate/auth/buffering outcomes only. |
@@ -87,6 +87,8 @@ same open panel
              wait fixed backoff -> new single relay SSE observer -> reconcile again
         |
         +--> budget exhausted -> render disconnected warning + refreshable authoritative status
+        |
+        +--> status GET fails -> status_unavailable + disconnected -> manual Refresh only
 
 recreated panel
   URL + bearer re-entered -> capability probe -> user enters run ID
@@ -98,7 +100,7 @@ recreated panel
 ### Same-panel observer rules
 
 1. The initial SSE subscription is attempt zero. Use a small fixed budget (for example, two reattach attempts) and fixed, test-injected backoff delays; do not use unbounded exponential retry or background timers. [ASSUMED: exact count/delays are project discretion]
-2. End or failure always causes status reconciliation before the next reattach decision. A terminal status ends observation; a nonterminal status can advance the bounded retry sequence. [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md]
+2. End or failure always causes a status request before the next reattach decision. A terminal status ends observation; a nonterminal status can advance the bounded retry sequence; a failed status GET publishes `status_unavailable`/`disconnected`, ends automatic recovery, and leaves manual Refresh without claiming the run was reconciled. [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md]
 3. Start each retry only after the previous relay promise has settled and journal cleanup has run. `CurlRelay` permits one active stream, so concurrent reattach streams would violate the current ownership boundary. [VERIFIED: src/curl-relay.js]
 4. Reconnect copy must state “attempting to resume live updates” rather than “replaying history.” After any interruption, keep a visible warning that some events or approval details may be absent or duplicated. [CITED: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md]
 5. `release()` increments generation before awaiting teardown. No delayed timer, reattach promise, or status result may update released state. [VERIFIED: src/run-controller.js]
@@ -154,7 +156,7 @@ Persist exactly the existing safe version tuple plus an allowlisted recovery obj
   panelLifecycle: "same_panel",         // or "panel_recreated"
   observerAttempts: 3,
   reattached: false,
-  statusOutcome: "running",             // Gateway's normalized status
+  statusOutcome: "running",             // normalized status or "status_unavailable"
   eventHistory: "not_verified",         // never "complete" without a fixture predicate
   approvalDetail: "not_recovered",
 }
@@ -166,7 +168,7 @@ Persist exactly the existing safe version tuple plus an allowlisted recovery obj
 
 | Fixture scenario | Required observation | Matrix claim |
 |---|---|---|
-| Host-native loopback | authenticated status plus incremental Runs stream; interruption/reconnect only if actually run | `Supported` only after fresh real-panel evidence, otherwise `Unverified` |
+| Host-native loopback | authenticated capabilities/status plus incremental Runs stream from the explicit pinned host executable in native Muxy | Required fresh real-panel evidence for DEPL-02; `not_run` does not complete the phase |
 | Docker published loopback | normal run, refusal, stream interruption, reattach/reconciliation, panel recreation status recovery | real-path evidence for the tested facts only |
 | Simulated SSH local forward | interrupted and restored relay against local simulation | `Unverified`; wording never says “tunnel detected” |
 | Local HTTPS/reverse proxy | auth/TLS refusal and deliberately buffered or interrupted stream | `Unverified` for direct remote HTTPS |
@@ -179,8 +181,9 @@ Persist exactly the existing safe version tuple plus an allowlisted recovery obj
 | Node.js | existing tests/build | Yes | v26.5.0 | — |
 | npm | existing tests/build | Yes | 11.17.0 | — |
 | Docker + Compose | disposable Docker recovery fixture | Yes | Docker 29.7.2 / Compose v5.3.1 | deterministic relay/controller tests if native fixture cannot run |
-| Muxy desktop panel | native lifecycle proof | Not established in this research session | — | mark native lifecycle evidence `Unverified`; automated behavior remains required |
-| Pinned Hermes fixture image | Docker recovery proof | Not probed here | pinned in compose | no support claim until fixture starts successfully |
+| Muxy desktop panel | native lifecycle proof | Yes; Phase 2 native proof passed | current installed build captured by runner | fail the real-path task if native interaction cannot complete |
+| Pinned host Hermes runtime | DEPL-02 real proof | Yes in current temporary qualification root | v0.20.2 / 2026.8.16; exact source identity revalidated by runner | no discovery/download fallback; a mismatch blocks DEPL-02 |
+| Pinned Hermes fixture image | Docker recovery proof | Yes; Phase 2 native proof passed | pinned digest in compose | re-run fresh and fail DEPL-03 if the real-path fixture cannot complete |
 
 ## Validation Architecture
 
@@ -198,16 +201,17 @@ Persist exactly the existing safe version tuple plus an allowlisted recovery obj
 | Requirement | Behavior | Test type | Automated command | File status |
 |---|---|---|---|---|
 | RECV-01 | retries are bounded, ordered, and expose backoff state | unit | `node --test test/run-controller.test.js` | extend existing |
-| RECV-02 | every stream interruption reconciles status even after retry failure | unit | `node --test test/run-controller.test.js` | extend existing |
+| RECV-02 | every interruption requests status; GET failures become status_unavailable/disconnected and remain manually refreshable | unit | `node --test test/run-controller.test.js` | extend existing |
 | RECV-03 | status-only recovery after fresh connection; no persisted token/transcript | unit/UI contract | `node --test test/run-client.test.js test/ui-contract.test.js` | extend existing |
 | RECV-04 | fixture scenarios classify observations without topology detection | integration | `node --test test/simulated-relay.test.js test/evidence*.test.js` | extend existing |
 | RECV-05 | UI warns about incomplete history; evidence lacks raw data | UI/security | `node --test test/ui-contract.test.js test/evidence*.test.js` | extend existing |
-| DEPL-02..06 | fixture matrix stays truthful | integration/manual | `npm run validate` plus explicit fixture runner | runner/evidence gap |
+| DEPL-02 | pinned host-native capability/stream proof through native Muxy with cleanup | integration/manual | `node --test test/host-fixture.test.js` plus host runner/native panel | extend existing harness |
+| DEPL-03..06 | Docker recovery and truthful simulated matrix | integration/manual | `npm run validate` plus explicit Docker fixture runner | runner/evidence gap |
 | EVID-01 | safe recovery projection has versioned validation | unit/integration | `node --test test/evidence*.test.js` | extend existing |
 
 ### Wave 0 gaps
 
-- [ ] Add controller tests for retry success, retry exhaustion, stale generation/release, and status-reconcile failure.
+- [ ] Add controller tests for retry success, retry exhaustion, stale generation/release, initial/retry/exhaustion status failure, and manual Refresh success/failure.
 - [ ] Add RunClient test proving fresh parser/endpoint per reattach and run-ID validation for status-only recovery.
 - [ ] Add UI contract tests for fresh token entry, Run ID recovery input, no history/approval replay copy, and no storage/background permission.
 - [ ] Add evidence schema/fixture tests for recovery observations and forced-Unverified simulated rows.
@@ -223,23 +227,24 @@ Persist exactly the existing safe version tuple plus an allowlisted recovery obj
 | V5 Input Validation | Yes | Existing safe run-ID grammar; fixed endpoints; bounded prompt/steer values. |
 | V6 Cryptography | Yes for remote destinations | Preserve normal TLS validation; do not add bypasses or a proxy trust exception. |
 
-## Assumptions Log
+## Resolved Decisions
 
-| # | Claim | Risk if wrong |
+| # | Decision | Resolution |
 |---|---|---|
-| A1 | Two reattach attempts after the initial observer are a sufficient UX bound. | Low: tune a constant/test expectation without protocol or security impact. |
-| A2 | Recreated panels should be status-only rather than automatically reattach. | Medium: this is the conservative interpretation of the lifecycle boundary; a future proven attach mode needs explicit UX/evidence work. |
-| A3 | Recovery evidence can add the proposed structural fields to the current schema/index path. | Medium: implementation must preserve exact schema/version validators and safe projection rules. |
+| R1 | Same-panel observer budget | Exactly two reattach attempts after the initial observer, with injected fixed delays and no automatic retry after status GET failure. |
+| R2 | Recreated-panel behavior | Status-only after fresh URL/token plus manual Run ID; no automatic event attachment, persisted state, or replay reconstruction. |
+| R3 | Evidence shape | A separate strict recovery-v1 document preserves the current transport evidence/classifier contract while exposing allowlisted recovery facts. |
+| R4 | Host-native qualification | DEPL-02 requires an actual pinned host executable plus native Muxy proof and cleanup; not-run/Unverified is not accepted as completed coverage. |
 
-## Open Questions
+## Resolved Open Questions
 
 1. **Does the exact pinned Hermes image replay the desired event types to a second subscriber after a mid-stream disconnect?**
    - Current official documentation supports attach/detach with a five-minute unconsumed buffer.
    - The existing Phase 1 D-20 decision was based on a prior tested release and says it was not reconnectable.
-   - **Resolution:** run the disposable pinned fixture. Until it passes, use status reconciliation as truth and phrase reattach only as a best-effort attempt.
+   - **Resolved:** the product contract does not depend on replay completeness. It makes two best-effort same-panel attaches, reconciles status after each interruption, and permanently warns about gaps/duplicates. The disposable fixture records what happened but cannot upgrade the wording to lossless/exactly-once.
 2. **Can the current Muxy webview's Promise-only `exec` termination be observed promptly enough for a native interruption test?**
    - Current relay cannot cancel that fallback actively.
-   - **Resolution:** unit-test controller generation behavior; native proof should use an externally interrupted fixture and wait for the existing relay timeout/settlement rather than claim immediate cancellation.
+   - **Resolved:** the test-only loopback proxy ends the HTTP event response so curl settles through its ordinary Promise path; the harness bounds that wait. Unit tests prove generation behavior. A timeout is recorded as an interrupted/disconnected observation and fails the native recovery predicate rather than being called immediate cancellation.
 
 ## Sources
 

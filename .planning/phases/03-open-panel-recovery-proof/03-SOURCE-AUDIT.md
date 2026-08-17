@@ -8,7 +8,7 @@
 | REQ | RECV-03 | Close/reopen guidance and pinned-Gateway recovery behavior | 03-01, 03-02 | COVERED | Fresh credentials + manual Run ID status recovery; native Docker/Muxy exercise. |
 | REQ | RECV-04 | Distinguishable failure evidence without topology detection | 03-02 | COVERED | Named scenario and observed behavior are separate fields; remote analogues stay Unverified. |
 | REQ | RECV-05 | Warn when event history cannot be recovered | 03-01, 03-02 | COVERED | Warning persists after success/failure and appears in runtime plus evidence UI. |
-| REQ | DEPL-02 | Host-native loopback fixture | 03-02 | COVERED | Attempt only if disposable fixture is available; otherwise truthful Unverified/Blocked `not_run`, per fast-path direction. |
+| REQ | DEPL-02 | Host-native loopback fixture | 03-02 | COVERED | Existing harness launches the explicit pinned temporary Hermes runtime with fresh HOME/workspace, native Muxy capability + incremental Runs proof, version capture, and verified cleanup; not-run does not complete the task. |
 | REQ | DEPL-03 | Docker published loopback plus unreachable/interrupted behavior | 03-02 | COVERED | Native disposable Docker/Muxy run plus one-shot interruption proxy and refusal evidence. |
 | REQ | DEPL-04 | Simulated SSH loss/restoration remains Unverified | 03-02 | COVERED | Scenario tests the observed transport signature only. |
 | REQ | DEPL-05 | Simulated HTTPS/proxy auth/TLS/buffering remains Unverified | 03-02 | COVERED | Evidence names proxy behavior without a remote-HTTPS support claim. |
@@ -19,7 +19,7 @@
 | RESEARCH | — | One stream owner; await cleanup before reattach | 03-01 | COVERED | Serialized observer lifecycle with generation invalidation. |
 | RESEARCH | — | Clear stale approval state after interruption | 03-01 | COVERED | Approval reappears only from a new event. |
 | RESEARCH | — | Exact safe recovery evidence projection | 03-02 | COVERED | Dedicated schema rejects raw fields and high-entropy content. |
-| RESEARCH | — | Native Docker proof plus forced-Unverified remote rows | 03-02 | COVERED | Plan records observed facts only and verifies cleanup. |
+| RESEARCH | — | Native host + Docker proof plus forced-Unverified remote rows | 03-02 | COVERED | Both real loopback rows require actual native Muxy observations and cleanup; remote analogues remain simulated and nonpositive. |
 | CONTEXT | — | No Phase 3 CONTEXT.md exists | — | EXCLUDED | Orchestrator-supplied fast-path decisions are incorporated directly in both plans; there are no D-XX decisions to cite. |
 
 ## Result

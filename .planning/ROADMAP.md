@@ -132,7 +132,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02-PLAN.md — Publish safe recovery evidence and run the disposable Docker/Muxy lifecycle proof.
+- [ ] 03-02-PLAN.md — Publish safe recovery evidence and run disposable host-native plus Docker/Muxy proofs.
 
 **UI hint:** yes
 

@@ -16,6 +16,8 @@
 | V-03 | RECV-02 | `test/run-controller.test.js` | Retry exhaustion leaves the run recoverable by status and presents a safe interruption warning rather than false completion. |
 | V-04 | RECV-02 | `test/run-controller.test.js` | A terminal status observed after interruption stops further reconnect attempts and retains server final output. |
 | V-05 | RECV-01 | `test/run-controller.test.js` | `release()` or a later start invalidates queued backoff/observer completions and publishes no stale state. |
+| V-05a | RECV-02 | `test/run-controller.test.js` | A failed status GET after the initial observer, either retry, or final exhaustion publishes `status_unavailable` + `disconnected`, starts no later automatic observer, and makes no terminal/reconciled claim. |
+| V-05b | RECV-02 | `test/run-controller.test.js` | Manual Refresh is available from `status_unavailable`; repeated failure remains unavailable and later success adopts returned status without restarting SSE. |
 | V-06 | RECV-03 | `test/run-client.test.js` | Reattach uses the same fixed run-events endpoint, a fresh parser, bearer in relay input, and validates the run ID. |
 | V-07 | RECV-03 / RECV-05 | `test/ui-contract.test.js` | Recovery UI demands freshly entered token + Run ID and contains explicit no-history/no-approval-replay copy. |
 | V-08 | RECV-03 / SEC-01 | `test/ui-contract.test.js` | Manifest remains without storage/background permissions and panel source has no browser/Muxy storage usage. |
@@ -40,7 +42,7 @@ Run only against a disposable fixture. The extension never launches, stops, paus
 
 ### Host-native and simulated rows
 
-- Host-native: execute the equivalent flow only if a disposable loopback Hermes fixture can be safely prepared; otherwise publish/retain `Unverified` with reason `not_run`.
+- Host-native: pass the explicit pinned `v0.20.2 (2026.8.16)` temporary Hermes executable to the existing host qualification harness; create a fresh 0700 HOME/HERMES_HOME and empty workspace; run authenticated capabilities plus the fixed harmless incremental Runs task through native Muxy; verify terminal status and cleanup. Phase 3 cannot complete DEPL-02 with `not_run`, Unverified, or Blocked.
 - Simulated SSH forward: trigger a relay interruption/restoration in the local scenario and retain `Unverified`.
 - Local proxy/HTTPS: test only the named simulation behavior (certificate/auth/buffering); direct remote HTTPS remains `Unverified`.
 - Simulated remote workspace: prove no workspace path appears in request/evidence and retain `Unverified` without trying to infer workspace topology.
@@ -49,7 +51,7 @@ Run only against a disposable fixture. The extension never launches, stops, paus
 
 ```bash
 node --test test/run-client.test.js test/run-controller.test.js test/ui-contract.test.js
-node --test test/simulated-relay.test.js test/evidence.test.js test/evidence-provenance.test.js
+node --test test/host-fixture.test.js test/recovery-fixture.test.js test/recovery-evidence.test.js test/simulated-relay.test.js test/evidence.test.js test/evidence-provenance.test.js
 npm run build
 npm run validate
 docker compose -f fixtures/simulations/docker-compose.yml config --quiet
@@ -64,6 +66,6 @@ docker compose -f fixtures/simulations/docker-compose.yml config --quiet
 
 ## Failure Policy
 
-- A status failure after a stream interruption is an explicit warning and fixture evidence outcome, not a fabricated run completion.
+- A status failure after a stream interruption is `status_unavailable` plus `disconnected`, preserves manual Refresh, starts no further automatic observer, and is never a fabricated completion or successful reconciliation.
 - An event reattach failure after the retry budget is an explicit `disconnected` result with status refresh available.
-- Native fixture unavailability is not a reason to mark a condition supported; preserve an `Unverified` row and the automated coverage.
+- Host-native or Docker fixture failure leaves DEPL-02 or DEPL-03 incomplete and blocks phase completion; it cannot be converted into a passing requirement through an Unverified row. Simulated remote analogues remain Unverified by design.
