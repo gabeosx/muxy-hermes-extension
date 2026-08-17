@@ -49,29 +49,45 @@ export async function readInstalledMuxyVersion({ appPath = process.env.MUXY_APP_
 }
 
 export async function resolveHermesRevision({ fetchImpl = fetch } = {}) {
-  const release = await resolveLatestStable({ repository: "NousResearch/hermes-agent", fetchImpl });
+  const releaseResponse = await fetchImpl(`${GITHUB_API}/NousResearch/hermes-agent/releases/latest`, { headers: { Accept: "application/vnd.github+json" } });
+  const releasePayload = await responseJson(releaseResponse);
+  const release = stableRelease(releasePayload);
+  const installedVersion = typeof releasePayload.name === "string" ? releasePayload.name.match(/\bv(\d+\.\d+\.\d+)\b/)?.[1] : null;
+  if (!installedVersion) throw new Error("version_hermes_semver_missing");
   const response = await fetchImpl(`${GITHUB_API}/NousResearch/hermes-agent/commits/${encodeURIComponent(release.tag)}`, {
     headers: { Accept: "application/vnd.github+json" },
   });
   const payload = await responseJson(response);
   if (typeof payload?.sha !== "string" || !/^[a-f0-9]{40}$/i.test(payload.sha)) throw new Error("version_hermes_revision_invalid");
-  return { ...release, revision: payload.sha.toLowerCase() };
+  return { ...release, installedVersion, revision: payload.sha.toLowerCase() };
 }
 
-export async function resolveVersionTuple({ appPath, fetchImpl = fetch, execFile } = {}) {
-  const [muxyRelease, muxyInstalled, hermesRelease] = await Promise.all([
+export async function readInstalledHermesVersion({ executable, execFile = execFileDefault } = {}) {
+  if (typeof executable !== "string" || !executable.startsWith("/private/tmp/") || !executable.endsWith("/hermes")) throw new Error("version_hermes_executable_invalid");
+  try {
+    const { stdout } = await execFile(executable, ["--version"]);
+    const version = stdout.match(/\b(\d+\.\d+\.\d+)\b/)?.[1];
+    if (!version) throw new Error("invalid");
+    return version;
+  } catch { throw new Error("version_hermes_executable_unreadable"); }
+}
+
+export async function resolveVersionTuple({ appPath, executable = process.env.HERMES_QUALIFICATION_EXECUTABLE, fetchImpl = fetch, execFile } = {}) {
+  const [muxyRelease, muxyInstalled, hermesRelease, hermesInstalled] = await Promise.all([
     resolveLatestStable({ repository: "muxy-app/muxy", fetchImpl }),
     readInstalledMuxyVersion({ appPath, execFile }),
     resolveHermesRevision({ fetchImpl }),
+    readInstalledHermesVersion({ executable, execFile }),
   ]);
   if (normaliseReleaseVersion(muxyInstalled.shortVersion) !== muxyRelease.version) throw new Error("version_muxy_installed_mismatch");
+  if (hermesInstalled !== hermesRelease.installedVersion) throw new Error("version_hermes_installed_mismatch");
   return {
     resolvedAt: new Date().toISOString(),
     muxyRelease: muxyRelease.tag,
     muxyInstalledVersion: muxyInstalled.shortVersion,
     muxyBuild: muxyInstalled.buildVersion,
     hermesRelease: hermesRelease.tag,
-    hermesVersion: hermesRelease.version,
+    hermesVersion: hermesInstalled,
     hermesRevision: hermesRelease.revision,
   };
 }

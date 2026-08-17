@@ -4,6 +4,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import { createServer } from "node:http";
 
+import { resolveVersionTuple } from "./resolve-versions.mjs";
+
 export const FIXTURE_REQUEST = "{\"model\":\"hermes-agent\",\"messages\":[{\"role\":\"user\",\"content\":\"HERMES_STREAM_QUALIFICATION_V1\"}],\"stream\":true}";
 const FIXTURE_ROOT_PREFIX = "/private/tmp/";
 
@@ -153,9 +155,10 @@ export async function qualifyRealDeployment({ fixture = "host-native", runtimeRo
 }
 
 async function runInteractiveHostQualification(runtimeRoot) {
+  const versions = await resolveVersionTuple();
   const runtime = await createQualificationRuntime({ root: runtimeRoot });
   const capture = await startOriginCaptureServer();
-  process.stdout.write(`${JSON.stringify({ status: "awaiting_origin_capture", fixture: "host-native", captureUrl: capture.url, panelTokenFile: runtime.tokenFile })}\n`);
+  process.stdout.write(`${JSON.stringify({ status: "awaiting_origin_capture", fixture: "host-native", captureUrl: capture.url, panelTokenFile: runtime.tokenFile, versions })}\n`);
   const origin = await capture.waitForOrigin();
   await capture.close();
   const modelStub = await startDeterministicModelStub();
