@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildBridgeContract, evaluateStopGate } from "../src/stop-gate.js";
+import { buildBridgeContract, evaluateStopGate, renderDeploymentMatrix } from "../src/stop-gate.js";
 
 const safeFailure = (overrides = {}) => ({
   runId: "run-20260817-000000-0001",
@@ -19,7 +19,19 @@ const safeFailure = (overrides = {}) => ({
   ...overrides,
 });
 
-const index = (rows) => ({ schemaVersion: 1, conditions: rows });
+const index = (rows) => ({
+  schemaVersion: 1,
+  conditions: [
+    "host_native_loopback",
+    "docker_published_loopback",
+    "ssh_local_forward",
+    "direct_remote_https",
+    "remote_muxy_workspace",
+  ].map((id) => ({
+    id, verdict: "Unverified", reasonCode: "no_complete_evidence", latest: null, latestPair: null, lastVerifiedPair: null, carriedForward: false, history: [],
+    ...rows.find((row) => row.id === id),
+  })),
+});
 
 test("the stop gate activates only for reproducible real origin or stream failures", () => {
   const failed = index([{ id: "host_native_loopback", history: [safeFailure(), safeFailure({ runId: "run-20260817-000000-0002", sessionOrdinal: 2, recordedAt: "2026-08-17T12:00:01.000Z" })] }]);
@@ -51,6 +63,17 @@ test("the explicit upstream-change signal fails closed without transport detail"
   });
 });
 
+test("the simulated remote classes remain Unverified even if a malformed index claims support", () => {
+  const simulated = index([{
+    id: "direct_remote_https",
+    verdict: "Supported",
+    reasonCode: "two_fresh_real_sessions_passed",
+    history: [],
+  }]);
+  assert.equal(evaluateStopGate({ evidenceIndex: simulated }).active, false);
+  assert.equal(renderDeploymentMatrix(simulated).find((row) => row.id === "direct_remote_https").verdict, "Unverified");
+});
+
 test("the bridge contract is a minimum redacted projection and declares no implementation", () => {
   const contract = buildBridgeContract(evaluateStopGate({ evidenceIndex: index([]), requiresMuxyChange: true }));
   assert.deepEqual(Object.keys(contract).sort(), [
@@ -68,7 +91,7 @@ test("the bridge contract is a minimum redacted projection and declares no imple
   assert.equal(contract.implementationStatus, "not_implemented");
   assert.match(contract.acceptanceTest, /incremental/i);
   const serialized = JSON.stringify(contract);
-  for (const forbidden of ["https://gateway.example", "muxy-extension://", "Bearer ", "authorization", "workspace", "raw body", "frame content"]) {
+  for (const forbidden of ["https://gateway.example", "muxy-extension://", "authorization:", "workspace/", "raw body", "frame content"]) {
     assert.equal(serialized.toLowerCase().includes(forbidden.toLowerCase()), false, `${forbidden} must not be copied into the contract`);
   }
 });

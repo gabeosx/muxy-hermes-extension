@@ -49,7 +49,7 @@ button:disabled { cursor: default; color: var(--muxy-foreground-muted); backgrou
 .gateway-footnote { font-size: 11px; }
 .gateway-card { border: 1px solid var(--muxy-border); border-radius: 8px; background: var(--muxy-surface-solid); padding: 16px; }
 .gateway-input { min-width: 0; height: 28px; box-sizing: border-box; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-surface-solid); color: var(--muxy-foreground); padding: 0 8px; font-size: 13px; }
-.gateway-input:focus-visible, .gateway-submit:focus-visible, .gateway-details-toggle:focus-visible, .gateway-retry:focus-visible, .gateway-evidence-row:focus-visible { outline: 2px solid var(--muxy-accent); outline-offset: 2px; }
+.gateway-input:focus-visible, .gateway-submit:focus-visible, .gateway-details-toggle:focus-visible, .gateway-retry:focus-visible, .gateway-evidence-row:focus-visible, .gateway-transport-stop button:focus-visible, .gateway-transport-stop h2:focus-visible { outline: 2px solid var(--muxy-accent); outline-offset: 2px; }
 .gateway-label { font-size: 13px; }
 .gateway-submit { height: 28px; border: 0; border-radius: 6px; background: var(--muxy-accent); color: var(--muxy-accent-foreground); padding: 0 10px; font-size: 13px; }
 .gateway-submit:hover:not(:disabled) { background: var(--muxy-hover); color: var(--muxy-foreground); }
@@ -68,4 +68,5 @@ button:disabled { cursor: default; color: var(--muxy-foreground-muted); backgrou
 .gateway-capability-state, .gateway-previous { font-weight: 600; }
 .gateway-evidence-row { display: grid; gap: 4px; padding: 8px; border: 1px solid var(--muxy-border); border-radius: 6px; list-style-position: inside; }
 .gateway-transport-stop { border-color: var(--muxy-diff-remove); }
+.gateway-bridge-contract { max-width: 100%; margin: 0; padding: 8px; overflow-wrap: anywhere; white-space: pre-wrap; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-surface-solid); color: var(--muxy-foreground); font: 11px "SF Mono", Menlo, monospace; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

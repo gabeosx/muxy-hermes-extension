@@ -2,6 +2,7 @@ import { clear, h } from "@/lib/dom";
 import { normalizeGatewayUrl } from "@/gateway-client";
 import { normalizeCapabilities } from "@/capabilities";
 import { ConnectionProbe, FailureClass, ProbeState } from "@/probe";
+import { buildBridgeContract, copyRedactedReport, evaluateStopGate, loadEvidenceIndex, renderDeploymentMatrix } from "@/stop-gate";
 
 const STAGE_LABEL = Object.freeze({ passed: "Observed", failed: "Failed", not_verified: "Not verified" });
 
@@ -27,7 +28,11 @@ export class HermesGatewayPanel {
     this.preparing = true;
     this.cleanupFailed = false;
     this.detailsOpen = false;
-    this.evidenceState = Object.freeze({ state: "empty", rows: [] });
+    this.evidenceState = Object.freeze({ state: "loading", index: null, rows: [] });
+    this.stopGate = evaluateStopGate();
+    this.copyState = "idle";
+    this.contractState = "idle";
+    this.bridgeContract = null;
   }
 
   start() {
@@ -40,6 +45,7 @@ export class HermesGatewayPanel {
       if (snapshot.status === ProbeState.FAILURE && snapshot.failureClass === FailureClass.URL) this.urlInput?.focus();
     });
     this.render();
+    void this.loadEvidence();
     this.probe.prepare().then(() => {
       this.preparing = false;
       this.render();
@@ -65,7 +71,9 @@ export class HermesGatewayPanel {
   render() {
     clear(this.root);
     this.root.appendChild(this.view());
+    this.stopHeading = this.root.querySelector("#transport-stop-title");
     this.syncForm();
+    if (this.stopGate.active) queueMicrotask(() => this.stopHeading?.focus());
   }
 
   view() {
@@ -109,6 +117,8 @@ export class HermesGatewayPanel {
       this.snapshot.status === ProbeState.IDLE
         ? h("section", { class: "gateway-card gateway-empty" }, h("h2", null, "Connect a Hermes Gateway"), h("p", null, "Enter the Gateway URL and bearer token for this panel session. Your token is cleared when the panel closes."))
         : this.verdictSection(),
+      this.evidenceShell(),
+      this.stopGate.active ? this.transportStopShell() : null,
     );
   }
 
@@ -167,7 +177,6 @@ export class HermesGatewayPanel {
       this.detailsOpen ? h("p", { class: "gateway-diagnostic" }, result.failureClass ? `Observed result: ${result.failureClass.replace("_", " ")}. Raw request and response details are redacted.` : "No additional redacted diagnostics were recorded.") : null,
       failure ? h("button", { class: "gateway-retry", type: "button", onclick: () => this.urlInput?.focus() }, "Test connection again") : null,
       this.capabilitySummary(result),
-      this.evidenceShell(),
     );
   }
 
@@ -197,35 +206,87 @@ export class HermesGatewayPanel {
   }
 
   evidenceShell() {
-    const conditions = [
-      "Host-native loopback",
-      "Docker published loopback",
-      "SSH local forward",
-      "Direct remote HTTPS",
-      "Remote Muxy workspace",
-    ];
+    const conditionNames = {
+      host_native_loopback: "Host-native loopback",
+      docker_published_loopback: "Docker published loopback",
+      ssh_local_forward: "SSH local forward",
+      direct_remote_https: "Direct remote HTTPS",
+      remote_muxy_workspace: "Remote Muxy workspace",
+    };
     const evidence = this.evidenceState;
     const stateCopy = evidence.state === "loading"
       ? "Loading validation evidence…"
       : evidence.state === "error"
         ? "Validation evidence is unavailable"
         : null;
+    const rows = evidence.rows.length > 0 ? evidence.rows : Object.entries(conditionNames).map(([id, name]) => ({
+      id, name, verdict: "Unverified", version: "Not recorded", details: "No versioned fixture result has been recorded for this deployment condition.",
+    }));
     return h("section", { class: "gateway-evidence", "aria-labelledby": "validation-evidence-title" },
       h("h3", { id: "validation-evidence-title", class: "gateway-capability-title" }, "Validation evidence"),
       stateCopy ? h("p", { class: evidence.state === "error" ? "gateway-evidence-unavailable" : null }, stateCopy) : null,
-      h("ul", { class: "gateway-evidence-list" }, conditions.map((condition) => h("li", { class: "gateway-evidence-row", tabindex: "0" },
-        h("strong", null, condition), h("span", null, "Unverified"), h("span", null, "Fixture version: Not recorded"),
-        h("span", null, "No versioned fixture result has been recorded for this deployment condition."),
+      evidence.state === "error" ? h("button", { class: "gateway-retry", type: "button", onclick: () => void this.loadEvidence() }, "Retry evidence") : null,
+      h("ul", { class: "gateway-evidence-list" }, rows.map((row) => h("li", { class: "gateway-evidence-row", tabindex: "0" },
+        h("strong", null, conditionNames[row.id] ?? "Not recorded"), h("span", null, row.verdict), h("span", null, `Fixture version: ${row.version}`),
+        h("span", null, row.details),
       ))),
     );
   }
 
   transportStopShell() {
-    return h("section", { class: "gateway-transport-stop", role: "alert", "aria-labelledby": "transport-stop-title" },
-      h("h2", { id: "transport-stop-title" }, "Muxy change required"),
+    return h("section", { class: "gateway-card gateway-transport-stop", role: "alert", "aria-labelledby": "transport-stop-title" },
+      h("h2", { id: "transport-stop-title", tabindex: "-1" }, "Muxy change required"),
       h("p", null, "Phase 1 is paused. No Muxy change has been made. Review the failure report and minimum bridge contract before expanding scope."),
-      h("button", { type: "button" }, "Copy failure report"),
-      h("button", { type: "button" }, "View bridge contract"),
+      h("button", { type: "button", disabled: this.copyState === "loading", onclick: () => void this.copyFailureReport() }, this.copyState === "loading" ? "Copying report…" : "Copy failure report"),
+      this.copyState === "error" ? h("p", { class: "gateway-inline-error", "aria-live": "polite" }, "Could not copy the failure report.") : null,
+      h("button", { type: "button", disabled: this.contractState === "loading", onclick: () => void this.viewBridgeContract() }, this.contractState === "loading" ? "Loading bridge contract…" : "View bridge contract"),
+      this.contractState === "error" ? h("p", { class: "gateway-inline-error", "aria-live": "polite" }, "Could not load the bridge contract.") : null,
+      this.bridgeContract ? h("pre", { class: "gateway-bridge-contract" }, JSON.stringify(this.bridgeContract, null, 2)) : null,
     );
+  }
+
+  async loadEvidence() {
+    this.evidenceState = Object.freeze({ state: "loading", index: this.evidenceState.index, rows: this.evidenceState.rows });
+    this.render();
+    try {
+      const index = await loadEvidenceIndex({ url: "/evidence/index.json" });
+      const rows = renderDeploymentMatrix(index);
+      const wasActive = this.stopGate.active;
+      this.stopGate = evaluateStopGate({ evidenceIndex: index });
+      this.evidenceState = Object.freeze({ state: "populated", index, rows });
+      this.render();
+      if (!wasActive && this.stopGate.active) queueMicrotask(() => this.stopHeading?.focus());
+    } catch {
+      this.evidenceState = Object.freeze({ state: "error", index: null, rows: [] });
+      this.stopGate = evaluateStopGate();
+      this.render();
+    }
+  }
+
+  async copyFailureReport() {
+    this.copyState = "loading";
+    this.render();
+    try {
+      const report = copyRedactedReport(this.stopGate);
+      if (!navigator.clipboard?.writeText) throw new Error("clipboard_unavailable");
+      await navigator.clipboard.writeText(report);
+      this.copyState = "idle";
+    } catch {
+      this.copyState = "error";
+    }
+    this.render();
+  }
+
+  async viewBridgeContract() {
+    this.contractState = "loading";
+    this.render();
+    try {
+      await Promise.resolve();
+      this.bridgeContract = buildBridgeContract(this.stopGate);
+      this.contractState = "ready";
+    } catch {
+      this.contractState = "error";
+    }
+    this.render();
   }
 }

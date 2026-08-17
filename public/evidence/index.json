@@ -1,4 +1,11 @@
 {
   "schemaVersion": 1,
+  "conditions": [
+    { "id": "host_native_loopback", "verdict": "Unverified", "reasonCode": "no_complete_evidence", "latest": null, "latestPair": null, "lastVerifiedPair": null, "carriedForward": false, "history": [] },
+    { "id": "docker_published_loopback", "verdict": "Unverified", "reasonCode": "no_complete_evidence", "latest": null, "latestPair": null, "lastVerifiedPair": null, "carriedForward": false, "history": [] },
+    { "id": "ssh_local_forward", "verdict": "Unverified", "reasonCode": "no_complete_evidence", "latest": null, "latestPair": null, "lastVerifiedPair": null, "carriedForward": false, "history": [] },
+    { "id": "direct_remote_https", "verdict": "Unverified", "reasonCode": "no_complete_evidence", "latest": null, "latestPair": null, "lastVerifiedPair": null, "carriedForward": false, "history": [] },
+    { "id": "remote_muxy_workspace", "verdict": "Unverified", "reasonCode": "no_complete_evidence", "latest": null, "latestPair": null, "lastVerifiedPair": null, "carriedForward": false, "history": [] }
+  ],
   "history": []
 }
