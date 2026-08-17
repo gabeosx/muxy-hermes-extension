@@ -4,15 +4,15 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 1
 current_phase_name: Verified Gateway Connectivity
-status: planning
+status: executing
 stopped_at: Phase 1 context gathered
-last_updated: "2026-08-17T00:06:02.384Z"
+last_updated: "2026-08-17T01:06:53.912Z"
 last_activity: 2026-08-16
 last_activity_desc: Approved v1 requirements mapped into a vertical MVP roadmap.
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
+  total_plans: 6
   completed_plans: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-16)
 
 Phase: 1 of 3 (Verified Gateway Connectivity)
 Plan: Not yet planned
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-08-16 — Approved v1 requirements mapped into a vertical MVP roadmap.
 
 Progress: [░░░░░░░░░░] 0%
@@ -73,6 +73,10 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 1]: Actual Muxy WebKit origin, route-specific CORS, local/private-network behavior, and incremental SSE delivery must be proven against pinned fixtures before further v1 expansion.
+
+### Roadmap Evolution
+
+- Phase 1 edited: Aligned DEPL-04 through DEPL-06 and Phase 1 success criteria with 01-CONTEXT.md D-08
 
 ## Deferred Items
 
