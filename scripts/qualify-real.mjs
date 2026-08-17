@@ -204,14 +204,14 @@ export async function startDeterministicModelStub() {
   return { baseUrl: `http://127.0.0.1:${port}/v1`, requestCount: () => requestCount, close: () => close(server) };
 }
 
-export async function startHostGateway({ runtime, origin, executable = process.env.HERMES_QUALIFICATION_EXECUTABLE, modelStub }) {
+export async function startHostGateway({ runtime, origin, executable = process.env.HERMES_QUALIFICATION_EXECUTABLE, modelStub, logStderr = false }) {
   if (typeof executable !== "string" || !executable.startsWith(FIXTURE_ROOT_PREFIX) || !executable.endsWith("/hermes")) throw new Error("qualification_executable_unsafe");
   const server = createServer();
   const port = await listen(server);
   await close(server);
   const config = ["model:", "  default: hermes-agent", "  provider: custom", `  base_url: ${modelStub.baseUrl}`, "  api_key: fixture-local-only", ""].join("\n");
   await writeFile(`${runtime.home}/config.yaml`, config, { encoding: "utf8", mode: 0o600 });
-  const child = spawn(executable, ["gateway", "run"], {
+  const child = spawn(executable, ["gateway", "run", "--force"], {
     cwd: runtime.workspace,
     env: {
       PATH: process.env.PATH,
@@ -222,7 +222,7 @@ export async function startHostGateway({ runtime, origin, executable = process.e
       API_SERVER_CORS_ORIGINS: origin,
       API_SERVER_MODEL_NAME: "hermes-agent",
     },
-    stdio: ["ignore", "ignore", "ignore"],
+    stdio: ["ignore", "ignore", logStderr ? "inherit" : "ignore"],
   });
   const url = `http://127.0.0.1:${port}`;
   const ready = async () => {

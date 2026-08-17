@@ -22,7 +22,7 @@ async function cleanup() {
 
 try {
   // Curl owns the browser-crossing request, so Hermes CORS remains disabled.
-  gateway = await startHostGateway({ runtime, origin: "", executable, modelStub });
+  gateway = await startHostGateway({ runtime, origin: "", executable, modelStub, logStderr: true });
   process.stdout.write(`${JSON.stringify({
     status: "relay_fixture_ready",
     gatewayUrl: gateway.url,
