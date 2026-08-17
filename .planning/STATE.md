@@ -5,14 +5,14 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: open-panel-recovery-proof
 status: ready_to_execute
-stopped_at: Phase 3 planned in two waves; Plan 03-01 is ready to execute
-last_updated: "2026-08-17T21:05:39.154Z"
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-08-17T21:21:01.728Z"
 last_activity: 2026-08-17
 last_activity_desc: Phase 3 recovery behavior and evidence proof planned in two executable waves
 progress:
-  total_phases: 3
-  completed_phases: 2
-  total_plans: 18
+  total_phases: 2
+  completed_phases: 1
+  total_plans: 17
   completed_plans: 16
 ---
 
@@ -32,7 +32,7 @@ Plan: 03-01 of 2 plans
 Status: Planning complete; bounded runtime recovery is Wave 1 and evidence/native proof is Wave 2
 Last activity: 2026-08-17 — Phase 3 recovery behavior and evidence proof planned
 
-Progress: [███████░░░] 67%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
@@ -66,6 +66,7 @@ Progress: [███████░░░] 67%
 | Phase 01 P07 | 6min | 3 tasks | 8 files |
 | Phase 01 P08 | 4min | 2 tasks | 8 files |
 | Phase 01-verified-gateway-connectivity P09 | 7m 42s | 2 tasks | 5 files |
+| Phase 03 P01 | 24m | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: Require `run_submission`, `run_status`, and `run_events_sse` for the run surface; gate approval, steer, and stop independently from advertised capabilities.
 - [Phase 02]: Retain only bounded allowlisted run events in panel memory and reconcile terminal truth from `GET /v1/runs/{run_id}`.
 - [Phase 02]: Clear the bearer input immediately after connection and clear the controller's private bearer on panel release.
+- [Phase ?]: Same-panel SSE recovery makes two reattach attempts only after authoritative status reconciliation.
+- [Phase ?]: Panel recreation requires a fresh bearer and manual Run ID for status-only recovery.
 
 ### Pending Todos
 
@@ -130,6 +133,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-17T20:48:49.000Z
-Stopped at: Phase 2 complete; Phase 3 open-panel recovery proof ready
-Resume file: None
+Last session: 2026-08-17T21:21:01.710Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: 03-02-PLAN.md

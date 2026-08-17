@@ -123,12 +123,12 @@ Plans:
   3. User can inspect validation evidence that distinguishes tunnel loss, Gateway loss, proxy buffering, and panel recreation by observed behavior without the extension claiming to identify deployment topology.
   4. User is clearly told when event history cannot be recovered; the panel never promises lossless replay without fixture evidence.
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Add bounded same-panel event reattachment and status-only recreated-panel recovery.
+- [x] 03-01-PLAN.md — Add bounded same-panel event reattachment and status-only recreated-panel recovery.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -144,4 +144,4 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Verified Gateway Connectivity | 15/15 | Complete | 2026-08-17 |
 | 2. Capability-Driven Run Control | 1/1 | Complete | 2026-08-17 |
-| 3. Open-Panel Recovery Proof | 0/TBD | Not started | - |
+| 3. Open-Panel Recovery Proof | 1/2 | In Progress|  |
