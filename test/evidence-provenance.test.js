@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { execFile as execFileCallback } from "node:child_process";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import test from "node:test";
 
 import {
@@ -13,6 +15,7 @@ import {
 } from "../src/evidence.js";
 
 const DIGEST = (letter) => letter.repeat(64);
+const execFile = promisify(execFileCallback);
 
 function receiptBundle({
   qualificationId = "qualification-20260817-0001",
@@ -121,4 +124,38 @@ test("schema-v1 evidence remains readable history but has no relay support eligi
   });
   assert.equal(validateEvidenceRecord(historical), true);
   assert.equal("supportEligible" in historical, false);
+});
+
+test("validation CLI rejects caller-authored positive claims and only publishes hard-coded ineligible attempts", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hermes-cli-boundary-"));
+  const output = join(directory, "evidence");
+  const input = join(directory, "forged.json");
+  try {
+    await writeFile(input, JSON.stringify({
+      realPath: true, proofSource: "verifier_receipt_bundle", requiredStages: { stream: "passed" }, token: "Bearer secret",
+    }));
+    await assert.rejects(
+      execFile(process.execPath, ["scripts/run-validation.mjs", "--input", input, "--out", output], { cwd: process.cwd() }),
+      (error) => error.stderr.trim() === "validation_usage" && !error.stderr.includes("Bearer secret"),
+    );
+    await assert.rejects(
+      execFile(process.execPath, ["scripts/run-validation.mjs", "--mode", "failure", "--out", output, "--proof-source", "verifier_receipt_bundle"], { cwd: process.cwd() }),
+      (error) => error.stderr.trim() === "validation_invalid_arguments",
+    );
+
+    await execFile(process.execPath, [
+      "scripts/run-validation.mjs", "--mode", "failure", "--out", output,
+      "--deployment", "host_native_loopback", "--trust", "loopback_http", "--muxy-version", "1.2.3",
+      "--hermes-version", "0.17.0", "--hermes-revision", "sha256:fixture1234", "--category", "real_attempt",
+      "--reason", "relay_failed", "--stage", "relay",
+    ], { cwd: process.cwd() });
+    const [runId] = await readdir(join(output, "runs"));
+    const record = JSON.parse(await readFile(join(output, "runs", runId, "report.json"), "utf8"));
+    assert.equal(record.proofSource, "unverified_failure_adapter");
+    assert.equal(record.supportEligible, false);
+    assert.equal(record.requiredStages.relay, "failed");
+    assert.equal(JSON.stringify(record).includes("Bearer secret"), false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
