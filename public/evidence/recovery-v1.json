@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "recovery-v1",
+  "versionTuple": {
+    "muxyVersion": "1.5.0+945",
+    "hermesVersion": "0.20.2",
+    "hermesRevisionOrDigest": "sha256:f8f548d87d16634d1ad9e3777280f3f577ba2358703f04e18e74007ffd3621bf"
+  },
+  "capability": { "names": ["run_events_sse", "run_status", "run_submission"], "shapeHash": "sha256:3fd120d4777302f481c4e0f4c9cc1d6054c18fed4f76ce6ad01aac9bc6227200" },
+  "representativeEvents": [
+    { "name": "message.delta", "dataBytes": 5, "shapeHash": "sha256:3fd120d4777302f481c4e0f4c9cc1d6054c18fed4f76ce6ad01aac9bc6227200" },
+    { "name": "terminal", "dataBytes": 4, "shapeHash": "sha256:3fd120d4777302f481c4e0f4c9cc1d6054c18fed4f76ce6ad01aac9bc6227200" }
+  ],
+  "controlStatus": { "controlOutcome": "not_exercised", "statusOutcome": "not_run" },
+  "conditions": [
+    { "id": "host_native_loopback", "scenario": "native_fixture", "observedBehavior": "not_observed", "requestOutcome": "not_run", "observerAttempts": 0, "statusOutcome": "not_run", "reattached": false, "panelLifecycle": "not_run", "eventHistoryConfidence": "unavailable", "approvalDetailConfidence": "unavailable", "cleanup": "not_run", "actual": false, "pinnedRuntime": false, "nativePanel": false, "verdict": "Unverified" },
+    { "id": "docker_published_loopback", "scenario": "native_fixture", "observedBehavior": "not_observed", "requestOutcome": "not_run", "observerAttempts": 0, "statusOutcome": "not_run", "reattached": false, "panelLifecycle": "not_run", "eventHistoryConfidence": "unavailable", "approvalDetailConfidence": "unavailable", "cleanup": "not_run", "actual": false, "pinnedRuntime": false, "nativePanel": false, "verdict": "Unverified" },
+    { "id": "ssh_local_forward", "scenario": "local_behavior_simulation", "observedBehavior": "not_observed", "requestOutcome": "not_run", "observerAttempts": 0, "statusOutcome": "not_run", "reattached": false, "panelLifecycle": "not_run", "eventHistoryConfidence": "unavailable", "approvalDetailConfidence": "unavailable", "cleanup": "not_run", "actual": false, "pinnedRuntime": false, "nativePanel": false, "verdict": "Unverified" },
+    { "id": "direct_remote_https", "scenario": "local_behavior_simulation", "observedBehavior": "not_observed", "requestOutcome": "not_run", "observerAttempts": 0, "statusOutcome": "not_run", "reattached": false, "panelLifecycle": "not_run", "eventHistoryConfidence": "unavailable", "approvalDetailConfidence": "unavailable", "cleanup": "not_run", "actual": false, "pinnedRuntime": false, "nativePanel": false, "verdict": "Unverified" },
+    { "id": "remote_muxy_workspace", "scenario": "local_behavior_simulation", "observedBehavior": "not_observed", "requestOutcome": "not_run", "observerAttempts": 0, "statusOutcome": "not_run", "reattached": false, "panelLifecycle": "not_run", "eventHistoryConfidence": "unavailable", "approvalDetailConfidence": "unavailable", "cleanup": "not_run", "actual": false, "pinnedRuntime": false, "nativePanel": false, "verdict": "Unverified" }
+  ]
+}

@@ -5,8 +5,16 @@ import { ConnectionProbe, FailureClass, ProbeState } from "@/probe";
 import { RUN_FEATURES, supportsCoreRun } from "@/run-client";
 import { RunController } from "@/run-controller";
 import { buildBridgeContract, copyRedactedReport, evaluateStopGate, loadEvidenceIndex, renderDeploymentMatrix } from "@/stop-gate";
+import { loadRecoveryEvidence, renderRecoveryEvidence } from "@/recovery-evidence";
 
 const STAGE_LABEL = Object.freeze({ passed: "Observed", failed: "Failed", not_verified: "Not verified" });
+const DEPLOYMENT_CONDITION_NAMES = Object.freeze({
+  host_native_loopback: "Host-native loopback",
+  docker_published_loopback: "Docker published loopback",
+  ssh_local_forward: "SSH local forward",
+  direct_remote_https: "Direct remote HTTPS",
+  remote_muxy_workspace: "Remote Muxy workspace",
+});
 
 function resultCopy(result) {
   if (result.status === ProbeState.SUCCESS) return ["Connection verified", "The consented relay, authentication, capabilities, and live stream all succeeded."];
@@ -36,6 +44,7 @@ export class HermesGatewayPanel {
     this.cleanupFailed = false;
     this.detailsOpen = false;
     this.evidenceState = Object.freeze({ state: "loading", index: null, rows: [] });
+    this.recoveryEvidenceState = Object.freeze({ state: "loading", rows: [] });
     this.stopGate = evaluateStopGate();
     this.copyState = "idle";
     this.contractState = "idle";
@@ -61,6 +70,7 @@ export class HermesGatewayPanel {
     });
     this.render();
     void this.loadEvidence();
+    void this.loadRecoveryEvidence();
     this.probe.prepare().then(() => {
       this.preparing = false;
       this.render();
@@ -424,20 +434,13 @@ export class HermesGatewayPanel {
   }
 
   evidenceShell() {
-    const conditionNames = {
-      host_native_loopback: "Host-native loopback",
-      docker_published_loopback: "Docker published loopback",
-      ssh_local_forward: "SSH local forward",
-      direct_remote_https: "Direct remote HTTPS",
-      remote_muxy_workspace: "Remote Muxy workspace",
-    };
     const evidence = this.evidenceState;
     const stateCopy = evidence.state === "loading"
       ? "Loading validation evidence…"
       : evidence.state === "error"
         ? "Validation evidence is unavailable"
         : null;
-    const rows = evidence.rows.length > 0 ? evidence.rows : Object.entries(conditionNames).map(([id, name]) => ({
+    const rows = evidence.rows.length > 0 ? evidence.rows : Object.entries(DEPLOYMENT_CONDITION_NAMES).map(([id, name]) => ({
       id, name, verdict: "Unverified", version: "Not recorded", details: "No versioned fixture result has been recorded for this deployment condition.",
     }));
     return h("section", { class: "gateway-evidence", "aria-labelledby": "validation-evidence-title" },
@@ -445,9 +448,25 @@ export class HermesGatewayPanel {
       stateCopy ? h("p", { class: evidence.state === "error" ? "gateway-evidence-unavailable" : null }, stateCopy) : null,
       evidence.state === "error" ? h("button", { class: "gateway-retry", type: "button", onclick: () => void this.loadEvidence() }, "Retry evidence") : null,
       h("ul", { class: "gateway-evidence-list" }, rows.map((row) => h("li", { class: "gateway-evidence-row", tabindex: "0" },
-        h("strong", null, conditionNames[row.id] ?? "Not recorded"), h("span", null, row.verdict), h("span", null, `Fixture version: ${row.version}`),
+        h("strong", null, DEPLOYMENT_CONDITION_NAMES[row.id] ?? "Not recorded"), h("span", null, row.verdict), h("span", null, `Fixture version: ${row.version}`),
         h("span", null, row.details),
       ))),
+      this.recoveryEvidenceShell(),
+    );
+  }
+
+  recoveryEvidenceShell() {
+    const recovery = this.recoveryEvidenceState;
+    const copy = recovery.state === "loading" ? "Loading recovery evidence…"
+      : recovery.state === "error" ? "Recovery evidence is unavailable." : null;
+    return h("section", { class: "gateway-recovery-evidence", "aria-labelledby": "recovery-evidence-title" },
+      h("h4", { id: "recovery-evidence-title", class: "gateway-capability-title" }, "Recovery evidence"),
+      copy ? h("p", { class: recovery.state === "error" ? "gateway-evidence-unavailable" : null }, copy) : null,
+      recovery.state === "error" ? h("button", { class: "gateway-retry", type: "button", onclick: () => void this.loadRecoveryEvidence() }, "Retry recovery evidence") : null,
+      recovery.rows.length ? h("ul", { class: "gateway-evidence-list" }, recovery.rows.map((row) => h("li", { class: "gateway-evidence-row", tabindex: "0" },
+        h("strong", null, DEPLOYMENT_CONDITION_NAMES[row.id] ?? "Not recorded"), h("span", null, row.verdict), h("span", null, row.details),
+      ))) : null,
+      h("p", { class: "gateway-footnote" }, "Status is authoritative. Event history is incomplete and approval detail is unavailable after an interruption or panel recreation."),
     );
   }
 
@@ -479,6 +498,18 @@ export class HermesGatewayPanel {
       this.stopGate = evaluateStopGate();
       this.render();
     }
+  }
+
+  async loadRecoveryEvidence() {
+    this.recoveryEvidenceState = Object.freeze({ state: "loading", rows: this.recoveryEvidenceState.rows });
+    this.render();
+    try {
+      const evidence = await loadRecoveryEvidence({ url: "/evidence/recovery-v1.json" });
+      this.recoveryEvidenceState = Object.freeze({ state: "populated", rows: renderRecoveryEvidence(evidence) });
+    } catch {
+      this.recoveryEvidenceState = Object.freeze({ state: "error", rows: [] });
+    }
+    this.render();
   }
 
   async copyFailureReport() {
