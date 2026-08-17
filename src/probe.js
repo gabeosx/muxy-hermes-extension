@@ -1,5 +1,10 @@
 import { GatewayClient, normalizeGatewayUrl } from "./gateway-client.js";
 
+const QUALIFICATION_ROOT = ".muxy-hermes-qualification/current";
+const CHALLENGE_PATH = `${QUALIFICATION_ROOT}/challenge.json`;
+const RECEIPT_PATH = `${QUALIFICATION_ROOT}/panel-session.json`;
+const CHALLENGE_KEYS = Object.freeze(["expectedOrdinal", "expiresAt", "nonce", "version"]);
+
 export const ProbeState = Object.freeze({
   IDLE: "idle",
   TESTING: "testing",
@@ -44,6 +49,40 @@ function safeNames(names) {
 
 function safeVersion(version) {
   return typeof version === "string" && version.length > 0 && version.length <= 128 ? version : null;
+}
+
+function missingFile(error) {
+  return error?.code === "ENOENT" || /(?:ENOENT|not found|does not exist)/i.test(error?.message ?? "");
+}
+
+function sameKeys(value, expected) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    && Object.keys(value).sort().join("\0") === [...expected].sort().join("\0");
+}
+
+function parseChallenge(content, now) {
+  let challenge;
+  try { challenge = JSON.parse(content); } catch { return null; }
+  if (!sameKeys(challenge, CHALLENGE_KEYS) || challenge.version !== 1 || !/^[A-Za-z0-9_-]{16,256}$/.test(challenge.nonce)) return null;
+  if (!Number.isSafeInteger(challenge.expectedOrdinal) || challenge.expectedOrdinal < 1) return null;
+  if (typeof challenge.expiresAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(challenge.expiresAt)) return null;
+  const expiry = Date.parse(challenge.expiresAt);
+  const current = Date.parse(now);
+  if (!Number.isFinite(expiry) || !Number.isFinite(current) || expiry <= current) return null;
+  return challenge;
+}
+
+async function sha256(value) {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function receiptEligible(verdict, observation) {
+  return verdict.status === ProbeState.SUCCESS
+    && observation && observation.httpStatus >= 200 && observation.httpStatus < 300
+    && observation.cancelled === false && observation.curlExitClass === "success"
+    && observation.journalOutcome === "scrubbed_removed" && observation.terminal === true && observation.toolShape === false;
 }
 
 export function toSafeVerdict(result, { endpoint, startedAt, finishedAt }) {
@@ -98,10 +137,16 @@ export class ConnectionProbe {
   #abortPromise = Promise.resolve();
   #listeners = new Set();
   #snapshot = freeze({ status: ProbeState.IDLE, previousResult: null });
+  #files;
+  #panelInstanceId;
+  #usedNonces = new Set();
+  #sessionOrdinal = 0;
 
-  constructor({ client = new GatewayClient(), now = () => new Date().toISOString() } = {}) {
+  constructor({ client = new GatewayClient(), now = () => new Date().toISOString(), files = globalThis.window?.muxy?.files ?? null, randomId = () => globalThis.crypto.randomUUID() } = {}) {
     this.#client = client;
     this.#now = now;
+    this.#files = files;
+    this.#panelInstanceId = randomId();
   }
 
   get snapshot() { return this.#snapshot; }
@@ -160,6 +205,7 @@ export class ConnectionProbe {
       const verdict = toSafeVerdict(result, { endpoint, startedAt, finishedAt: this.#now() });
       if (attempt !== this.#attempt || controller.signal.aborted) return this.#snapshot;
       this.#publish(verdict);
+      await this.#writeReceipt(result?.receiptObservation, verdict, ++this.#sessionOrdinal);
       return verdict;
     } catch {
       if (attempt !== this.#attempt || controller.signal.aborted) return this.#snapshot;
@@ -178,5 +224,46 @@ export class ConnectionProbe {
   #publish(snapshot) {
     this.#snapshot = freeze(snapshot);
     for (const listener of this.#listeners) listener(this.#snapshot);
+  }
+
+  async #writeReceipt(observation, verdict, sessionOrdinal) {
+    if (!this.#files?.read || !this.#files?.write || !receiptEligible(verdict, observation)) return;
+    let challengeFile;
+    try { challengeFile = await this.#files.read(CHALLENGE_PATH); } catch { return; }
+    const challenge = parseChallenge(challengeFile?.content, this.#now());
+    if (!challenge || challenge.expectedOrdinal !== sessionOrdinal || this.#usedNonces.has(challenge.nonce)) return;
+    try {
+      await this.#files.read(RECEIPT_PATH);
+      return;
+    } catch (error) {
+      if (!missingFile(error)) return;
+    }
+    const outcomes = {
+      relay: verdict.relayOutcome.state,
+      authentication: verdict.authenticationOutcome.state,
+      capabilities: verdict.capabilityOutcome.state,
+      stream: verdict.streamOutcome.state,
+      cleanup: "passed",
+      digests: {
+        execution: await sha256({ executionId: observation.executionId, httpStatus: observation.httpStatus, curlExitClass: observation.curlExitClass }),
+        timing: await sha256({ firstChunkMs: observation.firstChunkMs, bytes: observation.bytes }),
+        frames: await sha256({ eventCount: observation.eventCount, terminal: observation.terminal, toolShape: observation.toolShape }),
+        cleanup: await sha256({ cancelled: observation.cancelled, journalOutcome: observation.journalOutcome }),
+      },
+    };
+    const receipt = {
+      version: 1,
+      createdAt: this.#now(),
+      sessionOrdinal,
+      panelDigest: await sha256(this.#panelInstanceId),
+      challengeDigest: await sha256(challenge.nonce),
+      outcomes,
+    };
+    try {
+      await this.#files.write(RECEIPT_PATH, JSON.stringify(receipt));
+      this.#usedNonces.add(challenge.nonce);
+    } catch {
+      // The verifier owns the fixed receipt path; a failed write cannot become evidence.
+    }
   }
 }

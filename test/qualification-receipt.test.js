@@ -90,6 +90,9 @@ test("expired, malformed, mismatched, incomplete, and colliding challenge sessio
     [{ ...challenge, expiresAt: "2026-08-17T22:59:59.000Z" }, passedResult()],
     [{ ...challenge, unexpected: true }, passedResult()],
     [{ ...challenge, expectedOrdinal: 2 }, passedResult()],
+    [challenge, passedResult({ stream: { state: "not_verified", reason: "cancelled" }, receiptObservation: { ...passedResult().receiptObservation, cancelled: true, curlExitClass: "cancelled" } })],
+    [challenge, passedResult({ stream: { state: "failed", reason: "protocol" }, receiptObservation: { ...passedResult().receiptObservation, httpStatus: 500 } })],
+    [challenge, passedResult({ stream: { state: "not_verified", reason: "qualification_sequence_unproved" }, receiptObservation: { ...passedResult().receiptObservation, terminal: false } })],
     [challenge, passedResult({ receiptObservation: { ...passedResult().receiptObservation, journalOutcome: "cleanup_failed" } })],
   ];
   for (const [challengeValue, result] of cases) {

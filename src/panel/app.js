@@ -25,7 +25,7 @@ function resultCopy(result) {
 export class HermesGatewayPanel {
   constructor(root) {
     this.root = root;
-    this.probe = new ConnectionProbe();
+    this.probe = new ConnectionProbe({ files: window.muxy?.files ?? null });
     this.snapshot = this.probe.snapshot;
     this.urlValue = "";
     this.tokenValue = "";

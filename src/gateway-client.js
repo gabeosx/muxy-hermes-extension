@@ -113,11 +113,11 @@ export class GatewayClient {
       if (!capabilities.chatCompletions) {
         return { ...baseResult, stream: stage("not_verified", { reason: "chat_completions_not_advertised" }) };
       }
-      const stream = await this.#qualifyStream(baseUrl, bearer);
-      if (stream.reason === "authentication") {
-        return { ...baseResult, authentication: stage("failed"), stream };
+      const qualification = await this.#qualifyStream(baseUrl, bearer);
+      if (qualification.stream.reason === "authentication") {
+        return { ...baseResult, authentication: stage("failed"), ...qualification };
       }
-      return { ...baseResult, stream };
+      return { ...baseResult, ...qualification };
     } catch (error) {
       if (signal?.aborted || generation !== this.#generation) return this.#failed("aborted");
       return this.#failed(relayFailureReason(error));
@@ -190,20 +190,35 @@ export class GatewayClient {
         }
       },
     });
-    if (streamResult.cancelled) return stage("not_verified", { reason: "cancelled", firstChunkMs, eventCount, terminal, toolShape });
-    if (streamResult.httpStatus === 401 || streamResult.httpStatus === 403) {
-      return stage("failed", { reason: "authentication", firstChunkMs, eventCount, terminal, toolShape });
-    }
-    if (streamResult.httpStatus !== null && (streamResult.httpStatus < 200 || streamResult.httpStatus >= 300)) {
-      return stage("failed", { reason: "protocol", firstChunkMs, eventCount, terminal, toolShape });
-    }
-    const passed = firstDelta && secondDelta && terminal && !toolShape;
-    return stage(passed ? "passed" : "not_verified", {
-      reason: passed ? null : "qualification_sequence_unproved",
+    const receiptObservation = {
+      executionId: streamResult.executionId,
+      httpStatus: streamResult.httpStatus,
+      bytes: streamResult.bytes,
+      cancelled: streamResult.cancelled,
+      curlExitClass: streamResult.curlExitClass,
+      journalOutcome: streamResult.journalOutcome,
       firstChunkMs,
       eventCount,
       terminal,
       toolShape,
-    });
+    };
+    if (streamResult.cancelled) return { stream: stage("not_verified", { reason: "cancelled", firstChunkMs, eventCount, terminal, toolShape }), receiptObservation };
+    if (streamResult.httpStatus === 401 || streamResult.httpStatus === 403) {
+      return { stream: stage("failed", { reason: "authentication", firstChunkMs, eventCount, terminal, toolShape }), receiptObservation };
+    }
+    if (streamResult.httpStatus !== null && (streamResult.httpStatus < 200 || streamResult.httpStatus >= 300)) {
+      return { stream: stage("failed", { reason: "protocol", firstChunkMs, eventCount, terminal, toolShape }), receiptObservation };
+    }
+    const passed = firstDelta && secondDelta && terminal && !toolShape;
+    return {
+      stream: stage(passed ? "passed" : "not_verified", {
+        reason: passed ? null : "qualification_sequence_unproved",
+        firstChunkMs,
+        eventCount,
+        terminal,
+        toolShape,
+      }),
+      receiptObservation,
+    };
   }
 }
