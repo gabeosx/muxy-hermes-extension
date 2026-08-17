@@ -165,6 +165,7 @@ export class RunController {
     try {
       await operation();
     } catch {
+      await this.reconcile();
       this.#publish({ error: "The Gateway did not accept that run control." });
     } finally {
       this.#actionPending = false;

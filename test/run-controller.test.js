@@ -68,6 +68,21 @@ test("stop stays nonterminal until authoritative status becomes terminal", async
   assert.equal(controller.snapshot.status, "cancelled");
 });
 
+test("a rejected stop reconciles out of the transient stopping state", async () => {
+  const stream = deferred();
+  const client = {
+    async start() { return { runId: "run_abc12345", stream: stream.promise }; },
+    async stop() { throw new Error("rejected"); },
+    async status() { return { runId: "run_abc12345", status: "running", output: "" }; },
+    async teardown() {},
+  };
+  const controller = new RunController({ baseUrl: "http://127.0.0.1:8642", bearer: "secret", capabilities: [...core, "run_stop"], client });
+  await controller.start("work");
+  await controller.stop();
+  assert.equal(controller.snapshot.status, "running");
+  assert.equal(controller.snapshot.error, "The Gateway did not accept that run control.");
+});
+
 test("unadvertised controls fail closed", async () => {
   const controller = new RunController({ baseUrl: "http://127.0.0.1:8642", bearer: "secret", capabilities: core, client: {} });
   await assert.rejects(() => controller.stop(), /stop_not_available/);
