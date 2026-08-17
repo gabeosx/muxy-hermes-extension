@@ -1,5 +1,6 @@
 import { clear, h } from "@/lib/dom";
 import { normalizeGatewayUrl } from "@/gateway-client";
+import { normalizeCapabilities } from "@/capabilities";
 import { ConnectionProbe, FailureClass, ProbeState } from "@/probe";
 
 const STAGE_LABEL = Object.freeze({ passed: "Observed", failed: "Failed", not_verified: "Not verified" });
@@ -21,6 +22,7 @@ export class HermesGatewayPanel {
     this.tokenValue = "";
     this.validationMessage = "";
     this.detailsOpen = false;
+    this.evidenceState = Object.freeze({ state: "empty", rows: [] });
   }
 
   start() {
@@ -62,7 +64,7 @@ export class HermesGatewayPanel {
     });
     url.value = this.urlValue;
     const token = h("input", {
-      id: "bearer-token", class: "gateway-input", type: "password", autocomplete: "new-password", spellcheck: "false",
+      id: "bearer-token", class: "gateway-input", type: "password", autocomplete: "off", spellcheck: "false",
       required: true, disabled: testing, "aria-describedby": "gateway-token-error",
       oninput: (event) => { this.tokenValue = event.target.value; this.validationMessage = ""; this.syncForm(); },
     });
@@ -149,6 +151,66 @@ export class HermesGatewayPanel {
       detailButton,
       this.detailsOpen ? h("p", { class: "gateway-diagnostic" }, result.failureClass ? `Observed result: ${result.failureClass.replace("_", " ")}. Raw request and response details are redacted.` : "No additional redacted diagnostics were recorded.") : null,
       failure ? h("button", { class: "gateway-retry", type: "button", onclick: () => this.urlInput?.focus() }, "Test connection again") : null,
+      this.capabilitySummary(result),
+      this.evidenceShell(),
+    );
+  }
+
+  capabilitySummary(result) {
+    if (result.capabilityOutcome.state !== "passed") {
+      return h("section", { class: "gateway-capability-summary", "aria-labelledby": "capability-summary-title" },
+        h("h3", { id: "capability-summary-title", class: "gateway-capability-title" }, "Capability summary"),
+        h("p", null, "Capability discovery is Not verified."),
+        h("p", { class: "gateway-footnote" }, "Run controls appear in Phase 2."),
+      );
+    }
+
+    const summary = normalizeCapabilities({
+      version: result.capabilityVersion,
+      features: Object.fromEntries((result.capabilityNames ?? []).map((name) => [name, true])),
+    });
+    const summaryState = summary.state === "empty" ? "No capabilities advertised" : summary.state === "partial" ? "Partially verified" : "Advertised capabilities";
+    return h("section", { class: "gateway-capability-summary", "aria-labelledby": "capability-summary-title" },
+      h("h3", { id: "capability-summary-title", class: "gateway-capability-title" }, "Capability summary"),
+      h("p", { class: "gateway-capability-state" }, summaryState),
+      summary.state === "empty"
+        ? h("p", null, "This Gateway did not advertise any controls for this client.")
+        : h("ul", { class: "gateway-capabilities", "aria-label": "Advertised capabilities" }, summary.names.map((name) => h("li", null, name))),
+      h("p", { class: "gateway-capability-version" }, summary.version ? `Protocol or fixture version: ${summary.version}` : "Protocol or fixture version: Not recorded"),
+      h("p", { class: "gateway-footnote" }, "Run controls appear in Phase 2."),
+    );
+  }
+
+  evidenceShell() {
+    const conditions = [
+      "Host-native loopback",
+      "Docker published loopback",
+      "SSH local forward",
+      "Direct remote HTTPS",
+      "Remote Muxy workspace",
+    ];
+    const evidence = this.evidenceState;
+    const stateCopy = evidence.state === "loading"
+      ? "Loading validation evidence…"
+      : evidence.state === "error"
+        ? "Validation evidence is unavailable"
+        : null;
+    return h("section", { class: "gateway-evidence", "aria-labelledby": "validation-evidence-title" },
+      h("h3", { id: "validation-evidence-title", class: "gateway-capability-title" }, "Validation evidence"),
+      stateCopy ? h("p", { class: evidence.state === "error" ? "gateway-evidence-unavailable" : null }, stateCopy) : null,
+      h("ul", { class: "gateway-evidence-list" }, conditions.map((condition) => h("li", { class: "gateway-evidence-row", tabindex: "0" },
+        h("strong", null, condition), h("span", null, "Unverified"), h("span", null, "Fixture version: Not recorded"),
+        h("span", null, "No versioned fixture result has been recorded for this deployment condition."),
+      ))),
+    );
+  }
+
+  transportStopShell() {
+    return h("section", { class: "gateway-transport-stop", role: "alert", "aria-labelledby": "transport-stop-title" },
+      h("h2", { id: "transport-stop-title" }, "Muxy change required"),
+      h("p", null, "Phase 1 is paused. No Muxy change has been made. Review the failure report and minimum bridge contract before expanding scope."),
+      h("button", { type: "button" }, "Copy failure report"),
+      h("button", { type: "button" }, "View bridge contract"),
     );
   }
 }

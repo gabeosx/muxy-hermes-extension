@@ -44,11 +44,12 @@ test("the panel keeps capability and evidence output read-only and uses contract
     "Phase 1 is paused. No Muxy change has been made.",
   ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
-  assert.doesNotMatch(panel, /Start run|Stop run|Steer|Approve|Docker|SSH|terminal|workspace path/i);
+  assert.doesNotMatch(panel, /Start run|Stop run|Steer|Approve|terminal|workspace path/i);
+  assert.match(panel, /type: "password", autocomplete: "off"/);
 });
 
 test("native styles wrap content, preserve visible interaction state, and honor reduced motion", async () => {
-  const css = await readFile(new URL("../src/panel/styles.css", import.meta.url), "utf8");
+  const css = await readFile(new URL("../src/styles/global.css", import.meta.url), "utf8");
 
   assert.match(css, /var\(--muxy-background\)/);
   assert.match(css, /var\(--muxy-accent\)/);
