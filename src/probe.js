@@ -10,7 +10,7 @@ export const ProbeState = Object.freeze({
 
 export const FailureClass = Object.freeze({
   URL: "url",
-  BROWSER_REQUEST: "browser_request",
+  RELAY: "relay",
   AUTHENTICATION: "authentication",
   CAPABILITY_PROTOCOL: "capability_protocol",
   STREAMING: "streaming",
@@ -40,20 +40,18 @@ function safeVersion(version) {
 }
 
 export function toSafeVerdict(result, { endpoint, startedAt, finishedAt }) {
-  const browserRequest = stage(result?.request?.state);
+  const relayOutcome = stage(result?.relay?.state ?? result?.request?.state);
   const authenticationOutcome = stage(result?.authentication?.state);
   const capabilityOutcome = stage(result?.capabilities?.state);
   const streamOutcome = stage(result?.stream?.state);
-  // A direct webview fetch cannot establish an exact browser origin by itself.
-  const originOutcome = stage(result?.origin?.state === "passed" ? "passed" : "not_verified");
   let failureClass = null;
-  if (browserRequest.state === "failed") failureClass = FailureClass.BROWSER_REQUEST;
+  if (relayOutcome.state === "failed") failureClass = FailureClass.RELAY;
   else if (authenticationOutcome.state === "failed") failureClass = FailureClass.AUTHENTICATION;
   else if (capabilityOutcome.state === "failed") failureClass = FailureClass.CAPABILITY_PROTOCOL;
   else if (streamOutcome.state === "failed") failureClass = FailureClass.STREAMING;
-  else if (capabilityOutcome.state === "passed" && streamOutcome.state === "not_verified" && originOutcome.state !== "passed") failureClass = FailureClass.STREAMING;
+  else if (capabilityOutcome.state === "passed" && streamOutcome.state === "not_verified") failureClass = FailureClass.STREAMING;
 
-  const allObserved = [browserRequest, authenticationOutcome, capabilityOutcome, streamOutcome, originOutcome]
+  const allObserved = [relayOutcome, authenticationOutcome, capabilityOutcome, streamOutcome]
     .every((outcome) => outcome.state === "passed");
   return freeze({
     status: failureClass ? ProbeState.FAILURE : allObserved ? ProbeState.SUCCESS : ProbeState.PARTIAL,
@@ -62,8 +60,7 @@ export function toSafeVerdict(result, { endpoint, startedAt, finishedAt }) {
     endpoint,
     endpointTrustClass: endpoint.startsWith("http://127.0.0.1") || endpoint.startsWith("http://[::1]") ? "loopback_http" : "https",
     url: stage(result?.url?.state),
-    browserRequest,
-    originOutcome,
+    relayOutcome,
     authenticationOutcome,
     capabilityOutcome,
     streamOutcome,
@@ -111,8 +108,8 @@ export class ConnectionProbe {
     } catch (error) {
       const failure = freeze({
         status: ProbeState.FAILURE, startedAt, finishedAt: this.#now(), endpoint: null,
-        endpointTrustClass: null, url: stage("failed"), browserRequest: stage("not_verified"),
-        originOutcome: stage("not_verified"), authenticationOutcome: stage("not_verified"),
+        endpointTrustClass: null, url: stage("failed"), relayOutcome: stage("not_verified"),
+        authenticationOutcome: stage("not_verified"),
         capabilityOutcome: stage("not_verified"), streamOutcome: stage("not_verified"),
         failureClass: FailureClass.URL, retryable: true, capabilityNames: [], capabilityVersion: null,
         streamEventCount: null, previousResult: null,
@@ -125,7 +122,7 @@ export class ConnectionProbe {
     this.#controller = controller;
     this.#publish(freeze({
       status: ProbeState.TESTING, startedAt, finishedAt: null, endpoint, endpointTrustClass: endpoint.startsWith("http://") ? "loopback_http" : "https",
-      url: stage("passed"), browserRequest: stage("not_verified"), originOutcome: stage("not_verified"),
+      url: stage("passed"), relayOutcome: stage("not_verified"),
       authenticationOutcome: stage("not_verified"), capabilityOutcome: stage("not_verified"), streamOutcome: stage("not_verified"),
       failureClass: null, retryable: false, capabilityNames: [], capabilityVersion: null, streamEventCount: null,
       previousResult: prior,
@@ -139,8 +136,8 @@ export class ConnectionProbe {
     } catch {
       if (attempt !== this.#attempt || controller.signal.aborted) return this.#snapshot;
       const verdict = toSafeVerdict({
-        url: { state: "passed" }, request: { state: "failed" }, authentication: { state: "not_verified" },
-        origin: { state: "not_verified" }, capabilities: { state: "not_verified" }, stream: { state: "not_verified" },
+        url: { state: "passed" }, request: { state: "failed" }, relay: { state: "failed" }, authentication: { state: "not_verified" },
+        capabilities: { state: "not_verified" }, stream: { state: "not_verified" },
       }, { endpoint, startedAt, finishedAt: this.#now() });
       this.#publish(verdict);
       return verdict;

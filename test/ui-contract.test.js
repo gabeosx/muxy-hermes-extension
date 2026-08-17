@@ -55,9 +55,11 @@ test("the panel keeps capability and evidence output read-only and uses contract
     "Run controls appear in Phase 2.",
     "Validation evidence",
     "No versioned fixture result has been recorded for this deployment condition.",
-    "Muxy change required",
-    "Phase 1 is paused. No Muxy change has been made.",
+    "Muxy will ask before running curl and before scrubbing a temporary journal in this worktree.",
+    "A remembered curl grant covers that executable, not only this Gateway.",
   ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+
+  assert.doesNotMatch(panel, /exact-origin access|confirm its exact Muxy origin/i);
 
   assert.doesNotMatch(panel, /Start run|Stop run|Steer|Approve|terminal|workspace path/i);
   assert.match(panel, /type: "password", autocomplete: "off"/);

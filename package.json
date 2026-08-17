@@ -29,7 +29,13 @@
         "title" : "Hermes Gateway"
       }
     ],
+    "events" : [
+      "file.changed"
+    ],
     "permissions" : [
+      "commands:exec",
+      "files:read",
+      "files:write",
       "panels:write"
     ]
   },

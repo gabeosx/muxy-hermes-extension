@@ -1,4 +1,5 @@
 import { SseParser } from "./sse-parser.js";
+import { CurlRelay } from "./curl-relay.js";
 
 const QUALIFICATION_BODY = {
   model: "hermes-agent",
@@ -42,13 +43,12 @@ function normalizeCapabilities(payload) {
 }
 
 export class GatewayClient {
-  #fetch;
-  #controller = null;
+  #relay;
+  #generation = 0;
   #inFlight = false;
 
-  constructor({ fetchImpl = globalThis.fetch } = {}) {
-    if (typeof fetchImpl !== "function") throw new Error("Browser fetch is unavailable.");
-    this.#fetch = fetchImpl;
+  constructor({ relay = new CurlRelay() } = {}) {
+    this.#relay = relay;
   }
 
   get inFlight() {
@@ -56,8 +56,7 @@ export class GatewayClient {
   }
 
   teardown() {
-    this.#controller?.abort();
-    this.#controller = null;
+    this.#generation += 1;
   }
 
   async probe(rawUrl, bearer, { signal = null } = {}) {
@@ -65,39 +64,34 @@ export class GatewayClient {
     if (!bearer) throw new Error("Enter a bearer token.");
     const baseUrl = normalizeGatewayUrl(rawUrl);
     this.#inFlight = true;
-    const controller = signal ? null : new AbortController();
-    if (controller) this.#controller = controller;
-    const requestSignal = signal ?? controller.signal;
-    let authorization = `Bearer ${bearer}`;
+    const generation = ++this.#generation;
     try {
-      const capabilitiesResponse = await this.#fetch(endpoint(baseUrl, "/v1/capabilities"), {
-        method: "GET",
-        headers: { Authorization: authorization, Accept: "application/json" },
-        signal: requestSignal,
+      const capabilitiesResponse = await this.#relay.requestJson({
+        url: endpoint(baseUrl, "/v1/capabilities"),
+        bearer,
       });
+      if (generation !== this.#generation || signal?.aborted) return this.#failed("aborted");
       if (capabilitiesResponse.status === 401 || capabilitiesResponse.status === 403) {
         return this.#authenticationFailed();
       }
-      if (!capabilitiesResponse.ok) return this.#capabilitiesFailed();
-      const capabilities = normalizeCapabilities(await capabilitiesResponse.json());
+      if (capabilitiesResponse.status < 200 || capabilitiesResponse.status >= 300) return this.#capabilitiesFailed();
+      const capabilities = normalizeCapabilities(capabilitiesResponse.body);
       const baseResult = {
         url: stage("passed"),
         request: stage("passed"),
         authentication: stage("passed"),
-        origin: stage("not_verified"),
+        relay: stage("passed"),
         capabilities: { state: "passed", names: capabilities.names, version: capabilities.version },
       };
       if (!capabilities.chatCompletions) {
         return { ...baseResult, stream: stage("not_verified", { reason: "chat_completions_not_advertised" }) };
       }
-      return { ...baseResult, stream: await this.#qualifyStream(baseUrl, authorization, requestSignal) };
+      return { ...baseResult, stream: await this.#qualifyStream(baseUrl, bearer) };
     } catch (error) {
-      if (error?.name === "AbortError") return this.#failed("aborted");
-      return this.#failed("browser_request_rejected");
+      if (signal?.aborted || generation !== this.#generation) return this.#failed("aborted");
+      return this.#failed(error?.message === "relay_unavailable" ? "relay_unavailable" : "relay_request_rejected");
     } finally {
-      authorization = null;
       bearer = null;
-      if (controller && this.#controller === controller) this.#controller = null;
       this.#inFlight = false;
     }
   }
@@ -106,8 +100,8 @@ export class GatewayClient {
     return {
       url: stage("passed"),
       request: stage("failed", { reason }),
+      relay: stage("failed", { reason }),
       authentication: stage("not_verified"),
-      origin: stage("not_verified"),
       capabilities: { state: "not_verified", names: [], version: null },
       stream: stage("not_verified", { reason }),
     };
@@ -117,8 +111,8 @@ export class GatewayClient {
     return {
       url: stage("passed"),
       request: stage("passed"),
+      relay: stage("passed"),
       authentication: stage("failed"),
-      origin: stage("not_verified"),
       capabilities: { state: "not_verified", names: [], version: null },
       stream: stage("not_verified"),
     };
@@ -128,21 +122,14 @@ export class GatewayClient {
     return {
       url: stage("passed"),
       request: stage("passed"),
+      relay: stage("passed"),
       authentication: stage("not_verified"),
-      origin: stage("not_verified"),
       capabilities: { state: "failed", names: [], version: null },
       stream: stage("not_verified"),
     };
   }
 
-  async #qualifyStream(baseUrl, authorization, signal) {
-    const response = await this.#fetch(endpoint(baseUrl, "/v1/chat/completions"), {
-      method: "POST",
-      headers: { Authorization: authorization, Accept: "text/event-stream", "Content-Type": "application/json" },
-      body: JSON.stringify(QUALIFICATION_BODY),
-      signal,
-    });
-    if (!response.ok || response.body === null) return stage("not_verified", { reason: "stream_unavailable" });
+  async #qualifyStream(baseUrl, bearer) {
     const parser = new SseParser();
     const startedAt = performance.now();
     let firstChunkMs = null;
@@ -151,21 +138,27 @@ export class GatewayClient {
     let secondDelta = false;
     let terminal = false;
     let toolShape = false;
-    for await (const text of response.body.pipeThrough(new TextDecoderStream())) {
-      for (const frame of parser.push(text)) {
-        eventCount += 1;
-        toolShape ||= frame.toolShape;
-        if (frame.hasDelta) {
-          if (!firstDelta) {
-            firstDelta = true;
-            firstChunkMs = Math.round(performance.now() - startedAt);
-          } else {
-            secondDelta = true;
+    await this.#relay.streamJournal({
+      url: endpoint(baseUrl, "/v1/chat/completions"),
+      bearer,
+      method: "POST",
+      body: QUALIFICATION_BODY,
+      onChunk: (text) => {
+        for (const frame of parser.push(text)) {
+          eventCount += 1;
+          toolShape ||= frame.toolShape;
+          if (frame.hasDelta) {
+            if (!firstDelta) {
+              firstDelta = true;
+              firstChunkMs = Math.round(performance.now() - startedAt);
+            } else {
+              secondDelta = true;
+            }
           }
+          terminal ||= frame.terminal || frame.done;
         }
-        terminal ||= frame.terminal || frame.done;
-      }
-    }
+      },
+    });
     const passed = firstDelta && secondDelta && terminal && !toolShape;
     return stage(passed ? "passed" : "not_verified", {
       reason: passed ? null : "qualification_sequence_unproved",

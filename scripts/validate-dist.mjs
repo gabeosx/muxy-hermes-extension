@@ -9,7 +9,7 @@ const root = resolve(import.meta.dirname, "..");
 const dist = resolve(root, "dist");
 const publicDir = resolve(root, "public");
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const allowedManifestKeys = new Set(["$schema", "description", "commands", "panels", "permissions"]);
+const allowedManifestKeys = new Set(["$schema", "description", "commands", "events", "panels", "permissions"]);
 const allowedPanelKeys = new Set(["entry", "icon", "id", "mode", "position", "title"]);
 const allowedCommandKeys = new Set(["id", "title", "action"]);
 const allowedCommandActionKeys = new Set(["kind", "panel"]);
@@ -63,10 +63,12 @@ function assertManifestShape(manifest, label) {
     assert.ok(allowedCommandActionKeys.has(key), `${label} command action contains unauthorized surface: ${key}`);
   }
   assert.deepEqual(command.action, { kind: "togglePanel", panel: panel.id }, `${label} command may only toggle the declared panel`);
-  // Live Muxy proved that the registered declarative togglePanel command is a no-op
-  // without panels:write. Keep that empirically required exception exact: this panel
-  // may not accumulate any other native authority.
-  assert.deepEqual(manifest.muxy.permissions, ["panels:write"], `${label} must request only the empirically required panels:write permission`);
+  assert.deepEqual(manifest.muxy.events, ["file.changed"], `${label} must subscribe only to journal changes`);
+  assert.deepEqual(
+    manifest.muxy.permissions,
+    ["commands:exec", "files:read", "files:write", "panels:write"],
+    `${label} must request only the approved relay, journal, and panel permissions`,
+  );
   return panel.entry;
 }
 

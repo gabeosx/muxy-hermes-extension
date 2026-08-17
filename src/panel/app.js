@@ -6,11 +6,12 @@ import { ConnectionProbe, FailureClass, ProbeState } from "@/probe";
 const STAGE_LABEL = Object.freeze({ passed: "Observed", failed: "Failed", not_verified: "Not verified" });
 
 function resultCopy(result) {
-  if (result.status === ProbeState.SUCCESS) return ["Connection verified", "Authentication, exact-origin access, and capability discovery succeeded."];
+  if (result.status === ProbeState.SUCCESS) return ["Connection verified", "The consented relay, authentication, capabilities, and live stream all succeeded."];
   if (result.failureClass === FailureClass.STREAMING) return ["The Gateway connected, but live streaming was not verified.", "Review the redacted failure report before claiming this deployment is supported."];
   if (result.failureClass === FailureClass.AUTHENTICATION) return ["Connection not verified", "The Gateway rejected this bearer token. Check the token, then test the connection again."];
   if (result.failureClass === FailureClass.URL) return ["Connection not verified", "Correct the Gateway URL, then test the connection again."];
-  return ["Connection not verified", "Check the Gateway URL and token, confirm its exact Muxy origin is allowed, then test the connection again."];
+  if (result.failureClass === FailureClass.RELAY) return ["Relay not available", "Allow Muxy to run the displayed curl command, or review the relay details before retrying."];
+  return ["Connection not verified", "Check the Gateway URL and token, then test the consented relay again."];
 }
 
 export class HermesGatewayPanel {
@@ -79,7 +80,7 @@ export class HermesGatewayPanel {
       "main", { class: "gateway-panel" },
       h("header", { class: "gateway-header" },
         h("h1", { class: "gateway-title" }, "Hermes Gateway"),
-        h("p", { class: "gateway-purpose" }, "Test one authenticated Gateway connection and live-streaming path."),
+        h("p", { class: "gateway-purpose" }, "Test one authenticated Gateway through the consented streaming relay."),
         h("p", { class: "gateway-footnote" }, "Panel-only credentials — your bearer token is cleared when the panel closes."),
       ),
       h("form", { class: "gateway-card gateway-form", onsubmit: (event) => this.submit(event) },
@@ -88,7 +89,7 @@ export class HermesGatewayPanel {
         h("label", { for: "bearer-token", class: "gateway-label" }, "Bearer token"), token,
         h("p", { id: "gateway-token-error", class: "gateway-inline-error", "aria-live": "polite" }),
         submit, status,
-        h("p", { class: "gateway-note" }, "Literal loopback HTTP is evaluated only by the local transport proof. Every other Gateway requires normally trusted HTTPS."),
+        h("p", { class: "gateway-note" }, "Muxy will ask before running curl and before scrubbing a temporary journal in this worktree. A remembered curl grant covers that executable, not only this Gateway."),
         testing ? h("p", { class: "gateway-capability-loading", "aria-live": "polite" }, "Discovering capabilities…") : null,
       ),
       this.snapshot.status === ProbeState.IDLE
@@ -143,7 +144,7 @@ export class HermesGatewayPanel {
       h("p", null, explanation),
       h("dl", { class: "gateway-details" },
         h("dt", null, "Endpoint"), h("dd", { class: "gateway-safe-endpoint" }, result.endpoint ?? "Not recorded"),
-        h("dt", null, "Origin"), h("dd", null, STAGE_LABEL[result.originOutcome.state]),
+        h("dt", null, "Relay"), h("dd", null, STAGE_LABEL[result.relayOutcome.state]),
         h("dt", null, "Authentication"), h("dd", null, STAGE_LABEL[result.authenticationOutcome.state]),
         h("dt", null, "Capabilities"), h("dd", null, STAGE_LABEL[result.capabilityOutcome.state]),
         h("dt", null, "Streaming"), h("dd", null, STAGE_LABEL[result.streamOutcome.state]),
