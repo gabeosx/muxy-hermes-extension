@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  appendEvidenceIndex,
   buildEvidenceRecord,
   hashSanitizedShape,
   renderEvidenceMarkdown,
@@ -103,6 +104,22 @@ test("paired writes publish JSON and Markdown together without leaking input sen
     assert.deepEqual((await readdir(join(output, "runs", record.runId))).sort(), ["report.json", "report.md"]);
     const durable = `${await readFile(paths.jsonPath, "utf8")}\n${await readFile(paths.markdownPath, "utf8")}`;
     for (const sentinel of sentinels) assert.equal(durable.includes(sentinel), false);
+  } finally {
+    await rm(output, { recursive: true, force: true });
+  }
+});
+
+test("concurrent writers retain every history entry in the atomic index", async () => {
+  const output = await mkdtemp(join(tmpdir(), "hermes-evidence-"));
+  try {
+    const records = [1, 2, 3].map((number, index) => buildEvidenceRecord(observation({
+      runId: `run-20260817-000000-000${number}`,
+      sessionOrdinal: index % 2 + 1,
+      recordedAt: `2026-08-17T12:00:0${number}.000Z`,
+    })));
+    await Promise.all(records.map((record) => appendEvidenceIndex({ outputDir: output, record })));
+    const index = JSON.parse(await readFile(join(output, "index.json"), "utf8"));
+    assert.deepEqual(index.history.map((entry) => entry.runId), records.map((record) => record.runId));
   } finally {
     await rm(output, { recursive: true, force: true });
   }
