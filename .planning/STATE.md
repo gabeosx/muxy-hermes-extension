@@ -8,7 +8,7 @@ status: ready_to_execute
 stopped_at: Completed 03-01-PLAN.md
 last_updated: "2026-08-17T21:21:01.728Z"
 last_activity: 2026-08-17
-last_activity_desc: Phase 3 recovery behavior and evidence proof planned in two executable waves
+last_activity_desc: Completed quick task 260817-qld — responsive Hermes project control surfaces
 progress:
   total_phases: 2
   completed_phases: 1
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-16)
 Phase: 03 (open-panel-recovery-proof) — READY TO EXECUTE
 Plan: 03-01 of 2 plans
 Status: Planning complete; bounded runtime recovery is Wave 1 and evidence/native proof is Wave 2
-Last activity: 2026-08-17 — Phase 3 recovery behavior and evidence proof planned
+Last activity: 2026-08-17 — Completed quick task 260817-qld: responsive Hermes project control surfaces
 
 Progress: [█████████░] 94%
 
@@ -117,6 +117,7 @@ None yet.
 |---|-------------|------|--------|--------|-----------|
 | 260817-mp9 | Close Phase 1 using the verified ephemeral fast path | 2026-08-17 | a2d0a31 | Passed | [260817-mp9-close-phase-1-using-the-verified-ephemer](./quick/260817-mp9-close-phase-1-using-the-verified-ephemer/) |
 | 260817-mzi | Implement Phase 2 capability-driven Hermes run control | 2026-08-17 | 9f57c20 | Passed | [260817-mzi-implement-phase-2-capability-driven-herm](./quick/260817-mzi-implement-phase-2-capability-driven-herm/) |
+| 260817-qld | Implement the responsive Muxy project control surfaces | 2026-08-17 | fb3f6d9 | Passed | [260817-qld-implement-the-responsive-muxy-project-co](./quick/260817-qld-implement-the-responsive-muxy-project-co/) |
 
 ### Roadmap Evolution
 
