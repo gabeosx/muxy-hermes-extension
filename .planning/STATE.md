@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 01
-current_phase_name: verified-gateway-connectivity
-status: executing
-stopped_at: Fast-path build validated and loaded in Muxy; live Gateway connection pending
-last_updated: "2026-08-17T19:56:00.000Z"
+current_phase: 02
+current_phase_name: capability-driven-run-control
+status: ready_to_plan
+stopped_at: Phase 1 fast path verified; Phase 2 run control is next
+last_updated: "2026-08-17T20:27:06.000Z"
 last_activity: 2026-08-17
-last_activity_desc: Fast path selected — build validated and native Muxy panel loaded; Plans 10-15 deferred
+last_activity_desc: Phase 1 fast path passed — disposable Docker live proof, native UI checklist, and validator complete; Phase 2 next
 progress:
-  total_phases: 1
-  completed_phases: 0
+  total_phases: 3
+  completed_phases: 1
   total_plans: 15
-  completed_plans: 9
+  completed_plans: 15
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-16)
 
 **Core value:** Prove secure, authenticated, streamed Hermes run control across representative Hermes deployment shapes inside a native-feeling Muxy panel before building the surrounding product.
-**Current focus:** Phase 01 — verified-gateway-connectivity
+**Current focus:** Phase 02 — capability-driven-run-control
 
 ## Current Position
 
-Phase: 01 (verified-gateway-connectivity) — EXECUTING
-Plan: 9 of 15 complete; 10-15 deferred by fast-path decision
-Status: Awaiting one live user-operated Gateway connection test
-Last activity: 2026-08-17 — Consolidated validation passed and the DEV extension loaded in Muxy
+Phase: 02 (capability-driven-run-control) — READY TO PLAN
+Plan: Phase 1 has 9 executed plans and 6 explicitly superseded plans
+Status: Phase 1 fast-path exit gate passed; ready to build actual run controls
+Last activity: 2026-08-17 — Native Muxy capability/stream proof passed against a disposable pinned Docker Gateway; UI checklist completed
 
-Progress: [██████░░░░] 60%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -102,12 +102,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1]: Actual Muxy consent prompts, file.changed delivery, incremental relay rendering, audit-token absence, and stale-journal cleanup still require real-panel verification before real user run content.
-- [Phase 1]: No Hermes Gateway is currently listening at the default loopback address, so the final live URL/token connection proof remains pending.
+- [Phase 2]: The current Muxy webview exposes Promise-based `exec`, not cancellable `execAsync`; long-lived run streaming needs a bounded ownership design that remains truthful about cancellation.
+- [Phase 3]: Host-native, SSH-forward, direct-HTTPS, remote-workspace, and Docker fault/recovery qualification remain deferred and must stay `Unverified` until tested.
 
 ### Roadmap Evolution
 
-- Phase 1 edited: Aligned DEPL-04 through DEPL-06 and Phase 1 success criteria with 01-CONTEXT.md D-08
+- Phase 1 completed through the user-approved fast path: one disposable Docker live proof, native UI checks, and no broader deployment support claim.
 
 ## Deferred Items
 
@@ -119,6 +119,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-17T19:48:36.833Z
-Stopped at: Completed 01-09-PLAN.md
+Last session: 2026-08-17T20:27:06.000Z
+Stopped at: Phase 1 complete; Phase 2 capability-driven run control ready
 Resume file: None

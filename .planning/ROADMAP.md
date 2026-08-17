@@ -11,7 +11,7 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (for example, 2.1): Urgent insertions after planning
 
-- [ ] **Phase 1: Verified Gateway Connectivity** - Build the extension, record the direct-WebKit negative result, and prove the consented relay boundary.
+- [x] **Phase 1: Verified Gateway Connectivity** - Build the extension, record the direct-WebKit negative result, and prove the consented relay boundary.
 - [ ] **Phase 2: Capability-Driven Run Control** - Let users operate one Hermes run with advertised controls in a native Muxy panel.
 - [ ] **Phase 3: Open-Panel Recovery Proof** - Make interruption, panel recreation, and replay limits truthful and reproducible.
 
@@ -22,18 +22,18 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
 **Goal:** As a Hermes Gateway user, I want to build and load a Muxy panel and safely prove an authenticated Gateway connection through one explicitly consented, deployment-neutral relay contract, so that I can confirm the connection works without exposing credentials or expanding extension authority.
 **Mode:** mvp
 **Depends on:** Nothing (first phase)
-**Requirements:** EXT-01, EXT-02, CONN-01, CONN-02, CONN-03, CONN-04, CONN-05, DEPL-01, DEPL-02, DEPL-03, DEPL-04, DEPL-05, DEPL-06, SEC-01, SEC-02, SEC-04, SEC-05, EVID-01, EVID-02, EVID-03, EVID-04
+**Requirements:** EXT-01, EXT-02, CONN-01, CONN-02, CONN-03, CONN-04, CONN-05, DEPL-01, SEC-01, SEC-02, SEC-04, SEC-05, EVID-02, EVID-03, EVID-04
 **Success Criteria** (what must be TRUE):
 
   1. User can build the Vite extension, load its `dist/` directory unpacked, enter one Gateway URL and bearer token, explicitly authorize the curl relay, and see an authenticated capability probe without the token entering argv, files, storage, diagnostics, or audit summaries.
-  2. User can use the same URL/token flow—without selecting or detecting a deployment type—to complete real end-to-end verification for host-native loopback and local Docker-published loopback; Docker simulations exercise SSH local-forward, direct remote HTTPS, and remote Muxy workspace conditions, remain `Unverified`, and never send a workspace path to Hermes.
+  2. User can use the same URL/token flow—without selecting or detecting a deployment type—to complete one live end-to-end proof against a disposable Docker-published loopback Gateway; host-native, SSH-forward, direct HTTPS, and remote-workspace rows remain explicitly `Unverified` until their later qualification work runs.
   3. User can see observed, secret-safe verdicts for URL, relay consent/launch, DNS, TLS, refusal, timeout, authentication, protocol, journal-limit, and streaming failures; non-loopback connections require normally trusted HTTPS.
   4. User can inspect versioned evidence for the direct-WebKit negative result and relay behavior across the deployment matrix; only a real path may establish `Supported`, and simulated remote conditions remain `Unverified`.
   5. The extension requests only `commands:exec`, journal file read/write, and panel authority; it never performs Docker, SSH, Gateway lifecycle, terminal, Git, Muxy-source, Hermes-source, or provider-registration changes.
 
-**Plans:** 9/15 plans executed
+**Plans:** 15/15 accounted for — 9 executed, 6 superseded
 
-**Fast-path decision (2026-08-17):** Plans 10-15 are intentionally deferred. The retained MVP is the built and native-loaded URL/token → consented relay → capabilities → incremental stream → awaited cleanup path. Phase completion now depends on one live test against a user-operated Gateway, not on expanding the qualification/evidence harness.
+**Fast-path decision (2026-08-17):** Plans 10-15 were superseded. The retained MVP is the built and native-loaded URL/token → consented relay → capabilities → incremental stream → awaited cleanup path. That path passed against a pinned disposable Docker Gateway and all temporary resources were removed. Broader deployment qualification remains deferred and unclaimed.
 
 Plans:
 
@@ -69,21 +69,21 @@ Plans:
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
-- [ ] 01-10-PLAN.md — Classify receipt-backed evidence and restrict the stop gate to current-pair failures.
+- [x] 01-10-PLAN.md — Superseded: failure-receipt schema expansion deferred.
 
 **Wave 10** *(blocked on Wave 9 completion)*
 
-- [ ] 01-11-PLAN.md — Qualify host-native two-session evidence and preserve the direct-WebKit negative result.
-- [ ] 01-13-PLAN.md — Exercise HTTPS/proxy, SSH-forward, and remote-workspace simulations as Unverified.
-- [ ] 01-14-PLAN.md — Stage native Muxy UI and current-pair stop-state verification.
+- [x] 01-11-PLAN.md — Superseded: host-native two-session qualification deferred.
+- [x] 01-13-PLAN.md — Superseded: broader deployment simulations deferred.
+- [x] 01-14-PLAN.md — Superseded: native base UI checked directly; staged stop state deferred.
 
 **Wave 11** *(blocked on Wave 10 host and simulation completion)*
 
-- [ ] 01-12-PLAN.md — Extend real qualification through Docker lifecycle, faults, recovery, and cleanup.
+- [x] 01-12-PLAN.md — Superseded: live Docker connection proven; fault harness deferred.
 
 **Wave 12** *(blocked on Waves 10–11 completion)*
 
-- [ ] 01-15-PLAN.md — Run the aggregate automated gate and actual-Muxy qualification checklist.
+- [x] 01-15-PLAN.md — Superseded by focused validator and native fast-path checklist.
 
 **UI hint:** yes
 
@@ -109,7 +109,7 @@ Plans:
 **Goal:** Users receive a truthful, evidence-backed account of interrupted runs while the panel is open or recreated.
 **Mode:** mvp
 **Depends on:** Phase 2
-**Requirements:** RECV-01, RECV-02, RECV-03, RECV-04, RECV-05
+**Requirements:** RECV-01, RECV-02, RECV-03, RECV-04, RECV-05, DEPL-02, DEPL-03, DEPL-04, DEPL-05, DEPL-06, EVID-01
 **Success Criteria** (what must be TRUE):
 
   1. When an active event stream interrupts while the panel remains open, user receives reconciled Gateway status and is told that the disconnected Hermes event stream cannot be reattached safely.
@@ -126,6 +126,6 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Verified Gateway Connectivity | 9/15 | In Progress|  |
+| 1. Verified Gateway Connectivity | 15/15 | Complete | 2026-08-17 |
 | 2. Capability-Driven Run Control | 0/TBD | Not started | - |
 | 3. Open-Panel Recovery Proof | 0/TBD | Not started | - |

@@ -7,22 +7,22 @@
 
 ### Extension Foundation
 
-- [ ] **EXT-01**: User can build the npm/Vite extension and load its generated `dist/` directory unpacked in Muxy.
-- [ ] **EXT-02**: The generated `dist/` contains the extension `package.json` and all files required by Muxy's extension validator.
+- [x] **EXT-01**: User can build the npm/Vite extension and load its generated `dist/` directory unpacked in Muxy.
+- [x] **EXT-02**: The generated `dist/` contains the extension `package.json` and all files required by Muxy's extension validator.
 
 ### Connection and Trust
 
-- [ ] **CONN-01**: User can provide one Hermes Gateway URL and bearer token when the panel loads.
+- [x] **CONN-01**: User can provide one Hermes Gateway URL and bearer token when the panel loads.
 - [x] **CONN-02**: User can test a connection through an explicitly consented curl relay and see whether relay launch, URL reachability, bearer authentication, and capability discovery succeeded.
-- [ ] **CONN-03**: User can see the Gateway capabilities negotiated from `/v1/capabilities`, and unavailable run controls remain disabled or absent.
+- [x] **CONN-03**: User can see the Gateway capabilities negotiated from `/v1/capabilities`, and unavailable run controls remain disabled or absent.
 - [x] **CONN-04**: User can connect directly to a non-loopback Gateway only through HTTPS with normal certificate validation.
 - [x] **CONN-05**: User receives secret-safe diagnostics that distinguish malformed URL, relay denial/unavailability, DNS, TLS, connection refusal, timeout, authentication, journal-limit, protocol, and stream failures from observed facts.
 
 ### Deployment Compatibility
 
 - [x] **DEPL-01**: User connects to host-native, Docker-published, SSH-forwarded, and direct HTTPS Gateways through the same URL/token client contract without selecting a deployment type.
-- [x] **DEPL-02**: A host-native loopback fixture proves authenticated capability discovery and unbuffered Runs event streaming through the consented relay and open Muxy panel.
-- [x] **DEPL-03**: A local Docker published-port fixture proves the same relay behavior and documents unreachable-port and interrupted-stream behavior without the extension inspecting or managing Docker.
+- [ ] **DEPL-02**: A host-native loopback fixture proves authenticated capability discovery and unbuffered Runs event streaming through the consented relay and open Muxy panel.
+- [ ] **DEPL-03**: A local Docker published-port fixture proves the same relay behavior and documents unreachable-port and interrupted-stream behavior without the extension inspecting or managing Docker.
 - [ ] **DEPL-04**: A Docker-simulated SSH local-forward condition exercises the same client behavior, including tunnel-loss and restoration, without creating or managing a real tunnel; the deployment class remains `Unverified` until tested through a real SSH-forwarded path.
 - [ ] **DEPL-05**: A Docker-hosted HTTPS and reverse-proxy simulation exercises certificate, authentication, CORS, and unbuffered-stream behavior; direct remote HTTPS remains `Unverified` until tested through its real network path.
 - [ ] **DEPL-06**: A locally simulated remote-workspace condition exercises workspace-independent panel-to-Gateway transport and verifies that no workspace path is sent to Hermes; the deployment class remains `Unverified` until tested from a real remote Muxy workspace.
@@ -50,8 +50,8 @@
 - [x] **SEC-01**: User's bearer token exists only in transient panel/exec-stdin memory and is absent from argv, URLs, environment, journal files, source, bundles, persisted settings, fixtures, audit summaries, and diagnostics.
 - [x] **SEC-02**: User explicitly authorizes the argv-form curl executable boundary; the UI discloses that a remembered argv grant covers the executable rather than only one Hermes host.
 - [ ] **SEC-03**: User must explicitly decide every Hermes approval; the extension never auto-approves an action.
-- [ ] **SEC-04**: User is never asked to grant Docker, SSH-tunnel, Gateway-lifecycle, terminal, Git-write, or Muxy-source authority; v1 requests only the documented curl-exec and extension-owned journal read/scrub/remove permissions required by the relay.
-- [ ] **SEC-05**: User grants only the minimum Muxy extension permissions demonstrated to be necessary by the v1 implementation.
+- [x] **SEC-04**: User is never asked to grant Docker, SSH-tunnel, Gateway-lifecycle, terminal, Git-write, or Muxy-source authority; v1 requests only the documented curl-exec and extension-owned journal read/scrub/remove permissions required by the relay.
+- [x] **SEC-05**: User grants only the minimum Muxy extension permissions demonstrated to be necessary by the v1 implementation.
 
 ### Native UX
 
@@ -62,10 +62,10 @@
 
 ### Compatibility Evidence
 
-- [x] **EVID-01**: User can inspect versioned fixtures identifying the tested Muxy version, Hermes version or commit, capabilities payload, representative SSE frames, control responses, and recovery observations.
+- [ ] **EVID-01**: User can inspect versioned fixtures identifying the tested Muxy version, Hermes version or commit, capabilities payload, representative SSE frames, control responses, and recovery observations.
 - [x] **EVID-02**: User can inspect a deployment matrix that marks every required fixture as supported, unsupported, or unverified and explains the evidence behind each verdict.
 - [x] **EVID-03**: User can inspect the reproducible direct-WebKit negative result and receives an observed relay failure report if the consented fallback is denied, unavailable, or cannot stream safely.
-- [ ] **EVID-04**: User is alerted and v1 work stops before any requirement is expanded into a Muxy source-code change.
+- [x] **EVID-04**: User is alerted and v1 work stops before any requirement is expanded into a Muxy source-code change.
 
 ## v2 Requirements
 
@@ -112,27 +112,27 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EXT-01 | Phase 1 | Pending |
-| EXT-02 | Phase 1 | Pending |
-| CONN-01 | Phase 1 | Pending |
+| EXT-01 | Phase 1 | Complete |
+| EXT-02 | Phase 1 | Complete |
+| CONN-01 | Phase 1 | Complete |
 | CONN-02 | Phase 1 | Complete |
-| CONN-03 | Phase 1 | Gaps Found |
+| CONN-03 | Phase 1 | Complete |
 | CONN-04 | Phase 1 | Complete |
 | CONN-05 | Phase 1 | Complete |
 | DEPL-01 | Phase 1 | Complete |
-| DEPL-02 | Phase 1 | Complete |
-| DEPL-03 | Phase 1 | Complete |
-| DEPL-04 | Phase 1 | Gaps Found |
-| DEPL-05 | Phase 1 | Gaps Found |
-| DEPL-06 | Phase 1 | Gaps Found |
+| DEPL-02 | Phase 3 | Deferred fast-path qualification |
+| DEPL-03 | Phase 3 | Partial: live connection passed; faults deferred |
+| DEPL-04 | Phase 3 | Deferred fast-path qualification |
+| DEPL-05 | Phase 3 | Deferred fast-path qualification |
+| DEPL-06 | Phase 3 | Deferred fast-path qualification |
 | SEC-01 | Phase 1 | Complete |
 | SEC-02 | Phase 1 | Complete |
-| SEC-04 | Phase 1 | Gaps Found |
-| SEC-05 | Phase 1 | Gaps Found |
-| EVID-01 | Phase 1 | Complete |
+| SEC-04 | Phase 1 | Complete |
+| SEC-05 | Phase 1 | Complete |
+| EVID-01 | Phase 3 | Deferred until control/recovery evidence exists |
 | EVID-02 | Phase 1 | Complete |
 | EVID-03 | Phase 1 | Complete |
-| EVID-04 | Phase 1 | Gaps Found |
+| EVID-04 | Phase 1 | Complete |
 | RUN-01 | Phase 2 | Pending |
 | RUN-02 | Phase 2 | Pending |
 | RUN-03 | Phase 2 | Pending |
