@@ -118,3 +118,53 @@ test("streamJournal fails closed when the journal exceeds the Muxy read ceiling"
   finishExec({ stdout: "", stderr: "", exitCode: 0, timedOut: false, truncated: false });
   await assert.rejects(running, /journal_limit_exceeded/);
 });
+
+test("stale cleanup is fixed-root and scrubs each journal before deleting its run directory", async () => {
+  const operations = [];
+  const relay = new CurlRelay({
+    exec: async () => ({}),
+    files: {
+      async list(path) {
+        operations.push({ type: "list", path });
+        if (path === ".muxy-hermes-runtime") {
+          return [{ name: "deadbeef", path: ".muxy-hermes-runtime/deadbeef", isDirectory: true, isIgnored: true }];
+        }
+        return [{ name: "stream.sse", path: `${path}/stream.sse`, isDirectory: false, isIgnored: true }];
+      },
+      async write(path, content) { operations.push({ type: "write", path, content }); },
+      async delete(paths) { operations.push({ type: "delete", paths }); },
+    },
+    events: null,
+  });
+
+  assert.deepEqual(await relay.cleanupStaleJournals(), { cleaned: 1 });
+  assert.deepEqual(operations.map((entry) => entry.type), ["list", "list", "write", "delete"]);
+  assert.equal(operations[2].path, ".muxy-hermes-runtime/deadbeef/stream.sse");
+  assert.equal(operations[2].content, "");
+  assert.deepEqual(operations[3].paths, [".muxy-hermes-runtime/deadbeef"]);
+});
+
+test("stale cleanup treats a missing root as empty and refuses unexpected entries without deleting", async () => {
+  const missing = new CurlRelay({
+    exec: async () => ({}),
+    files: { async list() { const error = new Error("ENOENT: No such file"); error.code = "ENOENT"; throw error; } },
+    events: null,
+  });
+  assert.deepEqual(await missing.cleanupStaleJournals(), { cleaned: 0 });
+
+  let deleted = false;
+  const unsafe = new CurlRelay({
+    exec: async () => ({}),
+    files: {
+      async list(path) {
+        if (path === ".muxy-hermes-runtime") return [{ name: "notes.txt", path: ".muxy-hermes-runtime/notes.txt", isDirectory: false }];
+        return [];
+      },
+      async write() {},
+      async delete() { deleted = true; },
+    },
+    events: null,
+  });
+  await assert.rejects(unsafe.cleanupStaleJournals(), /journal_cleanup_unexpected_entry/);
+  assert.equal(deleted, false);
+});

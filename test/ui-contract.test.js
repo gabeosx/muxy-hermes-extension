@@ -60,6 +60,8 @@ test("the panel keeps capability and evidence output read-only and uses contract
   ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
   assert.doesNotMatch(panel, /exact-origin access|confirm its exact Muxy origin/i);
+  assert.match(panel, /Cleaning previous relay journal/);
+  assert.match(panel, /this\.probe\.prepare\(\)/);
 
   assert.doesNotMatch(panel, /Start run|Stop run|Steer|Approve|terminal|workspace path/i);
   assert.match(panel, /type: "password", autocomplete: "off"/);

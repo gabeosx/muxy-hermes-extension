@@ -73,3 +73,14 @@ test("probe serializes concurrent use and teardown invalidates the current reque
   release();
   await first;
 });
+
+test("probe preparation completes stale relay cleanup before its first request", async () => {
+  const order = [];
+  const relay = {
+    async cleanupStaleJournals() { order.push("cleanup"); },
+    async requestJson() { order.push("request"); return { status: 200, body: { features: {} } }; },
+  };
+  const client = new GatewayClient({ relay });
+  await client.probe("http://127.0.0.1:8642", "token");
+  assert.deepEqual(order, ["cleanup", "request"]);
+});
