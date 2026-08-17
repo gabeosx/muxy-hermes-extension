@@ -100,6 +100,8 @@ async function validateBoundary() {
     join(root, "src", "run-client.js"),
     join(root, "src", "run-controller.js"),
     join(root, "src", "recovery-evidence.js"),
+    join(root, "src", "kanban-client.js"),
+    join(root, "src", "board", "app.js"),
   ];
   for (const file of productionSources) {
     const source = await readFile(file, "utf8");

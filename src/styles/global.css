@@ -19,7 +19,8 @@
 html,
 body,
 #root {
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   margin: 0;
 }
 
@@ -42,12 +43,12 @@ button {
 
 button:disabled { cursor: default; color: var(--muxy-foreground-muted); background: var(--muxy-surface); }
 
-.gateway-panel { display: flex; min-height: 100%; flex-direction: column; gap: 16px; box-sizing: border-box; padding: 16px; overflow-y: auto; }
+.gateway-panel { display: flex; height: 100%; min-height: 0; flex-direction: column; gap: 12px; box-sizing: border-box; padding: 10px; overflow-y: auto; overscroll-behavior: contain; }
 .gateway-header, .gateway-form { display: grid; gap: 8px; }
 .gateway-title, .gateway-card h2 { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.2; }
 .gateway-purpose, .gateway-footnote, .gateway-note, .gateway-card p { margin: 0; color: var(--muxy-foreground-muted); line-height: 1.5; }
 .gateway-footnote { font-size: 11px; }
-.gateway-card { border: 1px solid var(--muxy-border); border-radius: 8px; background: var(--muxy-surface-solid); padding: 16px; }
+.gateway-card { border: 1px solid var(--muxy-border); border-radius: 8px; background: var(--muxy-surface-solid); padding: 10px; }
 .gateway-input { min-width: 0; height: 28px; box-sizing: border-box; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-surface-solid); color: var(--muxy-foreground); padding: 0 8px; font-size: 13px; }
 .gateway-textarea { min-width: 0; box-sizing: border-box; resize: vertical; border: 1px solid var(--muxy-border); border-radius: 6px; background: var(--muxy-surface-solid); color: var(--muxy-foreground); padding: 8px; font-size: 13px; line-height: 1.4; }
 .gateway-input:focus-visible, .gateway-textarea:focus-visible, .gateway-submit:focus-visible, .gateway-secondary:focus-visible, .gateway-danger:focus-visible, .gateway-details-toggle:focus-visible, .gateway-retry:focus-visible, .gateway-evidence-row:focus-visible, .gateway-transport-stop button:focus-visible, .gateway-transport-stop h2:focus-visible { outline: 2px solid var(--muxy-accent); outline-offset: 2px; }
@@ -88,4 +89,10 @@ button:disabled { cursor: default; color: var(--muxy-foreground-muted); backgrou
 .gateway-recovery { border-top: 1px solid var(--muxy-border); padding-top: 8px; }
 .gateway-recovery h3 { margin: 0; }
 .gateway-recovery-state { margin: 0; border-left: 2px solid var(--muxy-accent); padding-left: 8px; color: var(--muxy-foreground-muted); line-height: 1.5; }
+.gateway-board-launcher { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.gateway-board-launcher > div { display: grid; gap: 4px; min-width: 0; }
+.gateway-advanced, .gateway-run-advanced { min-width: 0; }
+.gateway-advanced > summary, .gateway-run-advanced > summary { cursor: pointer; color: var(--muxy-foreground-muted); font-weight: 600; }
+.gateway-advanced[open] > summary, .gateway-run-advanced[open] > summary { margin-bottom: 10px; color: var(--muxy-foreground); }
+.gateway-advanced .gateway-evidence { margin-top: 10px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

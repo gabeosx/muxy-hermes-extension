@@ -6,7 +6,7 @@
   },
   "muxy" : {
     "$schema" : "https:\/\/raw.githubusercontent.com\/muxy-app\/muxy\/main\/docs\/extensions\/schema\/manifest.schema.json",
-    "description" : "Connects Muxy to an existing Hermes Gateway",
+    "description" : "Controls an existing Hermes Gateway and its project Kanban boards from Muxy",
     "commands" : [
       {
         "id" : "toggle-hermes-gateway",
@@ -15,6 +15,21 @@
           "kind" : "togglePanel",
           "panel" : "hermes-gateway"
         }
+      },
+      {
+        "id" : "open-hermes-project-board",
+        "title" : "Hermes: Open Project Board",
+        "action" : {
+          "kind" : "openTab",
+          "tabType" : "hermes-project-board"
+        }
+      }
+    ],
+    "tabTypes" : [
+      {
+        "id" : "hermes-project-board",
+        "title" : "Hermes Project Board",
+        "entry" : "board\/index.html"
       }
     ],
     "panels" : [
@@ -36,7 +51,8 @@
       "commands:exec",
       "files:read",
       "files:write",
-      "panels:write"
+      "panels:write",
+      "tabs:write"
     ]
   },
   "name" : "muxy-hermes-extension",

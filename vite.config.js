@@ -13,7 +13,8 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        hello: resolve(__dirname, "panel/index.html"),
+        panel: resolve(__dirname, "panel/index.html"),
+        board: resolve(__dirname, "board/index.html"),
       },
     },
   },

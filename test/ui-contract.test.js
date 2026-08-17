@@ -31,15 +31,23 @@ test("capability normalization keeps only safe documented metadata and names", (
   assert.deepEqual(normalizeCapabilities(null), { state: "unavailable", version: null, names: [] });
 });
 
-test("the manifest exposes the panel plus only the approved relay and journal permissions", async () => {
+test("the manifest exposes the compact panel and full board tab with least required permissions", async () => {
   const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
-  assert.deepEqual(manifest.muxy.commands, [{
-    id: "toggle-hermes-gateway",
-    title: "Hermes: Toggle Gateway Panel",
-    action: { kind: "togglePanel", panel: "hermes-gateway" },
-  }]);
-  assert.deepEqual(manifest.muxy.permissions, ["commands:exec", "files:read", "files:write", "panels:write"]);
+  assert.deepEqual(manifest.muxy.commands, [
+    {
+      id: "toggle-hermes-gateway",
+      title: "Hermes: Toggle Gateway Panel",
+      action: { kind: "togglePanel", panel: "hermes-gateway" },
+    },
+    {
+      id: "open-hermes-project-board",
+      title: "Hermes: Open Project Board",
+      action: { kind: "openTab", tabType: "hermes-project-board" },
+    },
+  ]);
+  assert.deepEqual(manifest.muxy.tabTypes, [{ id: "hermes-project-board", title: "Hermes Project Board", entry: "board/index.html" }]);
+  assert.deepEqual(manifest.muxy.permissions, ["commands:exec", "files:read", "files:write", "panels:write", "tabs:write"]);
   assert.deepEqual(manifest.muxy.events, ["file.changed"]);
   for (const forbiddenSurface of ["background", "topbarItems", "statusbarItems", "scripts"]) {
     assert.equal(Object.hasOwn(manifest.muxy, forbiddenSurface), false, `manifest must not declare ${forbiddenSurface}`);
@@ -115,11 +123,24 @@ test("native styles wrap content, preserve visible interaction state, and honor 
   assert.match(css, /:focus-visible/);
   assert.match(css, /var\(--muxy-hover\)/);
   assert.match(css, /overflow-y:\s*auto/);
+  assert.match(css, /height:\s*100%;\s*min-height:\s*0/);
   assert.match(css, /overflow-wrap:\s*anywhere/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /gateway-run/);
   assert.match(css, /gateway-danger/);
   assert.doesNotMatch(css, /overflow-x:\s*(?:auto|scroll)/);
+});
+
+test("the panel leads with the board and keeps proof and recovery internals behind disclosures", async () => {
+  const panel = await readFile(new URL("../src/panel/app.js", import.meta.url), "utf8");
+
+  assert.match(panel, /Project board/);
+  assert.match(panel, /Open board/);
+  assert.match(panel, /hermes-project-board/);
+  assert.match(panel, /singleton: true/);
+  assert.match(panel, /Advanced diagnostics and validation evidence/);
+  assert.match(panel, /Recover an existing run/);
+  assert.match(panel, /Run recovery details/);
 });
 
 test("the panel requires fresh credentials and a manual run ID for truthful recovery", async () => {

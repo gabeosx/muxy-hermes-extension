@@ -136,8 +136,15 @@ export class HermesGatewayPanel {
       "main", { class: "gateway-panel" },
       h("header", { class: "gateway-header" },
         h("h1", { class: "gateway-title" }, "Hermes Gateway"),
-        h("p", { class: "gateway-purpose" }, "Connect to one authenticated Gateway and control one advertised Hermes run."),
+        h("p", { class: "gateway-purpose" }, "A compact control surface for an authenticated Hermes Gateway."),
         h("p", { class: "gateway-footnote" }, "Panel-only credentials — your bearer token is cleared when the panel closes."),
+      ),
+      h("section", { class: "gateway-card gateway-board-launcher", "aria-labelledby": "project-board-title" },
+        h("div", null,
+          h("h2", { id: "project-board-title" }, "Project board"),
+          h("p", null, "Open the full Hermes Kanban board for this Muxy project. The board mapping is explicit and never inferred from a filesystem path."),
+        ),
+        h("button", { class: "gateway-secondary", type: "button", onclick: () => void this.openProjectBoard() }, "Open board"),
       ),
       h("form", { class: "gateway-card gateway-form", onsubmit: (event) => this.submit(event) },
         h("label", { for: "gateway-url", class: "gateway-label" }, "Gateway URL"), url,
@@ -152,9 +159,23 @@ export class HermesGatewayPanel {
         ? h("section", { class: "gateway-card gateway-empty" }, h("h2", null, "Connect a Hermes Gateway"), h("p", null, "Enter the Gateway URL and bearer token for this panel session. Your token is cleared when the panel closes."))
         : this.verdictSection(),
       this.runSection(),
-      this.evidenceShell(),
+      h("details", { class: "gateway-card gateway-advanced" },
+        h("summary", null, "Advanced diagnostics and validation evidence"),
+        this.evidenceShell(),
+      ),
       this.stopGate.active ? this.transportStopShell() : null,
     );
+  }
+
+  async openProjectBoard() {
+    await window.muxy?.tabs?.open?.({
+      kind: "extensionWebView",
+      extension: {
+        id: window.muxy.extensionID ?? "muxy-hermes-extension",
+        tabType: "hermes-project-board",
+        singleton: true,
+      },
+    });
   }
 
   syncForm() {
@@ -290,11 +311,17 @@ export class HermesGatewayPanel {
         h("h2", { id: "run-title" }, "Hermes run"),
         h("span", { class: `gateway-run-status gateway-run-status-${run.status}`, "aria-live": "polite" }, run.status.replaceAll("_", " ")),
       ),
-      run.runId ? h("p", { class: "gateway-run-id" }, "Run ID: ", h("code", { tabindex: "0" }, run.runId)) : null,
+      run.runId ? h("details", { class: "gateway-run-advanced" },
+        h("summary", null, "Run recovery details"),
+        h("p", { class: "gateway-run-id" }, "Run ID: ", h("code", { tabindex: "0" }, run.runId)),
+      ) : null,
       !active ? h("form", { class: "gateway-run-form", onsubmit: (event) => void this.startRun(event) },
         h("label", { for: "run-prompt", class: "gateway-label" }, "Task"), prompt, start,
       ) : null,
-      run.status === "idle" ? this.recoveryForm() : null,
+      run.status === "idle" ? h("details", { class: "gateway-run-advanced" },
+        h("summary", null, "Recover an existing run"),
+        this.recoveryForm(),
+      ) : null,
       run.assistant ? h("section", { class: "gateway-run-output", "aria-labelledby": "assistant-output-title" },
         h("h3", { id: "assistant-output-title" }, "Assistant"),
         h("p", { class: "gateway-assistant", "aria-live": "polite" }, run.assistant),
