@@ -136,7 +136,7 @@ test("validation CLI rejects caller-authored positive claims and only publishes 
     }));
     await assert.rejects(
       execFile(process.execPath, ["scripts/run-validation.mjs", "--input", input, "--out", output], { cwd: process.cwd() }),
-      (error) => error.stderr.trim() === "validation_usage" && !error.stderr.includes("Bearer secret"),
+      (error) => error.stderr.trim() === "validation_invalid_arguments" && !error.stderr.includes("Bearer secret"),
     );
     await assert.rejects(
       execFile(process.execPath, ["scripts/run-validation.mjs", "--mode", "failure", "--out", output, "--proof-source", "verifier_receipt_bundle"], { cwd: process.cwd() }),

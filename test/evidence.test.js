@@ -129,28 +129,24 @@ test("concurrent writers retain every history entry in the atomic index", async 
   }
 });
 
-test("validation CLI writes classifier-backed reports without copying raw errors", async () => {
+test("validation CLI writes only support-ineligible reports without copying raw errors", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hermes-evidence-cli-"));
   const output = join(directory, "evidence");
-  const firstInput = join(directory, "first.json");
-  const secondInput = join(directory, "second.json");
   const invalidInput = join(directory, "invalid.json");
   try {
-    const incrementalSse = [
-      ...observation().sseFrames,
-      { event: "chat.completion.chunk", id: "2", order: 2, elapsedMs: 500, dataBytes: 52, shape: { choices: [{ delta: { content: "string" } }] } },
-    ];
-    await Promise.all([
-      writeFile(firstInput, JSON.stringify(observation({ sessionOrdinal: 1, sseFrames: incrementalSse }))),
-      writeFile(secondInput, JSON.stringify(observation({ runId: "run-20260817-000000-0002", sessionOrdinal: 2, recordedAt: "2026-08-17T12:00:01.000Z", sseFrames: incrementalSse }))),
-      writeFile(invalidInput, JSON.stringify(observation({ muxyVersion: null, token: sentinels[1] }))),
-    ]);
-    await Promise.all([firstInput, secondInput].map((input) => execFile(process.execPath, ["scripts/run-validation.mjs", "--input", input, "--out", output], { cwd: process.cwd() })));
+    await writeFile(invalidInput, JSON.stringify(observation({ muxyVersion: null, token: sentinels[1] })));
+    await execFile(process.execPath, [
+      "scripts/run-validation.mjs", "--mode", "failure", "--out", output,
+      "--deployment", "host_native_loopback", "--trust", "loopback_http", "--muxy-version", "1.2.3",
+      "--hermes-version", "0.17.0", "--hermes-revision", "sha256:abcd1234", "--category", "real_attempt",
+      "--reason", "relay_failed", "--stage", "relay",
+    ], { cwd: process.cwd() });
     const index = JSON.parse(await readFile(join(output, "index.json"), "utf8"));
-    assert.equal(index.conditions.find((row) => row.id === "host_native_loopback").verdict, "Supported");
+    assert.equal(index.schemaVersion, 2);
+    assert.equal(index.history.length, 1);
     await assert.rejects(
       execFile(process.execPath, ["scripts/run-validation.mjs", "--input", invalidInput, "--out", output], { cwd: process.cwd() }),
-      (error) => error.stderr.trim() === "evidence_invalid_muxyVersion" && !error.stderr.includes(sentinels[1]),
+      (error) => error.stderr.trim() === "validation_invalid_arguments" && !error.stderr.includes(sentinels[1]),
     );
   } finally {
     await rm(directory, { recursive: true, force: true });
