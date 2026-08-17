@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: verified-gateway-connectivity
 status: executing
-stopped_at: Completed 01-08-PLAN.md
-last_updated: "2026-08-17T19:37:55.376Z"
+stopped_at: Completed 01-09-PLAN.md
+last_updated: "2026-08-17T19:48:36.851Z"
 last_activity: 2026-08-17
 last_activity_desc: Phase 01 gap-closure planning complete — 9 plans ready
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 15
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-16)
 ## Current Position
 
 Phase: 01 (verified-gateway-connectivity) — EXECUTING
-Plan: 3 of 15
+Plan: 4 of 15
 Status: Ready to execute
 Last activity: 2026-08-17 — Phase 01 execution started
 
-Progress: [█████░░░░░] 53%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Progress: [█████░░░░░] 53%
 | Phase 01-verified-gateway-connectivity P06 | 8m | 2 tasks | 9 files |
 | Phase 01 P07 | 6min | 3 tasks | 8 files |
 | Phase 01 P08 | 4min | 2 tasks | 8 files |
+| Phase 01-verified-gateway-connectivity P09 | 7m 42s | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Receipt generation is opt-in through a verifier-owned fixed challenge file and otherwise leaves production panel sessions without a receipt.
 - [Phase ?]: Receipt correlation uses SHA-256 digests of relay observations, never raw execution, endpoint, journal, secret, or stream content.
 - [Phase ?]: Only a 2xx authenticated terminal stream with awaited successful cleanup is support-eligible.
+- [Phase ?]: Only buildVerifiedEvidenceRecord may create a schema-v2 support-eligible record.
+- [Phase ?]: The generic CLI accepts only fixed failure/incomplete metadata and always emits supportEligible false.
+- [Phase ?]: Schema-v1 artifacts remain readable historical evidence but expose no support eligibility marker.
 
 ### Pending Todos
 
@@ -113,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-17T19:37:55.354Z
-Stopped at: Completed 01-08-PLAN.md
+Last session: 2026-08-17T19:48:36.833Z
+Stopped at: Completed 01-09-PLAN.md
 Resume file: None
