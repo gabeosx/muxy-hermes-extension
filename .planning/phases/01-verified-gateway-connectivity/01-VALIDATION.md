@@ -1,103 +1,75 @@
 ---
 phase: 1
 slug: verified-gateway-connectivity
-# status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
-# audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false)
 status: draft
 nyquist_compliant: false
 created: 2026-08-16
+reconciled: 2026-08-17
 ---
 
 # Phase 1 — Validation Strategy
 
-> Per-phase validation contract for feedback sampling during execution.
+> Feedback and sign-off contract for the consented curl-relay architecture. Direct WebKit is paired historical negative evidence; CORS and Origin observations are simulation-only where applicable and never positive qualification stages.
 
----
+The gap-closure map spans Waves 5–11 plus the final Wave 12 aggregate gate; the table records each plan's actual execution wave.
 
 ## Test Infrastructure
 
 | Property | Value |
-|----------|-------|
-| **Framework** | Node built-in `node:test` |
-| **Config file** | none — Plan 01-01 Task 2 establishes the first runnable Vite/TypeScript build and Node test command |
-| **Quick run command** | `npm run build && node --test` after 01-01 Task 2 |
-| **Full suite command** | `npm run validate` after 01-06 Task 2; before then use the exact task/wave commands below |
-| **Estimated runtime** | Quick suite target: <10 seconds; full automated suite target: <120 seconds |
-
----
+|---|---|
+| Framework | Node built-in `node:test` |
+| Production transport | One explicitly consented argv-form curl relay per stream, with a bounded workspace journal read by the open panel |
+| Quick command | `npm run build && node --test` |
+| Aggregate command | `npm run validate` |
+| Feedback target | Under 10 seconds for focused Node suites; Compose and actual-Muxy sessions are wave gates |
 
 ## Sampling Rate
 
-- **After 01-01 Task 1:** No automated command exists yet; this is the single blocking supply-chain checkpoint before `npm ci`.
-- **After every later task commit:** Run that task's exact `<automated>` command from the map below. Plan 01-01 Task 2 is the bootstrap that makes build/test sampling runnable.
-- **After Wave 1:** Re-run `npm run build && node scripts/validate-dist.mjs && node --test test/transport-tracer.test.ts`.
-- **After Wave 2:** Re-run `npm run build && node --test` after all four Wave 2 task commands have passed.
-- **After Wave 3:** Re-run both final task commands from Plans 01-04 and 01-05 so the real-fixture and simulation Compose configurations remain independently validated.
-- **After Wave 4:** Run `npm run validate` as the aggregate non-watch build/unit/static/schema/redaction/scope gate.
-- **Before `$gsd-verify-work`:** Full automated suite must be green and the manual Muxy qualification records must be complete.
-- **Max feedback latency:** 10 seconds for the quick suite; Docker and real-panel qualification are wave/phase gates.
-- **Continuity proof:** In execution order, only 01-01 Task 1 lacks `<automated>` verification. Tasks 01-01-02 through 01-06-02 each carry a runnable automated command, so the maximum consecutive gap is one task and no three consecutive tasks lack automated feedback.
-
----
+- After every task commit, run its exact command below. There are no watch-mode commands.
+- Re-run the focused Plan 08, receipt, relay lifecycle, and diagnostics suites before Plan 09 consumes a receipt.
+- Before phase verification, run `npm run validate`; manual checks are consolidated at the end of the phase.
+- A production qualification is relay-native: relay consent, safe audit summary, authenticated capabilities, incremental streaming, terminal state, and awaited cleanup. It does not require a browser-origin result.
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | Bootstrap / Artifact Source | Status |
-|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-----------------------------|--------|
-| 01-01-01 | 01-01 | 1 | EXT-01, EXT-02 | T-01-SC | Official starter package identities and lockfile are approved before installation | blocking human checkpoint | N/A — checkpoint intentionally precedes `npm ci` and the test bootstrap | Generated Muxy starter + lockfile; enables 01-01-02 | ⬜ pending |
-| 01-01-02 | 01-01 | 1 | CONN-01, CONN-02, CONN-03, CONN-04, DEPL-01, SEC-01, SEC-02 | T-01-01 through T-01-05 | Direct bearer-authenticated capabilities plus exact deterministic real-Hermes SSE fixture; token/content remain ephemeral | tracer build + Node tests | `npm run build && node --test test/transport-tracer.test.ts` | Creates `test/transport-tracer.test.ts` and first runnable build/test path | ⬜ pending |
-| 01-01-03 | 01-01 | 1 | EXT-01, EXT-02, SEC-04, SEC-05 | T-01-04, T-01-SC | Publish artifact contains the panel/manifest only and declares minimum authority | build/artifact + Node tests | `npm run build && node scripts/validate-dist.mjs && node --test test/transport-tracer.test.ts` | Creates `scripts/validate-dist.mjs`; bootstraps later dist checks | ⬜ pending |
-| 01-02-01 | 01-02 | 2 | CONN-02, CONN-05, SEC-01, SEC-02 | T-01-01, T-01-02, T-01-05 | Diagnostics expose immutable observed/redacted facts and serialize no bearer/raw error | state-machine tests | `npm run build && node --test test/transport-tracer.test.ts test/probe-state.test.ts` | Extends Plan 01 transport types | ⬜ pending |
-| 01-02-02 | 01-02 | 2 | CONN-03, SEC-05 | T-01-04, T-01-05 | Capabilities remain conservative/read-only and every approved native UI state is represented | UI/DOM contract tests | `npm run build && node --test test/probe-state.test.ts test/ui-contract.test.ts` | Creates `test/ui-contract.test.ts` for 01-06-01 | ⬜ pending |
-| 01-03-01 | 01-03 | 2 | EVID-01, EVID-02 | T-01-01, T-01-05 | JSON/Markdown evidence is paired, schema-valid, allowlisted, redacted, and atomic | evidence/schema tests | `npm run build && node --test test/evidence.test.ts` | Creates evidence writer/schema used by Plans 01-04/01-05 | ⬜ pending |
-| 01-03-02 | 01-03 | 2 | DEPL-01 through DEPL-06, EVID-02 | T-01-02 through T-01-05 | Only complete two-session real-path evidence can establish Supported; simulations/partials force Unverified | verdict truth-table tests | `npm run build && node --test test/evidence.test.ts test/verdict.test.ts` | Creates classifier/index used by Plans 01-04 through 01-06 | ⬜ pending |
-| 01-04-01 | 01-04 | 3 | CONN-02, CONN-05, DEPL-02, SEC-02, SEC-04, EVID-01, EVID-02 | T-01-01 through T-01-05 | Installed/latest Muxy identity and deterministic host-native two-session stream fixture fail closed on every unproved input | host fixture + evidence tests | `npm run build && node --test test/host-fixture.test.ts test/evidence.test.ts test/verdict.test.ts` | Creates version resolver/host fixture used by 01-04-02 and final matrix | ⬜ pending |
-| 01-04-02 | 01-04 | 3 | DEPL-03, SEC-02, SEC-04, EVID-01, EVID-02 | T-01-01 through T-01-05 | Docker lane is loopback-only, deterministic, two-session qualified, and observes refusal/interruption without panel authority | Compose structure + fixture tests | `docker compose -f fixtures/docker-compose.yml config && npm run build && node --test test/docker-fixture.test.ts test/evidence.test.ts test/verdict.test.ts` | Creates real Docker fixture/evidence consumed by 01-06 | ⬜ pending |
-| 01-05-01 | 01-05 | 3 | DEPL-04, DEPL-06, SEC-04, EVID-01, EVID-02 | T-01-01, T-01-04, T-01-05 | SSH/workspace simulations force Unverified and transmit/persist no workspace path | Compose structure + simulation tests | `docker compose -f fixtures/simulations/docker-compose.yml config && npm run build && node --test test/simulated-ssh-workspace.test.ts test/verdict.test.ts test/evidence.test.ts` | Creates simulation Compose/scenarios used by 01-05-02 and 01-06 | ⬜ pending |
-| 01-05-02 | 01-05 | 3 | DEPL-05, SEC-02, SEC-04, EVID-01, EVID-02 | T-01-02 through T-01-05 | TLS/auth/CORS/buffering are observed without bypass and direct remote HTTPS remains Unverified | Compose structure + simulation tests | `docker compose -f fixtures/simulations/docker-compose.yml config && npm run build && node --test test/simulated-https.test.ts test/verdict.test.ts test/evidence.test.ts` | Extends the same simulation/evidence interfaces without a client branch | ⬜ pending |
-| 01-06-01 | 01-06 | 4 | CONN-05, DEPL-01 through DEPL-06, EVID-01 through EVID-04 | T-01-01 through T-01-05 | Five-row matrix preserves verdict boundaries; unsafe real transport emits only the redacted stop contract | stop-gate/UI/evidence tests | `npm run build && node --test test/stop-gate.test.ts test/evidence.test.ts test/verdict.test.ts test/ui-contract.test.ts` | Consumes all prior safe evidence/index artifacts | ⬜ pending |
-| 01-06-02 | 01-06 | 4 | All 21 Phase 1 IDs | T-01-01 through T-01-05 | Aggregate gate enforces build, schema, redaction, permissions, API scope, simulations, and no upstream change | aggregate phase validation | `npm run validate` | Creates final non-watch validation command from every prior test/validator | ⬜ pending |
+| Task ID | Plan | Wave | Secure behavior | Automated command | Bootstrap / handoff | Status |
+|---|---|---:|---|---|---|---|
+| 01-07-01 | 01-07 | 6 | Close cancels the sole stream and scrubs its journal before panel release. | `npm run build && node --test test/transport-lifecycle.test.js test/curl-relay.test.js test/probe-state.test.js test/transport-tracer.test.js` | Relay lifecycle for Plan 08 receipts. | ✅ green |
+| 01-07-02 | 01-07 | 6 | Observed curl/SSE status and diagnostics do not infer topology or expose raw failures. | `npm run build && node --test test/transport-diagnostics.test.js test/transport-lifecycle.test.js test/curl-relay.test.js test/probe-state.test.js test/ui-contract.test.js` | Safe stage vocabulary for Plans 08–15. | ✅ green |
+| 01-07-03 | 01-07 | 6 | MVP story validates without changing transport scope. | `node /Users/gabe/.codex/gsd-core/bin/gsd-tools.cjs query user-story.validate --story 'As a Hermes Gateway user, I want to build and load a Muxy panel and safely prove an authenticated Gateway connection through one explicitly consented, deployment-neutral relay contract, so that I can confirm the connection works without exposing credentials or expanding extension authority.' --pick valid` | Valid phase outcome for final verification. | ✅ green |
+| 01-08-01 | 01-08 | 7 | Authoritative contracts use relay stages and retain direct-WebKit/CORS only as historical or simulation evidence. | `node --test test/contract-reconciliation.test.js` | Reconciled UI, API coverage, and validation contracts. | in progress |
+| 01-08-02 | 01-08 | 7 | One valid challenge yields one safe receipt only after stream finalization and cleanup. | `npm run build && node --test test/qualification-receipt.test.js test/transport-lifecycle.test.js test/transport-diagnostics.test.js test/contract-reconciliation.test.js` | Receipt input for provenance evidence. | pending |
+| 01-09-01 | 01-09 | 8 | Pair receipt-backed evidence with a schema-versioned safe projection. | `npm run build && node --test test/evidence-provenance.test.js test/evidence.test.js test/qualification-receipt.test.js` | Receipt bundle for classifier. | pending |
+| 01-09-02 | 01-09 | 8 | Caller-authored positive validation input cannot become evidence. | `npm run build && node --test test/evidence-provenance.test.js test/evidence.test.js` | Closed CLI trust boundary. | pending |
+| 01-10-01 | 01-10 | 9 | A real two-session receipt pair reaches the safe verdict index. | `npm run build && node --test test/verdict.test.js test/evidence-provenance.test.js test/evidence.test.js` | Index for stop gate and final validation. | pending |
+| 01-10-02 | 01-10 | 9 | The stop gate needs a reproducible current-pair failure. | `npm run build && node --test test/stop-gate.test.js test/verdict.test.js test/evidence-provenance.test.js` | Native stop-boundary input. | pending |
+| 01-11-01 | 01-11 | 10 | Host-native fixture completes two relay-backed receipt sessions. | `npm run build && node --test test/real-qualification.test.js test/host-fixture.test.js test/evidence-provenance.test.js test/verdict.test.js` | Real host qualification evidence. | pending |
+| 01-11-02 | 01-11 | 10 | Direct-WebKit non-arrival is published only as paired historical negative transport evidence. | `npm run build && node --test test/real-qualification.test.js test/evidence-provenance.test.js test/verdict.test.js test/stop-gate.test.js` | Historical evidence for UI and reports. | pending |
+| 01-12-01 | 01-12 | 11 | Docker lifecycle preserves unchanged panel access through one bounded slice. | `docker compose -f fixtures/simulations/docker-compose.yml config --quiet && node --test test/docker-qualification.test.js test/real-qualification.test.js test/evidence-provenance.test.js` | Docker readiness and ownership checks. | pending |
+| 01-12-02 | 01-12 | 11 | Docker qualification covers two sessions, refusal, interruption, and restoration. | `docker compose -f fixtures/simulations/docker-compose.yml config --quiet && node --test test/docker-qualification.test.js test/transport-diagnostics.test.js test/evidence-provenance.test.js test/verdict.test.js` | Real Docker evidence. | pending |
+| 01-13-01 | 01-13 | 10 | HTTPS proxy models TLS/auth/CORS simulation, streaming timing, and cleanup under one relay contract. | `docker compose -f fixtures/simulations/docker-compose.yml config --quiet && node --test test/simulated-relay.test.js test/evidence-provenance.test.js test/verdict.test.js` | Simulation-only HTTPS coverage. | pending |
+| 01-13-02 | 01-13 | 10 | SSH interruption and remote-workspace namespaces stay forced `Unverified`. | `docker compose -f fixtures/simulations/docker-compose.yml config --quiet && node --test test/simulated-relay.test.js test/evidence-provenance.test.js test/verdict.test.js test/phase-boundary.test.js` | Simulation-only remote boundaries. | pending |
+| 01-14-01 | 01-14 | 10 | Receipt-backed failure drives the native non-dismissible stop alert. | `npm run build && node --test test/stop-gate.test.js test/ui-contract.test.js test/verdict.test.js test/evidence-provenance.test.js` | Safe native stop UI. | pending |
+| 01-14-02 | 01-14 | 10 | Native verification build is staged without changing canonical evidence. | `npm run build && node --test test/ui-contract.test.js test/stop-gate.test.js` | Manual verification artifact. | pending |
+| 01-15-01 | 01-15 | 12 | Every automated evidence and authority gate passes from one clean build. | `npm run validate` | Final automated phase gate. | pending |
+| 01-15-02 | 01-15 | 12 | Actual-Muxy checklist uses disposable/staged data without canonical evidence mutation. | `npm run validate` | Consolidated human verification handoff. | pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+## Manual Actual-Muxy Checks
 
----
-
-## Bootstrap Dependencies (No Fictional Wave 0)
-
-| Bootstrap Task | Creates | First Consumers |
-|---|---|---|
-| 01-01-01 | Approved generated starter/lockfile supply chain | 01-01-02 `npm ci`, build, and tracer tests |
-| 01-01-02 | Vite build plus `test/transport-tracer.test.ts` | 01-01-03 and every later `npm run build`/transport regression command |
-| 01-01-03 | `scripts/validate-dist.mjs` and publish-valid dist contract | 01-06-02 aggregate phase validator |
-| 01-03-01 | Evidence schema/writer and `test/evidence.test.ts` | 01-03-02, both Wave 3 plans, and 01-06 |
-| 01-03-02 | Verdict classifier/index and `test/verdict.test.ts` | Both Wave 3 qualification plans and final matrix |
-| 01-04-01 | Installed/latest version resolver, deterministic host fixture, and host test | 01-04-02 and final real-path evidence gate |
-| 01-04-02 / 01-05-01 | Real/simulation Compose definitions | Their own task commands, Wave 3 resampling, and 01-06 evidence consumption |
-| 01-06-02 | `npm run validate` aggregate | End-of-phase verification and `$gsd-verify-work` entry |
-
-There is no Wave 0 plan or identifier. The dependency graph is Wave 1 (01-01) → Wave 2 (01-02/01-03) → Wave 3 (01-04/01-05) → Wave 4 (01-06), and each bootstrap appears before its first consumer in that graph.
-
----
-
-## Manual-Only Verifications
-
-| Behavior | Requirement | Why Manual | Test Instructions |
-|----------|-------------|------------|-------------------|
-| Host-native qualification | DEPL-02, SEC-02 | Requires the actual Muxy panel and its WebKit origin/stream behavior | Capture `com.muxy.app` short/build versions via the 01-RESEARCH `plutil` preflight, resolve the official latest stable Muxy/Hermes releases, open two fresh panel sessions, and complete capabilities plus COVERAGE.md's deterministic two-delta/no-tool Hermes SSE contract before validating redacted evidence. Any missing/mismatch/unproved condition remains Unverified. |
-| Docker loopback qualification | DEPL-03, SEC-02 | Requires the actual Muxy panel against the loopback-published container path | Start the resolved Hermes container and deterministic fixture model, complete two fresh panel-session probes, exercise refusal and interrupted-stream cases, then validate evidence and fixture logs. Any tool event/content persistence or unproved first-frame-before-completion result remains Unverified. |
-| Muxy-change stop gate | EVID-03, EVID-04 | Requires user-visible confirmation in the real panel and human authorization judgment | Force the direct-transport failure path; confirm the panel names the failed check, produces only the minimum redacted change contract, and performs no Muxy source, bridge, or registration change. |
-
----
+| Check | Expected result |
+|---|---|
+| Relay consent | Muxy presents the single argv-form curl operation; the bearer is absent from argv and its audit summary. |
+| Safe audit summary | Audit, panel details, and receipt contain no token, endpoint identity, journal content/path, workspace path, prompt/output, topology label, or browser-origin claim. |
+| Two fresh receipts | Two fresh panel instances, each with one verifier challenge, produce one correlatable receipt after capabilities, incremental stream, terminal frame, and cleanup. |
+| Cancellation and cleanup | Closing or retesting cancels the relay and scrubs/removes the bounded journal before release. |
+| Simulation boundaries | HTTPS proxy CORS/preflight, SSH interruption, and remote-workspace evidence remain simulations; SSH, direct remote HTTPS, and remote workspace remain `Unverified`. |
 
 ## Validation Sign-Off
 
-- [x] Every submitted 01-01 through 01-06 task is mapped to its real wave and exact `<automated>` command; 01-01-01 is explicitly the sole pre-install human checkpoint.
-- [x] Sampling continuity is explicit: the maximum automated-verification gap is one task, and every task from 01-01-02 onward has an automated command.
-- [x] Fictional Wave 0 identifiers/claims are removed; bootstrap creators and first consumers are mapped to Waves 1–4.
-- [ ] No watch-mode flags.
-- [ ] Quick feedback latency remains below 10 seconds.
-- [ ] Two fresh real-panel successes exist for both host-native and Docker loopback.
-- [ ] SSH-forwarded, direct remote HTTPS, and remote-workspace simulations remain `Unverified`.
-- [ ] `nyquist_compliant: true` is set in frontmatter after validation.
+- [x] Plans 07 through 15 map to their real JavaScript paths, waves 6 through 12, and exact commands.
+- [x] Direct WebKit is historical negative evidence; browser CORS/Origin behavior is simulation-only where applicable.
+- [ ] Contract reconciliation and receipt suites are green.
+- [ ] Two fresh receipt-backed host-native and Docker qualifications exist.
+- [ ] `npm run validate` is green and `nyquist_compliant: true` is set after validation.
 
 **Approval:** pending

@@ -19,7 +19,8 @@ test("authoritative contracts describe the consented curl relay as the sole posi
     assert.match(contract, /consented (?:argv-form )?curl relay/i);
     assert.match(contract, /direct[- ]WebKit.*historical negative|historical negative.*direct[- ]WebKit/is);
     assert.match(contract, /CORS.*simulation-only|simulation-only.*CORS/is);
-    assert.doesNotMatch(contract, /(?:positive|supported|qualification)[^.\n]{0,120}(?:browser )?Origin|(?:browser )?Origin[^.\n]{0,120}(?:positive|supported|qualification)/i);
+    assert.match(contract, /CORS(?: and Origin)?[^.\n]{0,120}simulation-only|simulation-only[^.\n]{0,120}CORS/i);
+    assert.doesNotMatch(contract, /exact[- ]origin access|actual panel origin.*qualif|Explicit browser CORS\s*\|\s*INTEGRATE/i);
   }
 });
 
@@ -29,7 +30,7 @@ test("validation maps Plans 07 through 15 to current JavaScript suites and relay
     assert.match(validation, new RegExp(`01-${String(plan).padStart(2, "0")}`));
   }
   assert.match(validation, /node --test[^\n]*\.test\.js/);
-  assert.match(validation, /wave\s*(?:5|6|7|8|9|10|11)/i);
+  assert.match(validation, /waves?\s*(?:5|6|7|8|9|10|11)|\|\s*(?:5|6|7|8|9|10|11)\s*\|/i);
   assert.match(validation, /relay consent/i);
   assert.match(validation, /safe audit summary/i);
   assert.match(validation, /two fresh (?:panel )?receipts/i);

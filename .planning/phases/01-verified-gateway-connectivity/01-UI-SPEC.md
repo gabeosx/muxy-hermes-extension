@@ -37,8 +37,8 @@ Use a single, scrollable panel column. Keep the connection form above the result
 | Connection header | Title `Hermes Gateway`, one-line purpose, `Panel-only credentials` footnote | Title is 14px semibold; footnote says the bearer token is cleared when the panel closes. |
 | Connection form | Labeled `Gateway URL` text input; labeled `Bearer token` password input; `Test connection` primary button | Both fields are required. Never prefill, store, log, or echo the token. The button is disabled until both fields are non-empty and the URL passes local syntax/policy validation. |
 | Trust note | Compact static note beneath the form | Say that literal loopback HTTP is evaluated only by the local transport proof and every non-loopback endpoint requires normally trusted HTTPS. Do not present it as a user-selectable security exception. |
-| Connection verdict | One status card after a test | Shows a text status, timestamp, safe endpoint display, observed origin outcome, authentication outcome, and capability-discovery outcome. Do not show the token, request headers, raw server body, DNS address, workspace path, or inferred deployment type. |
-| Diagnostic disclosure | Native-style `Details` disclosure inside the verdict card | Lists one normalized failure class at a time: URL, DNS, TLS, refusal, timeout, CORS/preflight, authentication, protocol, or streaming. Keep raw detail redacted and show a retry path. |
+| Connection verdict | One status card after a test | Shows a text status, timestamp, safe endpoint class, relay-grant outcome, authentication outcome, capability-discovery outcome, stream outcome, and cleanup outcome. Do not show the token, URL, request headers, raw server body, DNS address, workspace path, journal content, or inferred deployment type. |
+| Diagnostic disclosure | Native-style `Details` disclosure inside the verdict card | Lists one normalized failure class at a time: URL, relay, DNS, TLS, refusal, timeout, authentication, protocol, journal limit, streaming, or cleanup. CORS and preflight variants belong only to controlled proxy simulations and never to the production positive path. Keep raw detail redacted and show a retry path. |
 | Capability summary | Read-only compact list after a successful probe | Shows the protocol/fixture version and advertised capability names. State `Run controls appear in Phase 2`; never render start, stop, steer, approval, or chat controls in Phase 1. |
 | Validation evidence | Read-only section below the current verdict | Renders fixture rows for Host-native loopback, Docker published loopback, SSH local forward, Direct remote HTTPS, and Remote Muxy workspace. Each row carries a text verdict—`Supported`, `Unsupported`, or `Unverified`—plus fixture version and a concise, secret-safe explanation. It is evidence, not a deployment selector. |
 | Transport-stop alert | Critical non-dismissible card, only after a failed safety/streaming gate | Title: `Muxy change required`. It says Phase 1 is paused, no Muxy change has been made, and exposes `Copy failure report` and `View bridge contract` actions. It never offers to install a bridge, register an agent, or alter Muxy. |
@@ -121,10 +121,11 @@ Accent is reserved for the enabled `Test connection` button and the visible focu
 | Validation: non-loopback HTTP | `Use HTTPS for a non-loopback Gateway. Certificate bypass is not supported.` |
 | Loading state | `Testing connection…` |
 | Retest carryover | `Previous result` — remains visible until the new verdict atomically replaces it. |
-| Success state | `Connection verified` — `Authentication, exact-origin access, and capability discovery succeeded.` |
-| Generic error state | `Connection not verified` — `Check the Gateway URL and token, confirm its exact Muxy origin is allowed, then test the connection again.` |
-| CORS error state | `The Gateway did not allow this Muxy panel origin.` — `Allow the exact observed origin on the Gateway; wildcard, null, and reflected origins are not accepted.` |
+| Success state | `Connection verified` — `The consented curl relay, authentication, capabilities, incremental stream, and cleanup succeeded.` |
+| Generic error state | `Connection not verified` — `Check the Gateway URL and token, allow the displayed relay operation, then test the connection again.` |
+| Relay error state | `Relay not available` — `Allow Muxy to run the displayed curl operation, then retry. The bearer remains in relay stdin only.` |
 | Streaming error state | `The Gateway connected, but live streaming was not verified.` — `Review the redacted failure report before claiming this deployment is supported.` |
+| CORS simulation state | `Controlled CORS simulation did not match.` — `This is proxy-simulation evidence only; it does not qualify a production connection.` |
 | Capability loading | `Discovering capabilities…` |
 | Capability empty | `No capabilities advertised` — `This Gateway did not advertise any controls for this client.` |
 | Capability partial | `Partially verified` — valid capability names may be shown, but unsupported controls are never inferred. |
@@ -152,7 +153,7 @@ Applicable state considerations resolved: 33 closed — 32 explicit, 1 dismissed
 | empty | Connection verdict | ✅ covered | Do not render a verdict card before the first test; the form owns the initial state. |
 | loading | Connection verdict | ✅ covered | During a retest, preserve the last card with `Previous result` until the new result atomically replaces it. |
 | error | Connection verdict | ✅ covered | Render one normalized failure class, redacted explanation, and `Test connection again` without raw response or secret data. |
-| populated | Connection verdict | ✅ covered | A verified card shows text status, timestamp, safe endpoint, origin, authentication, and capability-discovery outcomes. |
+| populated | Connection verdict | ✅ covered | A verified card shows text status, timestamp, safe endpoint class, relay, authentication, capability-discovery, stream, and cleanup outcomes. |
 | partial | Connection verdict | ✅ covered | Show observed outcomes and label unobserved checks `Not verified`; never upgrade the overall verdict. |
 | overflow | Connection verdict | ✅ covered | Rows and redacted diagnostics wrap vertically and rely on panel scrolling; safety details are never clipped. |
 | zero-one-many | Connection verdict | ⛔ dismissed | Exactly one current verdict exists; repeated tests replace it rather than create a collection. |
@@ -192,7 +193,7 @@ Applicable state considerations resolved: 33 closed — 32 explicit, 1 dismissed
 
 This UI must not expose Docker, SSH, process, terminal, filesystem, Git, workspace-path, agent-registration, bridge-installation, certificate-bypass, token-storage, or deployment-detection controls. It requests only the Muxy permission proven necessary to render the panel; the intended Phase 1 implementation requires no Muxy permission for these controls.
 
-If direct authenticated WebKit streaming cannot safely satisfy the exact-origin and incremental-delivery proof for a claimed fixture, render the documented transport-stop alert and produce the redacted failure report plus minimum bridge contract. That is an explicit stop condition: do not modify Muxy, register Hermes as a provider, or present an upstream-change confirmation in the extension.
+Direct WebKit streaming is paired historical negative evidence, not the implementation path. The implementation path is one explicitly consented argv-form curl relay per stream, with the open panel consuming a bounded journal and awaiting cleanup before it reports a qualifying result. CORS and Origin behavior are simulation-only observations where applicable and never production support predicates. If the relay cannot safely deliver authenticated incremental streaming and cleanup for a claimed fixture, render the documented transport-stop alert and produce the redacted failure report plus minimum bridge contract. That is an explicit stop condition: do not modify Muxy, register Hermes as a provider, or present an upstream-change confirmation in the extension.
 
 ---
 
