@@ -8,6 +8,7 @@ import { renderEvidenceMarkdown, validateEvidenceRecord } from "../src/evidence.
 import { toSafeVerdict } from "../src/probe.js";
 import { copyRedactedReport, evaluateStopGate, sanitizeEvidenceIndex } from "../src/stop-gate.js";
 import { classifyVerdict } from "../src/verdict.js";
+import { sanitizeRecoveryEvidence } from "../src/recovery-evidence.js";
 
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "..");
@@ -98,6 +99,7 @@ async function validateBoundary() {
     join(root, "src", "run-events.js"),
     join(root, "src", "run-client.js"),
     join(root, "src", "run-controller.js"),
+    join(root, "src", "recovery-evidence.js"),
   ];
   for (const file of productionSources) {
     const source = await readFile(file, "utf8");
@@ -108,6 +110,15 @@ async function validateBoundary() {
   for (const requiredGate of ["supportsCoreRun", "RUN_FEATURES.approval", "RUN_FEATURES.stop", "RUN_FEATURES.steer"]) {
     assert.match(panel, new RegExp(requiredGate.replace(".", "\\.")), `panel is missing advertised capability gate ${requiredGate}`);
   }
+}
+
+async function validateRecoveryEvidence() {
+  const recovery = JSON.parse(await readFile(join(evidenceDir, "recovery-v1.json"), "utf8"));
+  const safe = sanitizeRecoveryEvidence(recovery);
+  assert.deepEqual(safe.conditions.map((row) => row.id), canonicalConditions, "recovery evidence must retain canonical conditions");
+  for (const row of safe.conditions.slice(2)) assert.equal(row.verdict, "Unverified", "simulated recovery row cannot be positive");
+  const durable = JSON.stringify(safe);
+  for (const forbidden of ["bearer", "endpoint", "workspacepath", "journal", "approval command", "raw error"]) assert.equal(durable.toLowerCase().includes(forbidden), false, "recovery evidence contains content-bearing data");
 }
 
 async function validateSentinel(index) {
@@ -130,6 +141,7 @@ async function main() {
   await run(process.execPath, ["scripts/validate-dist.mjs"], { cwd: root });
   const index = await validateEvidence();
   await validateBoundary();
+  await validateRecoveryEvidence();
   await validateSentinel(index);
   process.stdout.write("Phase 1 transport/evidence and Phase 2 run-control authority validation passed.\n");
 }

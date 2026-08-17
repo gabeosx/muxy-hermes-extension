@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "conditions": [
+    { "id": "gateway_refusal", "observedBehavior": "refused_or_unreachable", "forced_unverified": false },
+    { "id": "interrupted_restored_stream", "observedBehavior": "interrupted_then_restored", "forced_unverified": false },
+    { "id": "proxy_buffering", "observedBehavior": "buffered_or_delayed", "forced_unverified": false },
+    { "id": "panel_recreation", "observedBehavior": "fresh_credentials_and_status_only", "forced_unverified": false },
+    { "id": "ssh_local_forward", "observedBehavior": "local_interruption_analogue", "forced_unverified": true },
+    { "id": "direct_remote_https", "observedBehavior": "local_buffering_analogue", "forced_unverified": true },
+    { "id": "remote_muxy_workspace", "observedBehavior": "panel_recreation_analogue", "forced_unverified": true }
+  ]
+}
