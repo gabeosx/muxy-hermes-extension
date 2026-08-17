@@ -57,6 +57,8 @@ test("the panel keeps capability and evidence output read-only and uses contract
     "No versioned fixture result has been recorded for this deployment condition.",
     "Muxy will ask before running curl and before scrubbing a temporary journal in this worktree.",
     "A remembered curl grant covers that executable, not only this Gateway.",
+    "Gateway unreachable",
+    "Gateway timed out",
   ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
   assert.doesNotMatch(panel, /exact-origin access|confirm its exact Muxy origin/i);

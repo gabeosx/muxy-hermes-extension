@@ -29,6 +29,19 @@ test("safe verdicts distinguish observed authentication failures from relay reje
   }, { endpoint: "https://gateway.example", startedAt: "2026-08-17T00:00:00.000Z", finishedAt: "2026-08-17T00:00:01.000Z" });
   assert.equal(rejected.failureClass, "relay");
   assert.equal(JSON.stringify(rejected).includes("relay_request_rejected"), false);
+
+  for (const [reason, failureClass] of [
+    ["gateway_unreachable", "gateway_unreachable"],
+    ["gateway_timeout", "gateway_timeout"],
+  ]) {
+    const networkFailure = toSafeVerdict({
+      url: { state: "passed" }, request: { state: "failed", reason }, relay: { state: "failed", reason },
+      authentication: { state: "not_verified" },
+      capabilities: { state: "not_verified", names: [], version: null }, stream: { state: "not_verified" },
+    }, { endpoint: "https://gateway.example", startedAt: "2026-08-17T00:00:00.000Z", finishedAt: "2026-08-17T00:00:01.000Z" });
+    assert.equal(networkFailure.failureClass, failureClass);
+    assert.equal(JSON.stringify(networkFailure).includes(reason), true);
+  }
 });
 
 test("retest keeps an immutable Previous result and ignores a stale aborted completion", async () => {

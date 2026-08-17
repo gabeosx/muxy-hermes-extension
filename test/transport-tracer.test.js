@@ -84,3 +84,20 @@ test("probe preparation completes stale relay cleanup before its first request",
   await client.probe("http://127.0.0.1:8642", "token");
   assert.deepEqual(order, ["cleanup", "request"]);
 });
+
+test("probe classifies safe refusal and timeout reasons without exposing raw relay errors", async () => {
+  for (const [relayError, expectedReason] of [
+    ["relay_request_failed", "gateway_unreachable"],
+    ["relay_timeout", "gateway_timeout"],
+  ]) {
+    const client = new GatewayClient({
+      relay: {
+        async cleanupStaleJournals() {},
+        async requestJson() { throw new Error(relayError); },
+      },
+    });
+    const result = await client.probe("http://127.0.0.1:8642", "token");
+    assert.equal(result.relay.reason, expectedReason);
+    assert.equal(JSON.stringify(result).includes(relayError), false);
+  }
+});
