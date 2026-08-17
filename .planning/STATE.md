@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: verified-gateway-connectivity
 status: executing
-stopped_at: Gap-closure plans 01-07 through 01-15 ready for execution
-last_updated: "2026-08-17T19:10:09.877Z"
+stopped_at: Completed 01-07-PLAN.md
+last_updated: "2026-08-17T19:21:38.456Z"
 last_activity: 2026-08-17
 last_activity_desc: Phase 01 gap-closure planning complete — 9 plans ready
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 15
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-08-16)
 
 ## Current Position
 
-Phase: 01 (verified-gateway-connectivity) — READY TO EXECUTE
-Plan: 6 of 15
+Phase: 01 (verified-gateway-connectivity) — EXECUTING
+Plan: 2 of 15
 Status: Ready to execute
-Last activity: 2026-08-17 — Phase 01 gap-closure planning complete; plans 01-07 through 01-15 ready
+Last activity: 2026-08-17 — Phase 01 execution started
 
-Progress: [████░░░░░░] 40%
+Progress: [█████░░░░░] 47%
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [████░░░░░░] 40%
 | Phase 01 P03 | 9m | 2 tasks | 7 files |
 | Phase 01 P04 | 1d | 2 tasks | 18 files |
 | Phase 01-verified-gateway-connectivity P06 | 8m | 2 tasks | 9 files |
+| Phase 01 P07 | 6min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 01]: Detailed closed-panel notifications, provider registration, and every Muxy/Hermes source change remain deferred.
 - [Phase ?]: Use a fail-closed evidence matrix: only reproducible fresh real-path origin or stream failures, or an explicit change signal, activate the Muxy-change stop gate.
 - [Phase ?]: Keep simulated SSH, direct HTTPS, and remote-workspace evidence Unverified at the panel projection boundary.
+- [Phase ?]: Use one cancellable execAsync owner for SSE and await its cleanup before panel release.
+- [Phase ?]: Derive diagnostics only from observed curl, HTTP, parser, journal, or cancellation outcomes.
 
 ### Pending Todos
 
@@ -106,6 +109,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-17T18:01:37.019Z
-Stopped at: Gap-closure plans 01-07 through 01-15 ready for execution
+Last session: 2026-08-17T19:21:38.439Z
+Stopped at: Completed 01-07-PLAN.md
 Resume file: None

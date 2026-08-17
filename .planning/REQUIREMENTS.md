@@ -13,10 +13,10 @@
 ### Connection and Trust
 
 - [ ] **CONN-01**: User can provide one Hermes Gateway URL and bearer token when the panel loads.
-- [ ] **CONN-02**: User can test a connection through an explicitly consented curl relay and see whether relay launch, URL reachability, bearer authentication, and capability discovery succeeded.
+- [x] **CONN-02**: User can test a connection through an explicitly consented curl relay and see whether relay launch, URL reachability, bearer authentication, and capability discovery succeeded.
 - [ ] **CONN-03**: User can see the Gateway capabilities negotiated from `/v1/capabilities`, and unavailable run controls remain disabled or absent.
 - [ ] **CONN-04**: User can connect directly to a non-loopback Gateway only through HTTPS with normal certificate validation.
-- [ ] **CONN-05**: User receives secret-safe diagnostics that distinguish malformed URL, relay denial/unavailability, DNS, TLS, connection refusal, timeout, authentication, journal-limit, protocol, and stream failures from observed facts.
+- [x] **CONN-05**: User receives secret-safe diagnostics that distinguish malformed URL, relay denial/unavailability, DNS, TLS, connection refusal, timeout, authentication, journal-limit, protocol, and stream failures from observed facts.
 
 ### Deployment Compatibility
 
@@ -47,8 +47,8 @@
 
 ### Security Boundaries
 
-- [ ] **SEC-01**: User's bearer token exists only in transient panel/exec-stdin memory and is absent from argv, URLs, environment, journal files, source, bundles, persisted settings, fixtures, audit summaries, and diagnostics.
-- [ ] **SEC-02**: User explicitly authorizes the argv-form curl executable boundary; the UI discloses that a remembered argv grant covers the executable rather than only one Hermes host.
+- [x] **SEC-01**: User's bearer token exists only in transient panel/exec-stdin memory and is absent from argv, URLs, environment, journal files, source, bundles, persisted settings, fixtures, audit summaries, and diagnostics.
+- [x] **SEC-02**: User explicitly authorizes the argv-form curl executable boundary; the UI discloses that a remembered argv grant covers the executable rather than only one Hermes host.
 - [ ] **SEC-03**: User must explicitly decide every Hermes approval; the extension never auto-approves an action.
 - [ ] **SEC-04**: User is never asked to grant Docker, SSH-tunnel, Gateway-lifecycle, terminal, Git-write, or Muxy-source authority; v1 requests only the documented curl-exec and extension-owned journal read/scrub/remove permissions required by the relay.
 - [ ] **SEC-05**: User grants only the minimum Muxy extension permissions demonstrated to be necessary by the v1 implementation.
@@ -115,18 +115,18 @@
 | EXT-01 | Phase 1 | Pending |
 | EXT-02 | Phase 1 | Pending |
 | CONN-01 | Phase 1 | Pending |
-| CONN-02 | Phase 1 | Pending |
+| CONN-02 | Phase 1 | Complete |
 | CONN-03 | Phase 1 | Gaps Found |
 | CONN-04 | Phase 1 | Pending |
-| CONN-05 | Phase 1 | Gaps Found |
+| CONN-05 | Phase 1 | Complete |
 | DEPL-01 | Phase 1 | Gaps Found |
 | DEPL-02 | Phase 1 | Gaps Found |
 | DEPL-03 | Phase 1 | Gaps Found |
 | DEPL-04 | Phase 1 | Gaps Found |
 | DEPL-05 | Phase 1 | Gaps Found |
 | DEPL-06 | Phase 1 | Gaps Found |
-| SEC-01 | Phase 1 | Gaps Found |
-| SEC-02 | Phase 1 | Gaps Found |
+| SEC-01 | Phase 1 | Complete |
+| SEC-02 | Phase 1 | Complete |
 | SEC-04 | Phase 1 | Gaps Found |
 | SEC-05 | Phase 1 | Gaps Found |
 | EVID-01 | Phase 1 | Gaps Found |
