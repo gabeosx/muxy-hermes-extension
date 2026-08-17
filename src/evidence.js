@@ -199,18 +199,40 @@ function summaryForIndex(record, outputDir) {
 
 export async function appendEvidenceIndex({ outputDir, record }) {
   return withIndexLock(outputDir, async () => {
-    const indexPath = join(outputDir, "index.json");
-    let index = { schemaVersion: SCHEMA_VERSION, history: [] };
-    try { index = JSON.parse(await readFile(indexPath, "utf8")); } catch (error) { if (error?.code !== "ENOENT") throw new Error("evidence_index_invalid"); }
+    const index = await readEvidenceIndex(outputDir);
     const history = Array.isArray(index.history) ? index.history.filter((entry) => entry?.runId !== record.runId) : [];
     history.push(summaryForIndex(record, outputDir));
     history.sort((left, right) => `${left.recordedAt}:${left.runId}`.localeCompare(`${right.recordedAt}:${right.runId}`));
-    const next = { schemaVersion: SCHEMA_VERSION, history };
-    const temporaryPath = join(outputDir, `.index-${randomUUID()}.tmp`);
-    await writeFile(temporaryPath, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
-    await rename(temporaryPath, indexPath);
-    return next;
+    return writeEvidenceIndexUnlocked({ outputDir, index: { schemaVersion: SCHEMA_VERSION, history } });
   });
+}
+
+async function readEvidenceIndex(outputDir) {
+  const indexPath = join(outputDir, "index.json");
+  try {
+    return JSON.parse(await readFile(indexPath, "utf8"));
+  } catch (error) {
+    if (error?.code === "ENOENT") return { schemaVersion: SCHEMA_VERSION, history: [] };
+    throw new Error("evidence_index_invalid");
+  }
+}
+
+export async function writeEvidenceIndex({ outputDir, index }) {
+  return withIndexLock(outputDir, () => writeEvidenceIndexUnlocked({ outputDir, index }));
+}
+
+export async function updateEvidenceIndexAtomically({ outputDir, update }) {
+  if (typeof update !== "function") invalid("indexUpdater");
+  return withIndexLock(outputDir, async () => writeEvidenceIndexUnlocked({ outputDir, index: await update() }));
+}
+
+async function writeEvidenceIndexUnlocked({ outputDir, index }) {
+  if (!plainObject(index) || index.schemaVersion !== SCHEMA_VERSION) invalid("index");
+  const indexPath = join(outputDir, "index.json");
+  const temporaryPath = join(outputDir, `.index-${randomUUID()}.tmp`);
+  await writeFile(temporaryPath, `${JSON.stringify(index, null, 2)}\n`, { mode: 0o600 });
+  await rename(temporaryPath, indexPath);
+  return index;
 }
 
 export async function writeEvidencePair({ outputDir, record }) {

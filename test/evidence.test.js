@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { execFile as execFileCallback } from "node:child_process";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import test from "node:test";
 
 import {
@@ -12,6 +14,8 @@ import {
   sanitizeObservation,
   writeEvidencePair,
 } from "../src/evidence.js";
+
+const execFile = promisify(execFileCallback);
 
 const sentinels = [
   "https://gateway-secret.example/v1/chat?token=raw-token",
@@ -122,5 +126,33 @@ test("concurrent writers retain every history entry in the atomic index", async 
     assert.deepEqual(index.history.map((entry) => entry.runId), records.map((record) => record.runId));
   } finally {
     await rm(output, { recursive: true, force: true });
+  }
+});
+
+test("validation CLI writes classifier-backed reports without copying raw errors", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hermes-evidence-cli-"));
+  const output = join(directory, "evidence");
+  const firstInput = join(directory, "first.json");
+  const secondInput = join(directory, "second.json");
+  const invalidInput = join(directory, "invalid.json");
+  try {
+    const incrementalSse = [
+      ...observation().sseFrames,
+      { event: "chat.completion.chunk", id: "2", order: 2, elapsedMs: 500, dataBytes: 52, shape: { choices: [{ delta: { content: "string" } }] } },
+    ];
+    await Promise.all([
+      writeFile(firstInput, JSON.stringify(observation({ sessionOrdinal: 1, sseFrames: incrementalSse }))),
+      writeFile(secondInput, JSON.stringify(observation({ runId: "run-20260817-000000-0002", sessionOrdinal: 2, recordedAt: "2026-08-17T12:00:01.000Z", sseFrames: incrementalSse }))),
+      writeFile(invalidInput, JSON.stringify(observation({ muxyVersion: null, token: sentinels[1] }))),
+    ]);
+    await Promise.all([firstInput, secondInput].map((input) => execFile(process.execPath, ["scripts/run-validation.mjs", "--input", input, "--out", output], { cwd: process.cwd() })));
+    const index = JSON.parse(await readFile(join(output, "index.json"), "utf8"));
+    assert.equal(index.conditions.find((row) => row.id === "host_native_loopback").verdict, "Supported");
+    await assert.rejects(
+      execFile(process.execPath, ["scripts/run-validation.mjs", "--input", invalidInput, "--out", output], { cwd: process.cwd() }),
+      (error) => error.stderr.trim() === "evidence_invalid_muxyVersion" && !error.stderr.includes(sentinels[1]),
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });

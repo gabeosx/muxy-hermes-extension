@@ -1,7 +1,8 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readFile, readdir } from "node:fs/promises";
+import { join, resolve } from "node:path";
 
-import { appendEvidenceIndex, buildEvidenceRecord, createRunId, writeEvidencePair } from "../src/evidence.js";
+import { buildEvidenceRecord, createRunId, updateEvidenceIndexAtomically, writeEvidencePair } from "../src/evidence.js";
+import { updateEvidenceIndex } from "../src/verdict.js";
 
 function argumentsFor(argv) {
   const values = new Map();
@@ -15,13 +16,25 @@ function argumentsFor(argv) {
   return { input: resolve(values.get("--input")), output: resolve(values.get("--out")) };
 }
 
+async function readDurableRecords(output) {
+  const runDirectory = join(output, "runs");
+  let entries = [];
+  try { entries = await readdir(runDirectory, { withFileTypes: true }); } catch (error) { if (error?.code !== "ENOENT") throw error; }
+  const records = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+    try { records.push(JSON.parse(await readFile(join(runDirectory, entry.name, "report.json"), "utf8"))); } catch { throw new Error("evidence_record_invalid"); }
+  }
+  return records;
+}
+
 try {
   const { input, output } = argumentsFor(process.argv.slice(2));
   const observation = JSON.parse(await readFile(input, "utf8"));
   if (!observation.runId) observation.runId = createRunId();
   const record = buildEvidenceRecord(observation);
   await writeEvidencePair({ outputDir: output, record });
-  await appendEvidenceIndex({ outputDir: output, record });
+  await updateEvidenceIndexAtomically({ outputDir: output, update: async () => updateEvidenceIndex({ records: await readDurableRecords(output) }) });
   process.stdout.write(`${record.runId}\n`);
 } catch (error) {
   const message = typeof error?.message === "string" && /^evidence_|^validation_/.test(error.message)
