@@ -31,7 +31,7 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
   4. User can inspect versioned evidence for the direct-WebKit negative result and relay behavior across the deployment matrix; only a real path may establish `Supported`, and simulated remote conditions remain `Unverified`.
   5. The extension requests only `commands:exec`, journal file read/write, and panel authority; it never performs Docker, SSH, Gateway lifecycle, terminal, Git, Muxy-source, Hermes-source, or provider-registration changes.
 
-**Plans:** 7/15 plans executed
+**Plans:** 8/15 plans executed
 
 Plans:
 
@@ -59,7 +59,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 01-08-PLAN.md — Reconcile authoritative contracts to the curl relay and emit safe verifier-bound receipts.
+- [x] 01-08-PLAN.md — Reconcile authoritative contracts to the curl relay and emit safe verifier-bound receipts.
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
@@ -124,6 +124,6 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Verified Gateway Connectivity | 7/15 | In Progress|  |
+| 1. Verified Gateway Connectivity | 8/15 | In Progress|  |
 | 2. Capability-Driven Run Control | 0/TBD | Not started | - |
 | 3. Open-Panel Recovery Proof | 0/TBD | Not started | - |
