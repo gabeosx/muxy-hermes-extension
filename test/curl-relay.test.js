@@ -152,6 +152,13 @@ test("stale cleanup treats a missing root as empty and refuses unexpected entrie
   });
   assert.deepEqual(await missing.cleanupStaleJournals(), { cleaned: 0 });
 
+  const muxyMissing = new CurlRelay({
+    exec: async () => ({}),
+    files: { async list() { throw new Error("“.muxy-hermes-runtime” no longer exists"); } },
+    events: null,
+  });
+  assert.deepEqual(await muxyMissing.cleanupStaleJournals(), { cleaned: 0 });
+
   let deleted = false;
   const unsafe = new CurlRelay({
     exec: async () => ({}),
