@@ -35,3 +35,21 @@ services:
       - ${HERMES_SIM_HOME:-/private/tmp/muxy-hermes-simulation-home}:/opt/data
     ports:
       - "127.0.0.1:${HERMES_SIM_PORT:-18642}:8642"
+
+  tls-proxy:
+    image: *hermes-image
+    depends_on:
+      gateway:
+        condition: service_started
+    entrypoint: ["python3", "/fixture/tls-reverse-proxy.py"]
+    environment:
+      TLS_PROXY_MODE: ${TLS_PROXY_MODE:-unbuffered}
+      TLS_PROXY_ORIGIN: ${TLS_PROXY_ORIGIN:-https://muxy.fixture.invalid}
+      TLS_PROXY_CERT: /certs/server-cert.pem
+      TLS_PROXY_KEY: /certs/server-key.pem
+      TLS_PROXY_UPSTREAM: http://gateway:8642
+    volumes:
+      - ./tls-reverse-proxy.py:/fixture/tls-reverse-proxy.py:ro
+      - ${HERMES_SIM_TLS_DIR:-/private/tmp/muxy-hermes-simulation-tls}:/certs:ro
+    ports:
+      - "127.0.0.1:${HERMES_TLS_PORT:-18643}:9443"

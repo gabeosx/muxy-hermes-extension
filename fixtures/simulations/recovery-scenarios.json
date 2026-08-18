@@ -9,7 +9,7 @@
       "id": "ssh_local_forward",
       "observedBehavior": "local_interruption_restoration_analogue",
       "forced_unverified": true,
-      "expectedSignatures": ["observer_interrupted", "observer_restored"],
+      "expectedSignatures": ["refused_or_unreachable", "observer_interrupted", "observer_restored"],
       "fixture": "common_run_client_controller"
     },
     {

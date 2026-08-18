@@ -6,17 +6,158 @@
     "hermesVersion": "0.20.2",
     "hermesRevisionOrDigest": "sha256:f8f548d87d16634d1ad9e3777280f3f577ba2358703f04e18e74007ffd3621bf"
   },
-  "capability": { "names": ["run_events_sse", "run_status", "run_submission"], "shapeHash": "sha256:3fd120d4777302f481c4e0f4c9cc1d6054c18fed4f76ce6ad01aac9bc6227200" },
+  "capability": {
+    "names": [
+      "run_events_sse",
+      "run_status",
+      "run_submission"
+    ],
+    "shapeHash": "sha256:3fd120d4777302f481c4e0f4c9cc1d6054c18fed4f76ce6ad01aac9bc6227200"
+  },
   "representativeEvents": [
-    { "name": "message.delta", "dataBytes": 5, "shapeHash": "sha256:3fd120d4777302f481c4e0f4c9cc1d6054c18fed4f76ce6ad01aac9bc6227200" },
-    { "name": "terminal", "dataBytes": 4, "shapeHash": "sha256:3fd120d4777302f481c4e0f4c9cc1d6054c18fed4f76ce6ad01aac9bc6227200" }
+    {
+      "name": "message.delta",
+      "dataBytes": 5,
+      "shapeHash": "sha256:3fd120d4777302f481c4e0f4c9cc1d6054c18fed4f76ce6ad01aac9bc6227200"
+    },
+    {
+      "name": "terminal",
+      "dataBytes": 4,
+      "shapeHash": "sha256:3fd120d4777302f481c4e0f4c9cc1d6054c18fed4f76ce6ad01aac9bc6227200"
+    }
   ],
-  "controlStatus": { "controlOutcome": "not_exercised", "statusOutcome": "terminal" },
+  "controlStatus": {
+    "controlOutcome": "not_exercised",
+    "statusOutcome": "terminal"
+  },
   "conditions": [
-    { "id": "host_native_loopback", "scenario": "receipt_pending", "observedBehavior": "not_observed", "requestOutcome": "not_run", "observerAttempts": 0, "statusOutcome": "not_run", "reattached": false, "panelLifecycle": "not_run", "eventHistoryConfidence": "unavailable", "approvalDetailConfidence": "unavailable", "cleanup": "not_run", "actual": false, "pinnedRuntime": false, "nativePanel": false, "verdict": "Unverified", "signatures": ["panel_recreated"], "provenance": { "proofSource": "simulation_receipt", "bundleDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111" } },
-    { "id": "docker_published_loopback", "scenario": "receipt_pending", "observedBehavior": "not_observed", "requestOutcome": "not_run", "observerAttempts": 0, "statusOutcome": "not_run", "reattached": false, "panelLifecycle": "not_run", "eventHistoryConfidence": "unavailable", "approvalDetailConfidence": "unavailable", "cleanup": "not_run", "actual": false, "pinnedRuntime": false, "nativePanel": false, "verdict": "Unverified", "signatures": ["observer_interrupted", "observer_restored", "buffered_or_delayed"], "provenance": { "proofSource": "simulation_receipt", "bundleDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222" } },
-    { "id": "ssh_local_forward", "scenario": "local_behavior_simulation", "observedBehavior": "not_observed", "requestOutcome": "not_run", "observerAttempts": 0, "statusOutcome": "not_run", "reattached": false, "panelLifecycle": "not_run", "eventHistoryConfidence": "unavailable", "approvalDetailConfidence": "unavailable", "cleanup": "not_run", "actual": false, "pinnedRuntime": false, "nativePanel": false, "verdict": "Unverified", "signatures": ["refused_or_unreachable"], "provenance": { "proofSource": "simulation_receipt", "bundleDigest": "sha256:3333333333333333333333333333333333333333333333333333333333333333" } },
-    { "id": "direct_remote_https", "scenario": "local_behavior_simulation", "observedBehavior": "not_observed", "requestOutcome": "not_run", "observerAttempts": 0, "statusOutcome": "not_run", "reattached": false, "panelLifecycle": "not_run", "eventHistoryConfidence": "unavailable", "approvalDetailConfidence": "unavailable", "cleanup": "not_run", "actual": false, "pinnedRuntime": false, "nativePanel": false, "verdict": "Unverified", "signatures": ["certificate_validated", "authentication", "exact_origin_cors", "unbuffered_delivery"], "provenance": { "proofSource": "simulation_receipt", "bundleDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444" } },
-    { "id": "remote_muxy_workspace", "scenario": "local_behavior_simulation", "observedBehavior": "not_observed", "requestOutcome": "not_run", "observerAttempts": 0, "statusOutcome": "not_run", "reattached": false, "panelLifecycle": "not_run", "eventHistoryConfidence": "unavailable", "approvalDetailConfidence": "unavailable", "cleanup": "not_run", "actual": false, "pinnedRuntime": false, "nativePanel": false, "verdict": "Unverified", "signatures": ["workspace_path_absent"], "provenance": { "proofSource": "simulation_receipt", "bundleDigest": "sha256:5555555555555555555555555555555555555555555555555555555555555555" } }
+    {
+      "id": "host_native_loopback",
+      "scenario": "receipt_pending",
+      "observedBehavior": "not_observed",
+      "requestOutcome": "not_run",
+      "observerAttempts": 0,
+      "statusOutcome": "not_run",
+      "reattached": false,
+      "panelLifecycle": "not_run",
+      "eventHistoryConfidence": "unavailable",
+      "approvalDetailConfidence": "unavailable",
+      "cleanup": "not_run",
+      "actual": false,
+      "pinnedRuntime": false,
+      "nativePanel": false,
+      "verdict": "Unverified",
+      "signatures": [
+        "panel_recreated"
+      ],
+      "provenance": {
+        "proofSource": "simulation_receipt",
+        "bundleDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "id": "docker_published_loopback",
+      "scenario": "receipt_pending",
+      "observedBehavior": "not_observed",
+      "requestOutcome": "not_run",
+      "observerAttempts": 0,
+      "statusOutcome": "not_run",
+      "reattached": false,
+      "panelLifecycle": "not_run",
+      "eventHistoryConfidence": "unavailable",
+      "approvalDetailConfidence": "unavailable",
+      "cleanup": "not_run",
+      "actual": false,
+      "pinnedRuntime": false,
+      "nativePanel": false,
+      "verdict": "Unverified",
+      "signatures": [
+        "buffered_or_delayed",
+        "observer_interrupted",
+        "observer_restored"
+      ],
+      "provenance": {
+        "proofSource": "simulation_receipt",
+        "bundleDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "id": "ssh_local_forward",
+      "scenario": "local_behavior_simulation",
+      "observedBehavior": "interrupted_status_reconciled",
+      "requestOutcome": "refused",
+      "observerAttempts": 1,
+      "statusOutcome": "terminal",
+      "reattached": true,
+      "panelLifecycle": "open",
+      "eventHistoryConfidence": "incomplete",
+      "approvalDetailConfidence": "unavailable",
+      "cleanup": "scrubbed_removed",
+      "actual": false,
+      "pinnedRuntime": false,
+      "nativePanel": false,
+      "verdict": "Unverified",
+      "signatures": [
+        "observer_interrupted",
+        "observer_restored",
+        "refused_or_unreachable"
+      ],
+      "provenance": {
+        "proofSource": "simulation_receipt",
+        "bundleDigest": "sha256:5b1c2c1c6ce50672d5c973313bea45fa27deb6105cff767c317d359b27496de2"
+      }
+    },
+    {
+      "id": "direct_remote_https",
+      "scenario": "local_behavior_simulation",
+      "observedBehavior": "interrupted_status_reconciled",
+      "requestOutcome": "interrupted",
+      "observerAttempts": 1,
+      "statusOutcome": "terminal",
+      "reattached": false,
+      "panelLifecycle": "open",
+      "eventHistoryConfidence": "incomplete",
+      "approvalDetailConfidence": "unavailable",
+      "cleanup": "scrubbed_removed",
+      "actual": false,
+      "pinnedRuntime": false,
+      "nativePanel": false,
+      "verdict": "Unverified",
+      "signatures": [
+        "authentication",
+        "buffered_or_delayed",
+        "certificate_validated",
+        "exact_origin_cors",
+        "unbuffered_delivery"
+      ],
+      "provenance": {
+        "proofSource": "simulation_receipt",
+        "bundleDigest": "sha256:c2460c8ab53235723ee7d8d025417b6e02539c590607175ba1eb0f26d19ba4c0"
+      }
+    },
+    {
+      "id": "remote_muxy_workspace",
+      "scenario": "local_behavior_simulation",
+      "observedBehavior": "interrupted_status_reconciled",
+      "requestOutcome": "interrupted",
+      "observerAttempts": 1,
+      "statusOutcome": "terminal",
+      "reattached": false,
+      "panelLifecycle": "open",
+      "eventHistoryConfidence": "incomplete",
+      "approvalDetailConfidence": "unavailable",
+      "cleanup": "scrubbed_removed",
+      "actual": false,
+      "pinnedRuntime": false,
+      "nativePanel": false,
+      "verdict": "Unverified",
+      "signatures": [
+        "workspace_path_absent"
+      ],
+      "provenance": {
+        "proofSource": "simulation_receipt",
+        "bundleDigest": "sha256:0c78af32fbec3446d6e89ed3a165aad38466417fd6b97a14f67e76291b864e3a"
+      }
+    }
   ]
 }

@@ -1,7 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
+import { spawn } from "node:child_process";
 import { createServer, request as requestHttp } from "node:http";
 import { request as requestHttps } from "node:https";
-import { readFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { buildEvidenceRecord } from "../src/evidence.js";
@@ -38,7 +41,7 @@ function waitFor(predicate, timeoutMs = 3_000) {
   });
 }
 
-function requestOptions(url, bearer, method, body, ca) {
+function requestOptions(url, bearer, method, body, ca, extraHeaders = {}) {
   const parsed = new URL(url);
   const payload = body === null ? null : Buffer.from(JSON.stringify(body));
   const headers = {
@@ -48,6 +51,10 @@ function requestOptions(url, bearer, method, body, ca) {
   if (payload) {
     headers["Content-Type"] = "application/json";
     headers["Content-Length"] = String(payload.length);
+  }
+  for (const [name, value] of Object.entries(extraHeaders)) {
+    if (typeof name !== "string" || !/^[A-Za-z-]{1,64}$/.test(name) || typeof value !== "string" || value.length > 512) throw new Error("simulation_headers_invalid");
+    headers[name] = value;
   }
   return {
     client: parsed.protocol === "https:" ? requestHttps : requestHttp,
@@ -67,7 +74,7 @@ function requestOptions(url, bearer, method, body, ca) {
 }
 
 /** Test-only Node relay for the existing RunClient contract. It records structure, never request values. */
-export function createSimulationRelay({ ca, capture = [] } = {}) {
+export function createSimulationRelay({ ca, capture = [], onStreamChunk } = {}) {
   let activeRequest = null;
   const record = ({ method, route, headers, body }) => {
     capture.push(Object.freeze({
@@ -77,9 +84,9 @@ export function createSimulationRelay({ ca, capture = [] } = {}) {
       bodyBytes: body?.length ?? 0,
     }));
   };
-  const dispatch = ({ url, bearer, method = "GET", body = null, onChunk, stream = false }) => new Promise((resolve, reject) => {
+  const dispatch = ({ url, bearer, method = "GET", body = null, headers = {}, onChunk, stream = false }) => new Promise((resolve, reject) => {
     let configuration;
-    try { configuration = requestOptions(url, bearer, method, body, ca); } catch { reject(new Error("simulation_request_invalid")); return; }
+    try { configuration = requestOptions(url, bearer, method, body, ca, headers); } catch { reject(new Error("simulation_request_invalid")); return; }
     record({ method, route: configuration.route, headers: configuration.options.headers, body: configuration.payload });
     const request = configuration.client(configuration.options, (response) => {
       const chunks = [];
@@ -87,17 +94,20 @@ export function createSimulationRelay({ ca, capture = [] } = {}) {
       response.on("data", (chunk) => {
         bytes += chunk.length;
         if (bytes > 256 * 1024) { request.destroy(new Error("simulation_response_too_large")); return; }
-        if (stream) onChunk(chunk.toString("utf8"));
+        if (stream) {
+          onStreamChunk?.({ route: configuration.route, bytes: chunk.length });
+          onChunk(chunk.toString("utf8"));
+        }
         else chunks.push(chunk);
       });
       response.once("error", () => reject(new Error("simulation_response_failed")));
       response.once("end", () => {
         activeRequest = null;
-        if (stream) resolve(Object.freeze({ httpStatus: response.statusCode ?? 0, bytes }));
+        if (stream) resolve(Object.freeze({ httpStatus: response.statusCode ?? 0, bytes, headers: Object.freeze({ ...response.headers }) }));
         else {
           let parsed = null;
           try { parsed = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : null; } catch { reject(new Error("simulation_json_invalid")); return; }
-          resolve(Object.freeze({ status: response.statusCode ?? 0, body: parsed }));
+          resolve(Object.freeze({ status: response.statusCode ?? 0, body: parsed, headers: Object.freeze({ ...response.headers }) }));
         }
       });
     });
@@ -181,8 +191,182 @@ function simulationBundle({ condition, signatures, observerAttempts, statusClass
   };
 }
 
+function unusedLoopbackPort() {
+  return new Promise((resolvePort, reject) => {
+    const listener = createServer();
+    listener.once("error", reject);
+    listener.listen(0, "127.0.0.1", () => {
+      const port = listener.address().port;
+      listener.close((error) => error ? reject(error) : resolvePort(port));
+    });
+  });
+}
+
+function runSilent(command, args, environment = process.env) {
+  return new Promise((resolveResult, reject) => {
+    const child = spawn(command, args, { env: environment, stdio: ["ignore", "ignore", "ignore"] });
+    child.once("error", reject);
+    child.once("exit", (exitCode, signal) => resolveResult(Object.freeze({ exitCode, signal })));
+  });
+}
+
+async function ensurePortFree(port) {
+  const server = createServer();
+  try {
+    await new Promise((resolveListen, reject) => {
+      server.once("error", reject);
+      server.listen(port, "127.0.0.1", resolveListen);
+    });
+  } finally {
+    await new Promise((resolveClose) => server.close(resolveClose));
+  }
+}
+
+async function createTlsResources() {
+  const root = await mkdtemp(join(tmpdir(), "muxy-hermes-tls-simulation-"));
+  await chmod(root, 0o700);
+  const certificateRoot = join(root, "certificates");
+  const [gatewayPort, proxyPort] = await Promise.all([unusedLoopbackPort(), unusedLoopbackPort()]);
+  if (gatewayPort === proxyPort) throw new Error("simulation_ports_not_unique");
+  const token = randomBytes(24).toString("base64url");
+  const suffix = randomBytes(10).toString("hex");
+  return Object.freeze({
+    root,
+    certificateRoot,
+    gatewayPort,
+    proxyPort,
+    token,
+    projectName: `muxy-hermes-tls-${suffix}`,
+    resourceDigest: digest({ suffix, gatewayPort, proxyPort }),
+  });
+}
+
+async function createTlsCertificates(resources) {
+  await mkdir(resources.certificateRoot, { mode: 0o700 });
+  await writeFile(join(resources.root, "openssl.cnf"), "[v3_req]\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n", { mode: 0o600 });
+  const commands = [
+    ["openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", join(resources.certificateRoot, "ca-key.pem"), "-out", join(resources.certificateRoot, "ca-cert.pem"), "-subj", "/CN=muxy-hermes-simulation-ca", "-days", "1"]],
+    ["openssl", ["req", "-newkey", "rsa:2048", "-nodes", "-keyout", join(resources.certificateRoot, "server-key.pem"), "-out", join(resources.certificateRoot, "server.csr"), "-subj", "/CN=localhost"]],
+    ["openssl", ["x509", "-req", "-in", join(resources.certificateRoot, "server.csr"), "-CA", join(resources.certificateRoot, "ca-cert.pem"), "-CAkey", join(resources.certificateRoot, "ca-key.pem"), "-CAcreateserial", "-out", join(resources.certificateRoot, "server-cert.pem"), "-days", "1", "-extfile", join(resources.root, "openssl.cnf"), "-extensions", "v3_req"]],
+  ];
+  for (const [command, args] of commands) {
+    const result = await runSilent(command, args);
+    if (result.exitCode !== 0 || result.signal) throw new Error("simulation_certificate_generation_failed");
+  }
+  return readFile(join(resources.certificateRoot, "ca-cert.pem"), "utf8");
+}
+
+async function waitForHttpsRelay({ relay, baseUrl }) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    try {
+      const response = await relay.requestJson({ url: `${baseUrl}/v1/capabilities`, bearer: "readiness-check" });
+      if (response.status === 401 || response.status === 200) return;
+    } catch { /* the TLS proxy is still starting */ }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+  }
+  throw new Error("simulation_https_proxy_timeout");
+}
+
+async function executeTlsStream({ baseUrl, bearer, ca }) {
+  let firstChunkAt = null;
+  const relay = createSimulationRelay({ ca, onStreamChunk: () => { firstChunkAt ??= Date.now(); } });
+  const client = new RunClient({ relay });
+  const startedAt = Date.now();
+  const started = await client.start({ baseUrl, bearer, input: "HERMES_STREAM_QUALIFICATION_V1", onEvent: () => {} });
+  await waitFor(() => firstChunkAt !== null, 12_000);
+  await client.teardown();
+  await started.stream.catch(() => {});
+  return Object.freeze({ firstChunkMs: firstChunkAt - startedAt, runId: started.runId });
+}
+
+/**
+ * Runs normal TLS validation against a task-owned Docker proxy. The proxy container receives
+ * only fixed Gateway routes and the per-run certificate mount; no production source imports it.
+ */
+export async function runHttpsProxySimulation({ projectRoot, evidencePath, versions } = {}) {
+  const configurations = await loadRecoveryScenarioConfigurations();
+  const configuration = configurations.find((item) => item.id === "direct_remote_https");
+  if (!configuration || configuration.fixture !== "isolated_docker_tls_proxy") invalid();
+  const resources = await createTlsResources();
+  const composeFile = new URL("../fixtures/simulations/docker-compose.yml", import.meta.url).pathname;
+  const baseUrl = `https://127.0.0.1:${resources.proxyPort}`;
+  const origin = "https://muxy.fixture.invalid";
+  const environment = {
+    ...process.env,
+    HERMES_SIM_PORT: String(resources.gatewayPort),
+    HERMES_TLS_PORT: String(resources.proxyPort),
+    HERMES_SIM_HOME: join(resources.root, "gateway-home"),
+    HERMES_SIM_TLS_DIR: resources.certificateRoot,
+    HERMES_SIM_TOKEN: resources.token,
+    TLS_PROXY_ORIGIN: origin,
+    TLS_PROXY_MODE: "unbuffered",
+  };
+  let composeStarted = false;
+  let cleanup = "not_run";
+  let result = null;
+  try {
+    const ca = await createTlsCertificates(resources);
+    const start = await runSilent("docker", ["compose", "-p", resources.projectName, "-f", composeFile, "up", "--detach", "--wait"], environment);
+    if (start.exitCode !== 0 || start.signal) throw new Error("simulation_compose_start_failed");
+    composeStarted = true;
+    const trusted = createSimulationRelay({ ca });
+    await waitForHttpsRelay({ relay: trusted, baseUrl });
+
+    let certificateRefused = false;
+    try { await createSimulationRelay().requestJson({ url: `${baseUrl}/v1/capabilities`, bearer: resources.token }); } catch { certificateRefused = true; }
+    if (!certificateRefused) throw new Error("simulation_certificate_refusal_missing");
+    const verified = await trusted.requestJson({ url: `${baseUrl}/v1/capabilities`, bearer: resources.token });
+    const rejected = await trusted.requestJson({ url: `${baseUrl}/v1/capabilities`, bearer: "wrong-bearer" });
+    const allowed = await trusted.requestJson({ url: `${baseUrl}/v1/capabilities`, bearer: resources.token, method: "OPTIONS", headers: { Origin: origin } });
+    const denied = await trusted.requestJson({ url: `${baseUrl}/v1/capabilities`, bearer: resources.token, method: "OPTIONS", headers: { Origin: "https://not-the-fixture.invalid" } });
+    if (verified.status !== 200 || rejected.status !== 401 || allowed.headers["access-control-allow-origin"] !== origin || denied.headers["access-control-allow-origin"]) throw new Error("simulation_https_contract_failed");
+
+    // Warm the pinned Gateway before timing both proxy modes; cold model startup is not buffering.
+    await executeTlsStream({ baseUrl, bearer: resources.token, ca });
+    const unbuffered = await executeTlsStream({ baseUrl, bearer: resources.token, ca });
+    environment.TLS_PROXY_MODE = "buffered";
+    const recreate = await runSilent("docker", ["compose", "-p", resources.projectName, "-f", composeFile, "up", "--detach", "--force-recreate", "tls-proxy"], environment);
+    if (recreate.exitCode !== 0 || recreate.signal) throw new Error("simulation_proxy_recreate_failed");
+    await waitForHttpsRelay({ relay: trusted, baseUrl });
+    const buffered = await executeTlsStream({ baseUrl, bearer: resources.token, ca });
+    if (buffered.firstChunkMs < unbuffered.firstChunkMs + 220) throw new Error("simulation_buffering_contract_failed");
+
+    const signatures = configuration.signatures;
+    result = Object.freeze({
+      certificateRefused,
+      certificateValidated: true,
+      authenticationRejected: true,
+      authenticationAccepted: true,
+      exactOriginCors: true,
+      unbufferedFirstChunk: true,
+      bufferedComparison: true,
+      resourceDigest: resources.resourceDigest,
+      resourcesDisjoint: true,
+      verdict: "Unverified",
+    });
+  } finally {
+    let composeRemoved = !composeStarted;
+    try {
+      if (composeStarted) {
+        const stopped = await runSilent("docker", ["compose", "-p", resources.projectName, "-f", composeFile, "down", "--remove-orphans"], environment);
+        composeRemoved = stopped.exitCode === 0 && !stopped.signal;
+      }
+      await Promise.all([ensurePortFree(resources.gatewayPort), ensurePortFree(resources.proxyPort)]);
+      await rm(resources.root, { recursive: true, force: true });
+      cleanup = composeRemoved ? "scrubbed_removed" : "not_run";
+    } catch { cleanup = "not_run"; }
+    if (cleanup === "scrubbed_removed" && typeof projectRoot === "string" && typeof evidencePath === "string") {
+      const bundle = simulationBundle({ condition: "direct_remote_https", signatures: configuration.signatures, observerAttempts: 1 });
+      await projectRecoveryObservation({ root: projectRoot, inputPath: evidencePath, outputPath: evidencePath, bundle });
+    }
+  }
+  if (cleanup !== "scrubbed_removed" || !result) throw new Error("simulation_cleanup_unproved");
+  return Object.freeze({ ...result, cleanup });
+}
+
 function signaturesFor(scenarioId) {
-  if (scenarioId === "ssh_local_forward") return ["observer_interrupted", "observer_restored"];
+  if (scenarioId === "ssh_local_forward") return ["refused_or_unreachable", "observer_interrupted", "observer_restored"];
   if (scenarioId === "remote_muxy_workspace") return ["workspace_path_absent"];
   if (scenarioId === "direct_remote_https") return ["certificate_validated", "authentication", "exact_origin_cors", "unbuffered_delivery", "buffered_or_delayed"];
   invalid();
@@ -204,6 +388,11 @@ export async function runRecoverySimulation({ scenarioId, projectRoot, evidenceP
   void attemptedActual; void attemptedNativePanel; void attemptedVerdict;
   const bearer = randomBytes(24).toString("base64url");
   const capture = [];
+  let refusalExercised = scenarioId !== "ssh_local_forward";
+  if (scenarioId === "ssh_local_forward") {
+    const refusedPort = await unusedLoopbackPort();
+    try { await createSimulationRelay().requestJson({ url: `http://127.0.0.1:${refusedPort}/v1/capabilities`, bearer }); } catch { refusalExercised = true; }
+  }
   const gateway = await startScriptedGateway({ bearer });
   let cleanup = "not_run";
   try {
@@ -221,7 +410,7 @@ export async function runRecoverySimulation({ scenarioId, projectRoot, evidenceP
     const observations = gateway.observations();
     const allCapture = JSON.stringify({ capture, requests: gateway.requests });
     const workspacePathTransmitted = typeof workspaceContext === "string" && workspaceContext.length > 0 && allCapture.includes(workspaceContext);
-    if (workspacePathTransmitted || observations.eventSubscriptions < 2) throw new Error("simulation_contract_invalid");
+    if (workspacePathTransmitted || !refusalExercised || observations.eventSubscriptions < 2) throw new Error("simulation_contract_invalid");
     const observerIndexes = capture.flatMap((entry, index) => entry.route.endsWith("/events") ? [index] : []);
     const secondObserverIndex = observerIndexes[1] ?? -1;
     const statusIndex = capture.findIndex((entry) => entry.route === "/v1/runs/run_simulation_01");
@@ -271,7 +460,7 @@ export async function loadRecoveryScenarioConfigurations() {
   try { document = JSON.parse(await readFile(RECOVERY_SCENARIO_FILE, "utf8")); } catch { invalid(); }
   if (document?.schemaVersion !== 1 || !Array.isArray(document.conditions) || document.conditions.length !== 7) invalid();
   const expected = new Map([
-    ["ssh_local_forward", { fixture: "common_run_client_controller", signatures: ["observer_interrupted", "observer_restored"] }],
+    ["ssh_local_forward", { fixture: "common_run_client_controller", signatures: ["observer_interrupted", "observer_restored", "refused_or_unreachable"] }],
     ["direct_remote_https", { fixture: "isolated_docker_tls_proxy", signatures: ["authentication", "buffered_or_delayed", "certificate_validated", "exact_origin_cors", "unbuffered_delivery"] }],
     ["remote_muxy_workspace", { fixture: "common_run_client_controller", signatures: ["workspace_path_absent"] }],
   ]);

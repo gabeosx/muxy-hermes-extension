@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -62,22 +62,27 @@ test("Compose publishes only loopback and pins the resolved latest Hermes image 
   const compose = await readFile(new URL("../fixtures/simulations/docker-compose.yml", import.meta.url), "utf8");
   assert.match(compose, /nousresearch\/hermes-agent:v2026\.8\.16@sha256:f8f548d87d16634d1ad9e3777280f3f577ba2358703f04e18e74007ffd3621bf/);
   assert.match(compose, /127\.0\.0\.1:\$\{HERMES_SIM_PORT/);
+  assert.match(compose, /tls-proxy:/);
+  assert.match(compose, /127\.0\.0\.1:\$\{HERMES_TLS_PORT/);
   assert.doesNotMatch(compose, /network_mode:\s*host|privileged:\s*true|--insecure|-k\b|0\.0\.0\.0:\$\{HERMES_SIM_PORT/);
+  const proxy = await readFile(new URL("../fixtures/simulations/tls-reverse-proxy.py", import.meta.url), "utf8");
+  assert.doesNotMatch(proxy, /insecure|verify.?false|rejectUnauthorized/i);
 });
 
 async function simulationEvidenceCopy() {
   const root = await mkdtemp(join(tmpdir(), "muxy-simulation-evidence-"));
   const evidencePath = join(root, "recovery-v1.json");
   await writeFile(evidencePath, await readFile(new URL("../public/evidence/recovery-v1.json", import.meta.url), "utf8"));
-  return { root, evidencePath };
+  return { root, evidencePath, cleanup: () => rm(root, { recursive: true, force: true }) };
 }
 
-test("SSH-forward analogue executes an interruption and restored observer through the common controller", async () => {
-  const { root, evidencePath } = await simulationEvidenceCopy();
+test("SSH-forward analogue executes an interruption and restored observer through the common controller", async (t) => {
+  const { root, evidencePath, cleanup } = await simulationEvidenceCopy();
+  t.after(cleanup);
   const result = await runRecoverySimulation({
     scenarioId: "ssh_local_forward", projectRoot: root, evidencePath, versions,
   });
-  assert.deepEqual(result.safeSignatures, ["observer_interrupted", "observer_restored"]);
+  assert.deepEqual(result.safeSignatures, ["observer_interrupted", "observer_restored", "refused_or_unreachable"]);
   assert.equal(result.reattached, true);
   assert.equal(result.statusOutcome, "terminal");
   assert.equal(result.verdict, "Unverified");
@@ -92,8 +97,9 @@ test("SSH-forward analogue executes an interruption and restored observer throug
   assert.equal(Object.hasOwn(row.provenance, "panelDigest"), false);
 });
 
-test("remote-workspace analogue keeps its sentinel out of common-client traffic and durable projection", async () => {
-  const { root, evidencePath } = await simulationEvidenceCopy();
+test("remote-workspace analogue keeps its sentinel out of common-client traffic and durable projection", async (t) => {
+  const { root, evidencePath, cleanup } = await simulationEvidenceCopy();
+  t.after(cleanup);
   const sentinel = "/workspace/never-send-9d162f7d4b0c";
   const result = await runRecoverySimulation({
     scenarioId: "remote_muxy_workspace", projectRoot: root, evidencePath, versions, workspaceContext: sentinel,
@@ -106,8 +112,9 @@ test("remote-workspace analogue keeps its sentinel out of common-client traffic 
   assert.equal(JSON.stringify(result).includes(sentinel), false);
 });
 
-test("simulation rows remain forced Unverified even when a caller requests a positive/native result", async () => {
-  const { root, evidencePath } = await simulationEvidenceCopy();
+test("simulation rows remain forced Unverified even when a caller requests a positive/native result", async (t) => {
+  const { root, evidencePath, cleanup } = await simulationEvidenceCopy();
+  t.after(cleanup);
   const result = await runRecoverySimulation({
     scenarioId: "ssh_local_forward", projectRoot: root, evidencePath, versions,
     attemptedActual: true, attemptedNativePanel: true, attemptedVerdict: "Observed",
@@ -117,8 +124,9 @@ test("simulation rows remain forced Unverified even when a caller requests a pos
   assert.deepEqual([row.actual, row.nativePanel, row.verdict], [false, false, "Unverified"]);
 });
 
-test("HTTPS reverse-proxy simulation validates its CA, exact CORS, authentication, and buffering without a TLS bypass", async () => {
-  const { root, evidencePath } = await simulationEvidenceCopy();
+test("HTTPS reverse-proxy simulation validates its CA, exact CORS, authentication, and buffering without a TLS bypass", async (t) => {
+  const { root, evidencePath, cleanup } = await simulationEvidenceCopy();
+  t.after(cleanup);
   const result = await runHttpsProxySimulation({ projectRoot: root, evidencePath, versions });
   assert.equal(result.certificateRefused, true);
   assert.equal(result.certificateValidated, true);
