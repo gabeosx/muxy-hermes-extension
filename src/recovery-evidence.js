@@ -93,7 +93,9 @@ export function sanitizeRecoveryEvidence(value, { requireComplete = false } = {}
       if (!row.actual || row.verdict !== "Observed" || !row.nativePanel || row.cleanup !== "scrubbed_removed") invalid();
     }
     const host = conditions[0];
-    if (!host.pinnedRuntime || host.statusOutcome !== "terminal") invalid();
+    if (!host.pinnedRuntime || host.requestOutcome !== "authenticated" || host.observerAttempts < 1 || host.statusOutcome !== "terminal" || host.panelLifecycle !== "recreated") invalid();
+    const docker = conditions[1];
+    if (docker.requestOutcome !== "interrupted" || docker.observerAttempts < 2 || !docker.reattached || docker.statusOutcome !== "terminal") invalid();
   }
   return Object.freeze({
     schemaVersion: 1,

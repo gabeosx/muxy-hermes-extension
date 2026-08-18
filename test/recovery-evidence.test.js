@@ -18,11 +18,11 @@ function fixture(overrides = {}) {
     id,
     scenario: index < 2 ? "native_fixture" : "local_behavior_simulation",
     observedBehavior: index === 0 ? "capabilities_and_stream" : index === 1 ? "interrupted_then_reconciled" : "not_observed",
-    requestOutcome: index < 2 ? "authenticated" : "not_run",
+    requestOutcome: index === 0 ? "authenticated" : index === 1 ? "interrupted" : "not_run",
     observerAttempts: index === 1 ? 3 : index === 0 ? 1 : 0,
     statusOutcome: index < 2 ? "terminal" : "not_run",
     reattached: index === 1,
-    panelLifecycle: index === 1 ? "recreated" : "open",
+    panelLifecycle: index === 0 ? "recreated" : "open",
     eventHistoryConfidence: "incomplete",
     approvalDetailConfidence: "unavailable",
     cleanup: index < 2 ? "scrubbed_removed" : "not_run",
@@ -54,6 +54,20 @@ test("recovery evidence allows only safe structural metadata and exactly five ca
   assert.throws(() => sanitizeRecoveryEvidence({ ...fixture(), bearer: "nope" }), /recovery_evidence_invalid/);
   assert.throws(() => sanitizeRecoveryEvidence({ ...fixture(), conditions: fixture().conditions.slice(0, 4) }), /recovery_evidence_invalid/);
   assert.throws(() => sanitizeRecoveryEvidence({ ...fixture(), representativeEvents: [{ name: "message.delta", dataBytes: 5, shapeHash: digest("e"), text: "raw event" }] }), /recovery_evidence_invalid/);
+  const invalidCompleteRows = [
+    (value) => { value.conditions[0].requestOutcome = "not_run"; },
+    (value) => { value.conditions[0].observerAttempts = 0; },
+    (value) => { value.conditions[0].panelLifecycle = "open"; },
+    (value) => { value.conditions[1].requestOutcome = "not_run"; },
+    (value) => { value.conditions[1].observerAttempts = 1; value.conditions[1].reattached = false; },
+    (value) => { value.conditions[1].reattached = false; },
+    (value) => { value.conditions[1].statusOutcome = "not_run"; },
+  ];
+  for (const mutate of invalidCompleteRows) {
+    const value = structuredClone(fixture());
+    mutate(value);
+    assert.throws(() => sanitizeRecoveryEvidence(value, { requireComplete: true }), /recovery_evidence_invalid/);
+  }
 });
 
 test("remote analogues are always Unverified and renderer retains no-lossless-replay wording", () => {

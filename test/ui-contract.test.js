@@ -157,6 +157,7 @@ test("the panel requires fresh credentials and a manual run ID for truthful reco
     "Attempting to resume live updates",
     "Live events may be missing or duplicated",
     "Previous live activity and approval detail were not recovered.",
+    "Enter a valid Run ID.",
     "aria-live",
     "this.runController.recover",
     "this.runController.refresh",

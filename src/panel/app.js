@@ -57,6 +57,7 @@ export class HermesGatewayPanel {
     this.promptValue = "";
     this.steerValue = "";
     this.recoverRunId = "";
+    this.runValidationMessage = "";
   }
 
   start() {
@@ -346,7 +347,7 @@ export class HermesGatewayPanel {
     const runId = h("input", {
       id: "recover-run-id", class: "gateway-input", type: "text", autocomplete: "off", spellcheck: "false",
       required: true, maxlength: "128", placeholder: "run_abc12345",
-      oninput: (event) => { this.recoverRunId = event.target.value; this.syncRunForm(); },
+      oninput: (event) => { this.recoverRunId = event.target.value; this.runValidationMessage = ""; this.syncRunForm(); },
     });
     runId.value = this.recoverRunId;
     this.recoverInput = runId;
@@ -355,6 +356,7 @@ export class HermesGatewayPanel {
       h("p", { class: "gateway-note" }, "Enter the Run ID after reconnecting with a fresh bearer token. Recovery fetches current Gateway status only; it does not replay earlier live events or approval detail."),
       h("label", { for: "recover-run-id", class: "gateway-label" }, "Run ID"), runId,
       h("button", { class: "gateway-secondary", type: "submit" }, "Recover status"),
+      this.runValidationMessage ? h("p", { class: "gateway-inline-error", role: "alert" }, this.runValidationMessage) : null,
     );
   }
 
@@ -427,8 +429,15 @@ export class HermesGatewayPanel {
       this.recoverInput?.focus();
       return;
     }
-    this.recoverRunId = "";
-    await this.runController.recover(runId);
+    try {
+      await this.runController.recover(runId);
+      this.recoverRunId = "";
+      this.runValidationMessage = "";
+    } catch {
+      this.runValidationMessage = "Enter a valid Run ID.";
+      this.render();
+      this.recoverInput?.focus();
+    }
   }
 
   async refreshRun() {

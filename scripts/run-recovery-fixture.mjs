@@ -14,31 +14,45 @@ function safeRunId(value) {
   return value;
 }
 
-function closeServer(server, sockets, upstreamRequests) {
+function closeServer(server, sockets, upstreamRequests, timers) {
   return new Promise((resolve) => {
     server.close(() => resolve());
+    for (const timer of timers) clearTimeout(timer);
     for (const request of upstreamRequests) request.destroy();
     for (const socket of sockets) socket.destroy();
   });
 }
 
+function allowedFixtureRoute(method, pathname, learnedRunId) {
+  if (pathname === "/v1/capabilities") return method === "GET" || method === "OPTIONS";
+  if (pathname === "/v1/runs") return method === "POST" || method === "OPTIONS";
+  if (!learnedRunId) return false;
+  if (pathname === `/v1/runs/${learnedRunId}` || pathname === `/v1/runs/${learnedRunId}/events`) return method === "GET" || method === "OPTIONS";
+  return false;
+}
+
 /** Test-only loopback relay. It never writes request/response data to disk or stdout. */
-export async function startRecoveryProxy({ upstream, runId } = {}) {
+export async function startRecoveryProxy({ upstream, runId, bufferFirstEventsMs = 0 } = {}) {
   const target = parseLoopbackUpstream(upstream);
+  if (!Number.isInteger(bufferFirstEventsMs) || bufferFirstEventsMs < 0 || bufferFirstEventsMs > 5_000) throw new Error("recovery_proxy_buffer_invalid");
   let learnedRunId = runId == null ? null : safeRunId(runId);
   let interrupted = false;
   let forwardedSubscriptions = 0;
   let buffered = false;
   const sockets = new Set();
   const upstreamRequests = new Set();
+  const timers = new Set();
   const server = createServer((incoming, outgoing) => {
-    if (!incoming.url?.startsWith("/v1/") || incoming.url.includes("..") || incoming.method === "CONNECT") {
+    let requestUrl;
+    try { requestUrl = new URL(incoming.url, "http://fixture.invalid"); } catch { requestUrl = null; }
+    const pathname = requestUrl?.pathname;
+    if (!requestUrl || incoming.url.includes("..") || requestUrl.search || requestUrl.hash || !allowedFixtureRoute(incoming.method, pathname, learnedRunId)) {
       outgoing.writeHead(404, { Connection: "close" }).end();
       return;
     }
     const eventsPath = learnedRunId ? `/v1/runs/${learnedRunId}/events` : null;
-    const isEvents = incoming.method === "GET" && incoming.url === eventsPath;
-    const isRunSubmission = incoming.method === "POST" && incoming.url === "/v1/runs" && learnedRunId === null;
+    const isEvents = incoming.method === "GET" && pathname === eventsPath;
+    const isRunSubmission = incoming.method === "POST" && pathname === "/v1/runs" && learnedRunId === null;
     if (isEvents) forwardedSubscriptions += 1;
     const upstreamRequest = requestHttp({
       hostname: target.hostname,
@@ -72,11 +86,19 @@ export async function startRecoveryProxy({ upstream, runId } = {}) {
       let cut = false;
       upstreamResponse.on("data", (chunk) => {
         if (cut) return;
-        outgoing.write(chunk);
         cut = true;
-        interrupted = true;
-        upstreamResponse.destroy();
-        outgoing.end();
+        const forwardAndCut = () => {
+          if (bufferFirstEventsMs > 0) buffered = true;
+          if (!outgoing.writableEnded) outgoing.write(chunk);
+          interrupted = true;
+          upstreamResponse.destroy();
+          outgoing.end();
+        };
+        if (bufferFirstEventsMs > 0) {
+          upstreamResponse.pause();
+          const timer = setTimeout(() => { timers.delete(timer); forwardAndCut(); }, bufferFirstEventsMs);
+          timers.add(timer);
+        } else forwardAndCut();
       });
       upstreamResponse.on("end", () => { if (!cut) outgoing.end(); });
       upstreamResponse.on("error", () => { if (!outgoing.writableEnded) outgoing.end(); });
@@ -98,7 +120,7 @@ export async function startRecoveryProxy({ upstream, runId } = {}) {
   return Object.freeze({
     url: `http://127.0.0.1:${port}`,
     observation: () => Object.freeze({ interrupted, forwardedSubscriptions, buffered }),
-    close: () => closeServer(server, sockets, upstreamRequests),
+    close: () => closeServer(server, sockets, upstreamRequests, timers),
   });
 }
 

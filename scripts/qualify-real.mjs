@@ -213,7 +213,9 @@ export async function startOriginCaptureServer() {
       void finish({ error });
     }
   });
-  const port = await listen(server);
+  let port;
+  try { port = await listen(server); }
+  catch (error) { await rm(destination.directory, { recursive: true, force: true }); throw error; }
   return {
     url: `http://127.0.0.1:${port}`,
     handoffPath: destination.path,
@@ -293,34 +295,67 @@ export async function startHostGateway({
     },
     stdio: ["ignore", "ignore", logStderr ? "inherit" : "ignore"],
   });
-  const exited = new Promise((resolveExit) => child.once("exit", (code, signal) => resolveExit({ code, signal })));
+  let childFailed = false;
+  const exited = new Promise((resolveExit) => {
+    child.once("exit", (code, signal) => resolveExit({ code, signal }));
+    child.once("error", () => { childFailed = true; resolveExit({ code: null, signal: null }); });
+  });
   const url = `http://127.0.0.1:${port}`;
   const ready = async () => {
     const expiresAt = Date.now() + 20_000;
     while (Date.now() < expiresAt) {
-      if (child.exitCode !== null) throw new Error("qualification_gateway_exited");
+      if (childFailed || child.exitCode !== null) throw new Error("qualification_gateway_exited");
       try {
-        const response = await fetch(`${url}/v1/capabilities`, { headers: { Authorization: `Bearer ${runtime.environment.API_SERVER_KEY}` } });
+        const response = await fetch(`${url}/v1/capabilities`, {
+          headers: { Authorization: `Bearer ${runtime.environment.API_SERVER_KEY}` },
+          signal: AbortSignal.timeout(1_000),
+        });
         if (response.ok) return;
       } catch { /* bounded readiness retry */ }
       await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
     }
     throw new Error("qualification_gateway_not_ready");
   };
+  const waitForExit = async (timeoutMs) => {
+    const timedOut = Symbol("timed_out");
+    let timer;
+    const result = await Promise.race([
+      exited,
+      new Promise((resolveTimeout) => { timer = setTimeout(() => resolveTimeout(timedOut), timeoutMs); }),
+    ]);
+    clearTimeout(timer);
+    return result === timedOut ? null : result;
+  };
   const stop = async () => {
     if (child.exitCode === null) child.kill("SIGTERM");
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("qualification_gateway_stop_timeout")), 10_000));
-    return Promise.race([exited, timeout]);
+    const graceful = await waitForExit(10_000);
+    if (graceful) return graceful;
+    if (child.exitCode === null) child.kill("SIGKILL");
+    const forced = await waitForExit(5_000);
+    if (!forced) throw new Error("qualification_gateway_stop_timeout");
+    return forced;
   };
-  await ready();
+  try {
+    await ready();
+  } catch (error) {
+    await stop().catch(() => { if (child.exitCode === null) child.kill("SIGKILL"); });
+    throw error;
+  }
   return { url, stop, exited };
 }
 
-export async function startHostGatewayFromOriginHandoff({ runtime, handoffPath, executable = process.env.HERMES_QUALIFICATION_EXECUTABLE, modelStub }) {
+export async function startHostGatewayFromOriginHandoff({
+  runtime,
+  handoffPath,
+  executable = process.env.HERMES_QUALIFICATION_EXECUTABLE,
+  attestedRevision = process.env.HERMES_QUALIFICATION_REVISION,
+  sourceRoot = process.env.HERMES_QUALIFICATION_SOURCE_ROOT,
+  modelStub,
+}) {
   let gateway;
   await consumeOriginHandoff({
     path: handoffPath,
-    configure: async (origin) => { gateway = await startHostGateway({ runtime, origin, executable, modelStub }); },
+    configure: async (origin) => { gateway = await startHostGateway({ runtime, origin, executable, attestedRevision, sourceRoot, modelStub }); },
   });
   return gateway;
 }
@@ -329,14 +364,25 @@ export async function qualifyRealDeployment({ fixture = "host-native", runtimeRo
   if (fixture !== "host-native") throw new Error("qualification_fixture_unsupported");
   if (!runtimeRoot) throw new Error("qualification_runtime_root_required");
   const runtime = await createQualificationRuntime({ root: runtimeRoot });
-  const capture = await startOriginCaptureServer();
+  let capture;
+  try { capture = await startOriginCaptureServer(); }
+  catch (error) { await cleanupQualificationRuntime({ root: runtimeRoot }); throw error; }
+  let cleaned = false;
   return {
     status: "awaiting_origin_capture",
     fixture,
     panelTokenFile: runtime.tokenFile,
     captureUrl: capture.url,
     requestContract: "fixed_harmless_chat_completion_stream",
-    cleanup: "runner removes the runtime directory after the human result is recorded",
+    cleanup: async () => {
+      if (cleaned) return Object.freeze({ cleanup: "scrubbed_removed" });
+      cleaned = true;
+      let captureError;
+      try { await capture.cleanup(); } catch (error) { captureError = error; }
+      const result = await cleanupQualificationRuntime({ root: runtimeRoot });
+      if (captureError) throw captureError;
+      return result;
+    },
   };
 }
 
@@ -349,16 +395,22 @@ async function runInteractiveHostQualification(runtimeRoot, { origin: suppliedOr
       }
     : await resolveVersionTuple();
   const runtime = await createQualificationRuntime({ root: runtimeRoot });
-  let origin = suppliedOrigin ? validateCapturedOrigin([suppliedOrigin]) : null;
-  if (!origin) {
-    const capture = await startOriginCaptureServer();
-    process.stdout.write(`${JSON.stringify({ status: "awaiting_origin_capture", fixture: "host-native", captureUrl: capture.url, panelTokenFile: runtime.tokenFile, versions })}\n`);
-    origin = await capture.waitForOrigin();
-    await capture.close();
-  }
-  const modelStub = await startDeterministicModelStub();
+  let modelStub;
   let gateway;
   try {
+    let origin = suppliedOrigin ? validateCapturedOrigin([suppliedOrigin]) : null;
+    if (!origin) {
+      const capture = await startOriginCaptureServer();
+      try {
+        process.stdout.write(`${JSON.stringify({ status: "awaiting_origin_capture", fixture: "host-native", captureUrl: capture.url, panelTokenFile: runtime.tokenFile, versions })}\n`);
+        const handoff = await capture.waitForOrigin();
+        await capture.closed;
+        await consumeOriginHandoff({ path: handoff.path, configure: async (capturedOrigin) => { origin = capturedOrigin; } });
+      } finally {
+        await capture.cleanup();
+      }
+    }
+    modelStub = await startDeterministicModelStub();
     gateway = await startHostGateway({
       runtime,
       origin,
@@ -373,7 +425,7 @@ async function runInteractiveHostQualification(runtimeRoot, { origin: suppliedOr
     });
   } finally {
     await gateway?.stop();
-    await modelStub.close();
+    await modelStub?.close();
     await cleanupQualificationRuntime({ root: runtimeRoot });
   }
 }

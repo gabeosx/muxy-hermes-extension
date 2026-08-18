@@ -14,6 +14,7 @@ import {
   consumeOriginHandoff,
   cleanupQualificationRuntime,
   createQualificationRuntime,
+  qualifyRealDeployment,
   recordFreshSession,
   startDeterministicModelStub,
   startOriginCaptureServer,
@@ -73,6 +74,16 @@ test("host fixture creates a permission-restricted empty home/workspace and no d
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("qualification setup returns an idempotent cleanup handle for its listener and bearer-bearing runtime", async () => {
+  const root = await mkdtemp("/private/tmp/hermes-host-lifecycle-test-");
+  const lifecycle = await qualifyRealDeployment({ runtimeRoot: root });
+  assert.equal(typeof lifecycle.cleanup, "function");
+  assert.equal(await stat(lifecycle.panelTokenFile).then((value) => value.mode & 0o777), 0o600);
+  assert.deepEqual(await lifecycle.cleanup(), { cleanup: "scrubbed_removed" });
+  assert.deepEqual(await lifecycle.cleanup(), { cleanup: "scrubbed_removed" });
+  await assert.rejects(stat(root));
 });
 
 test("host qualification accepts only the explicit pinned temporary executable and scrubs its owned runtime", async () => {

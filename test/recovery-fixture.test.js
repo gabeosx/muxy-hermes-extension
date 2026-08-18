@@ -38,6 +38,36 @@ test("recovery proxy stays loopback and interrupts only the first fixed event st
 
 test("recovery proxy rejects non-loopback upstreams and non-fixed routes", async () => {
   await assert.rejects(startRecoveryProxy({ upstream: "https://gateway.example", runId: "run_fixture" }), /recovery_proxy_upstream_unsafe/);
+  await assert.rejects(startRecoveryProxy({ upstream: "http://127.0.0.1:8642", runId: "run_fixture", bufferFirstEventsMs: 5_001 }), /recovery_proxy_buffer_invalid/);
+  const upstream = createServer((_request, response) => response.writeHead(200).end("unexpected"));
+  const upstreamPort = await listen(upstream);
+  const proxy = await startRecoveryProxy({ upstream: `http://127.0.0.1:${upstreamPort}`, runId: "run_fixture" });
+  try {
+    assert.equal((await fetch(`${proxy.url}/v1/sessions`)).status, 404);
+    assert.equal((await fetch(`${proxy.url}/v1/runs/run_fixture?unsafe=1`)).status, 404);
+    assert.equal((await fetch(`${proxy.url}/v1/runs/other`)).status, 404);
+  } finally {
+    await proxy.close();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+});
+
+test("recovery proxy reports buffering only after delaying the first event chunk", async () => {
+  const upstream = createServer((_request, response) => {
+    response.writeHead(200, { "Content-Type": "text/event-stream" });
+    response.end("event: message.delta\ndata: {}\n\n");
+  });
+  const upstreamPort = await listen(upstream);
+  const proxy = await startRecoveryProxy({ upstream: `http://127.0.0.1:${upstreamPort}`, runId: "run_fixture", bufferFirstEventsMs: 30 });
+  try {
+    const startedAt = Date.now();
+    await (await fetch(`${proxy.url}/v1/runs/run_fixture/events`)).text();
+    assert.ok(Date.now() - startedAt >= 20);
+    assert.deepEqual(proxy.observation(), { interrupted: true, forwardedSubscriptions: 1, buffered: true });
+  } finally {
+    await proxy.close();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
 });
 
 test("recovery proxy learns the run ID from the bounded submission response", async () => {
