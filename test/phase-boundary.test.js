@@ -85,6 +85,24 @@ test("the aggregate validator is non-watch and Phase 2 controls remain inside th
   assert.doesNotMatch(compose, /privileged:\s*true|network_mode:\s*host|0\.0\.0\.0:/i);
 });
 
+test("the board auth boundary has no pasted token, persistent secret store, or Gateway-key confusion", async () => {
+  const [board, auth, kanban, relay, manifest] = await Promise.all([
+    readFile(new URL("src/board/app.js", root), "utf8"),
+    readFile(new URL("src/dashboard-auth.js", root), "utf8"),
+    readFile(new URL("src/kanban-client.js", root), "utf8"),
+    readFile(new URL("src/curl-relay.js", root), "utf8"),
+    readFile(new URL("package.json", root), "utf8"),
+  ]);
+  const production = `${board}\n${auth}\n${kanban}`;
+  assert.doesNotMatch(production, /dashboard session token|paste.*token|API_SERVER_KEY|localStorage|sessionStorage|muxy\.storage/i);
+  assert.match(auth, /\/api\/auth\/providers/);
+  assert.match(auth, /\/auth\/password-login/);
+  assert.match(auth, /\/api\/auth\/me/);
+  assert.match(auth, /\/auth\/logout/);
+  assert.match(relay, /buildSessionConfig/);
+  assert.doesNotMatch(manifest, /background|storage:/i);
+});
+
 test("aggregate recovery proof fails closed for provenance, signatures, cleanup, native, simulation, and redaction mutations", () => {
   assert.doesNotThrow(() => assertCompleteRecoveryEvidence(completeRecoveryFixture()));
   const mutations = [

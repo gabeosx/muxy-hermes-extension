@@ -79,6 +79,18 @@ button:disabled { cursor: default; opacity: 0.6; }
 
 .board-connection-ready { color: var(--muxy-diff-add); }
 
+.board-session {
+  max-width: min(42vw, 320px);
+  overflow: hidden;
+  color: var(--muxy-foreground-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-session-logged_in { color: var(--muxy-diff-add); }
+.board-session-session_expired { color: var(--muxy-diff-delete); }
+
 .board-button {
   min-height: 28px;
   border-radius: 6px;
@@ -124,12 +136,15 @@ button:disabled { cursor: default; opacity: 0.6; }
 }
 
 .board-connect-copy,
-.board-connect-form {
+.board-connect-form,
+.board-auth-stack {
   display: grid;
   align-content: start;
   gap: 8px;
   min-width: 0;
 }
+
+.board-auth-stack { gap: 12px; }
 
 .board-connect-copy { padding-top: 6px; }
 .board-connect-copy h2 { margin: 0; font-size: 20px; line-height: 1.25; }
@@ -143,6 +158,12 @@ button:disabled { cursor: default; opacity: 0.6; }
   border-radius: 8px;
   background: var(--muxy-surface-solid);
   padding: 16px;
+}
+
+.board-auth-state {
+  margin: 0;
+  color: var(--muxy-foreground);
+  font-weight: 600;
 }
 
 .board-input,
@@ -248,6 +269,7 @@ button:disabled { cursor: default; opacity: 0.6; }
   .board-columns { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: minmax(0, 1fr); align-content: start; overflow-x: hidden; overflow-y: auto; }
   .board-column { overflow: visible; }
   .board-card-list { overflow: visible; }
+  .board-session { max-width: 34vw; }
 }
 
 @media (prefers-reduced-motion: reduce) {
