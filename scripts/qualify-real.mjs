@@ -112,6 +112,7 @@ export async function createQualificationRuntime({ root, token = randomBytes(32)
 export async function verifyQualificationExecutable({
   executable,
   attestedRevision,
+  sourceRoot = dirname(executable ?? ""),
   execFile: execute = execFile,
   readFile: read = readFile,
 } = {}) {
@@ -125,10 +126,10 @@ export async function verifyQualificationExecutable({
   let packageMetadata = "";
   let releaseMetadata = "";
   try {
-    const sourceRoot = dirname(executable);
+    const verifiedSourceRoot = securePath(sourceRoot, "source_root");
     [packageMetadata, releaseMetadata] = await Promise.all([
-      read(join(sourceRoot, "pyproject.toml"), "utf8"),
-      read(join(sourceRoot, "hermes_cli", "__init__.py"), "utf8"),
+      read(join(verifiedSourceRoot, "pyproject.toml"), "utf8"),
+      read(join(verifiedSourceRoot, "hermes_cli", "__init__.py"), "utf8"),
     ]);
   } catch {
     throw new Error("qualification_executable_identity_mismatch");
@@ -228,7 +229,7 @@ export async function startOriginCaptureServer() {
   };
 }
 
-export async function startDeterministicModelStub({ maxQualificationRequests = 2 } = {}) {
+export async function startDeterministicModelStub({ maxQualificationRequests = 3 } = {}) {
   let requestCount = 0;
   const isQualificationRequest = (body) => {
     let payload;
@@ -269,10 +270,11 @@ export async function startHostGateway({
   origin,
   executable = process.env.HERMES_QUALIFICATION_EXECUTABLE,
   attestedRevision = process.env.HERMES_QUALIFICATION_REVISION,
+  sourceRoot = process.env.HERMES_QUALIFICATION_SOURCE_ROOT,
   modelStub,
   logStderr = false,
 }) {
-  await verifyQualificationExecutable({ executable, attestedRevision });
+  await verifyQualificationExecutable({ executable, attestedRevision, sourceRoot });
   const server = createServer();
   const port = await listen(server);
   await close(server);
@@ -357,7 +359,13 @@ async function runInteractiveHostQualification(runtimeRoot, { origin: suppliedOr
   const modelStub = await startDeterministicModelStub();
   let gateway;
   try {
-    gateway = await startHostGateway({ runtime, origin, modelStub, attestedRevision: versions.hermesRevision });
+    gateway = await startHostGateway({
+      runtime,
+      origin,
+      modelStub,
+      attestedRevision: versions.hermesRevision,
+      logStderr: process.env.HERMES_QUALIFICATION_DEBUG === "1",
+    });
     process.stdout.write(`${JSON.stringify({ status: "awaiting_two_fresh_panel_sessions", fixture: "host-native", gatewayUrl: gateway.url, panelTokenFile: runtime.tokenFile, safeRequestContract: "two_delayed_deltas_no_tools" })}\n`);
     await new Promise((resolveWait) => {
       process.once("SIGINT", resolveWait);

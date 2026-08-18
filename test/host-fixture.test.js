@@ -138,6 +138,11 @@ test("deterministic model fixture permits Hermes metadata while rejecting title 
     assert.match(await runRequest.text(), /alpha[\s\S]*beta[\s\S]*\[DONE\]/);
     assert.equal(stub.requestCount(), 2);
 
+    const freshPanelProbe = await post(qualifiedBody);
+    assert.equal(freshPanelProbe.status, 200);
+    assert.match(await freshPanelProbe.text(), /alpha[\s\S]*beta[\s\S]*\[DONE\]/);
+    assert.equal(stub.requestCount(), 3);
+
     const replay = await post(qualifiedBody);
     assert.equal(replay.status, 400);
   } finally {
