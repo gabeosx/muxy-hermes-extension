@@ -112,7 +112,7 @@ Plans:
 
 ### Phase 3: Open-Panel Recovery Proof
 
-**Goal:** Users receive a truthful, evidence-backed account of interrupted runs while the panel is open or recreated.
+**Goal:** As a Hermes user, I want to recover interrupted runs, so that I can trust status without assuming complete history.
 **Mode:** mvp
 **Depends on:** Phase 2
 **Requirements:** RECV-01, RECV-02, RECV-03, RECV-04, RECV-05, DEPL-02, DEPL-03, DEPL-04, DEPL-05, DEPL-06, EVID-01
