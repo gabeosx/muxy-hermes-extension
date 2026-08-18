@@ -3,6 +3,9 @@ const STATUS_MARKER = "__MUXY_HERMES_STATUS__:";
 const RUNTIME_ROOT = ".muxy-hermes-runtime";
 
 export const MAX_JOURNAL_BYTES = 4 * 1024 * 1024;
+const MAX_SESSION_RESPONSE_BYTES = 1024 * 1024;
+const SESSION_COOKIE = /^(?:__Secure-)?hermes_session_(?:at|rt)$/;
+const COOKIE_HEADER = /^(?:[A-Za-z0-9_-]+=[A-Za-z0-9._~+/%=-]+)(?:; [A-Za-z0-9_-]+=[A-Za-z0-9._~+/%=-]+)*$/;
 
 function relayError(code) {
   return new Error(code);
@@ -13,6 +16,32 @@ export function buildBearerConfig(bearer) {
     throw new Error("Enter a bearer token using its original URL-safe characters.");
   }
   return `header = "Authorization: Bearer ${bearer}"\n`;
+}
+
+function curlConfigQuote(value) {
+  return String(value)
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"')
+    .replaceAll("\r", "\\r")
+    .replaceAll("\n", "\\n")
+    .replaceAll("\t", "\\t");
+}
+
+export function buildSessionConfig({ cookie = "", body = null } = {}) {
+  const lines = [];
+  if (cookie) {
+    if (typeof cookie !== "string" || !COOKIE_HEADER.test(cookie)) {
+      throw new Error("Enter a valid Hermes dashboard session cookie.");
+    }
+    lines.push(`header = "Cookie: ${cookie}"`);
+  }
+  if (body !== null) {
+    const serialized = JSON.stringify(body);
+    if (serialized === undefined || serialized.length > 64 * 1024) throw relayError("relay_request_too_large");
+    lines.push('header = "Content-Type: application/json"');
+    lines.push(`data-binary = "${curlConfigQuote(serialized)}"`);
+  }
+  return lines.length ? `${lines.join("\n")}\n` : "";
 }
 
 function commonArgv({ url, method, accept, timeoutSeconds }) {
@@ -57,6 +86,32 @@ function streamStatus(result) {
   const match = stdout.match(new RegExp(`(?:^|\\n)${STATUS_MARKER}(\\d{3})\\s*$`));
   const status = match ? Number(match[1]) : null;
   return status && status >= 100 ? status : null;
+}
+
+function parseSessionStatus(result) {
+  if (!result || result.timedOut) throw relayError("relay_timeout");
+  if (result.truncated) throw relayError("relay_response_too_large");
+  const stdout = typeof result.stdout === "string" ? result.stdout : "";
+  const match = stdout.match(new RegExp(`(?:^|\\n)${STATUS_MARKER}(\\d{3})\\s*$`));
+  if (!match) throw relayError(result.exitCode === 0 ? "relay_protocol_error" : "relay_request_failed");
+  if (result.exitCode !== 0 && match[1] === "000") throw relayError("relay_request_failed");
+  return Number(match[1]);
+}
+
+function parseSessionCookies(rawHeaders) {
+  const cookies = [];
+  for (const line of String(rawHeaders ?? "").split(/\r?\n/)) {
+    const match = line.match(/^set-cookie:\s*([^=;\s]+)=([^;\r\n]*)(.*)$/i);
+    if (!match || !SESSION_COOKIE.test(match[1])) continue;
+    const value = match[2];
+    if (value && !/^[A-Za-z0-9._~+/%=-]+$/.test(value)) throw relayError("relay_protocol_error");
+    cookies.push(Object.freeze({
+      name: match[1],
+      value,
+      expired: !value || /(?:^|;)\s*max-age=0(?:;|$)/i.test(match[3]),
+    }));
+  }
+  return Object.freeze(cookies);
 }
 
 function curlExitClass(result, cancelled) {
@@ -152,6 +207,50 @@ export class CurlRelay {
       timeoutMs: timeoutMs + 2_000,
     });
     return parseStatusOutput(result);
+  }
+
+  async requestSessionJson({ url, cookie = "", method = "GET", body = null, timeoutMs = 15_000 }) {
+    if (!this.files?.read || !this.files?.write || !this.files?.delete) throw relayError("session_api_unavailable");
+    const requestId = this.randomId();
+    if (!/^[A-Za-z0-9-]{8,64}$/.test(requestId)) throw relayError("session_request_id_invalid");
+    const responseDirectory = `${RUNTIME_ROOT}/${requestId}`;
+    const headerPath = `${responseDirectory}/headers.txt`;
+    const bodyPath = `${responseDirectory}/body.json`;
+    const timeoutSeconds = Math.max(1, Math.ceil(timeoutMs / 1000));
+    const argv = commonArgv({ url, method, accept: "application/json", timeoutSeconds });
+    argv.splice(argv.length - 1, 0,
+      "--create-dirs",
+      "--dump-header", headerPath,
+      "--output", bodyPath,
+      "--write-out", `\n${STATUS_MARKER}%{http_code}`,
+    );
+    let primaryFailure = null;
+    try {
+      const result = await this.exec(argv, {
+        stdin: buildSessionConfig({ cookie, body }),
+        timeoutMs: timeoutMs + 2_000,
+      });
+      const status = parseSessionStatus(result);
+      const [headerFile, bodyFile] = await Promise.all([this.files.read(headerPath), this.files.read(bodyPath)]);
+      if (headerFile.size > MAX_SESSION_RESPONSE_BYTES || bodyFile.size > MAX_SESSION_RESPONSE_BYTES) {
+        throw relayError("relay_response_too_large");
+      }
+      let responseBody = null;
+      if (bodyFile.content.trim()) {
+        try { responseBody = JSON.parse(bodyFile.content); } catch { throw relayError("relay_protocol_error"); }
+      }
+      return Object.freeze({ status, body: responseBody, setCookies: parseSessionCookies(headerFile.content) });
+    } catch (error) {
+      primaryFailure = error;
+      throw error;
+    } finally {
+      let cleanupFailure = null;
+      for (const path of [headerPath, bodyPath]) {
+        try { await this.files.write(path, ""); } catch (error) { cleanupFailure ??= error; }
+      }
+      try { await this.files.delete([responseDirectory]); } catch (error) { cleanupFailure ??= error; }
+      if (!primaryFailure && cleanupFailure) throw relayError("session_cleanup_failed");
+    }
   }
 
   async streamJournal({ url, bearer, method = "GET", body = null, onChunk, timeoutMs = 60_000 }) {

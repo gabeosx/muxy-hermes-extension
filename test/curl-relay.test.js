@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CurlRelay, MAX_JOURNAL_BYTES, buildBearerConfig } from "../src/curl-relay.js";
+import { CurlRelay, MAX_JOURNAL_BYTES, buildBearerConfig, buildSessionConfig } from "../src/curl-relay.js";
 
 test("bearer config keeps credentials in stdin and rejects line injection", () => {
   assert.equal(buildBearerConfig("abc-123._~+/="), 'header = "Authorization: Bearer abc-123._~+/="\n');
@@ -41,6 +41,85 @@ test("requestJson uses argv-form curl, never puts the bearer in argv, and parses
   assert.equal(JSON.stringify(calls[0].argv).includes("sentinel-token"), false);
   assert.equal(calls[0].options.stdin.includes("sentinel-token"), true);
   assert.equal(Object.hasOwn(calls[0].options, "env"), false);
+});
+
+test("session config keeps cookies and credential bodies in stdin and rejects header injection", () => {
+  const config = buildSessionConfig({
+    cookie: "hermes_session_at=access.jwt; hermes_session_rt=refresh-token",
+    body: { provider: "basic", username: "admin", password: "line\nquote\"slash\\" },
+  });
+  assert.match(config, /Cookie: hermes_session_at=access\.jwt; hermes_session_rt=refresh-token/);
+  assert.match(config, /data-binary = /);
+  assert.doesNotMatch(config, /\nheader = "X-Evil/);
+  for (const cookie of ["bad\nheader=x", "bad\rcookie=x", 'bad"=x', "missing-value", "a=x;injected=y"]) {
+    assert.throws(() => buildSessionConfig({ cookie }), /session cookie/i);
+  }
+});
+
+test("requestSessionJson returns allowlisted Hermes cookies and scrubs response artifacts", async () => {
+  const calls = [];
+  const operations = [];
+  const files = new Map();
+  const relay = new CurlRelay({
+    exec: async (argv, options) => {
+      calls.push({ argv, options });
+      const headerPath = argv[argv.indexOf("--dump-header") + 1];
+      const bodyPath = argv[argv.indexOf("--output") + 1];
+      files.set(headerPath, [
+        "HTTP/1.1 200 OK",
+        "Set-Cookie: hermes_session_at=access.jwt; HttpOnly; SameSite=Lax",
+        "Set-Cookie: hermes_session_rt=refresh-token; HttpOnly; SameSite=Lax",
+        "Set-Cookie: unrelated=ignored; HttpOnly",
+        "",
+        "",
+      ].join("\r\n"));
+      files.set(bodyPath, JSON.stringify({ ok: true }));
+      return { stdout: "\n__MUXY_HERMES_STATUS__:200", stderr: "", exitCode: 0, timedOut: false, truncated: false };
+    },
+    files: {
+      async read(path) {
+        const content = files.get(path);
+        if (content === undefined) throw new Error("missing");
+        return { path, content, size: new TextEncoder().encode(content).byteLength };
+      },
+      async write(path, content) { operations.push({ type: "write", path, content }); files.set(path, content); },
+      async delete(paths) { operations.push({ type: "delete", paths }); for (const path of [...files.keys()]) if (paths.some((root) => path.startsWith(root))) files.delete(path); },
+    },
+    randomId: () => "session-fixed-id",
+  });
+
+  const response = await relay.requestSessionJson({
+    url: "https://hermes.example/auth/password-login",
+    method: "POST",
+    body: { provider: "basic", username: "admin", password: "sentinel-password" },
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, { ok: true });
+  assert.deepEqual(response.setCookies, [
+    { name: "hermes_session_at", value: "access.jwt", expired: false },
+    { name: "hermes_session_rt", value: "refresh-token", expired: false },
+  ]);
+  assert.equal(JSON.stringify(calls[0].argv).includes("sentinel-password"), false);
+  assert.equal(calls[0].options.stdin.includes("sentinel-password"), true);
+  assert.equal(operations.filter((entry) => entry.type === "write" && entry.content === "").length, 2);
+  assert.equal(operations.at(-1).type, "delete");
+});
+
+test("requestSessionJson scrubs artifacts when curl or response parsing fails", async () => {
+  const operations = [];
+  const relay = new CurlRelay({
+    exec: async () => ({ stdout: "", stderr: "failed", exitCode: 7, timedOut: false, truncated: false }),
+    files: {
+      async read() { throw new Error("missing"); },
+      async write(path, content) { operations.push({ type: "write", path, content }); },
+      async delete(paths) { operations.push({ type: "delete", paths }); },
+    },
+    randomId: () => "session-failed-id",
+  });
+  await assert.rejects(relay.requestSessionJson({ url: "https://hermes.example/api/auth/me" }), /relay_protocol_error|relay_request_failed/);
+  assert.equal(operations.filter((entry) => entry.type === "write" && entry.content === "").length, 2);
+  assert.equal(operations.at(-1).type, "delete");
 });
 
 test("streamJournal consumes file.changed through muxy.files without exec polling, then scrubs before removal", async () => {
