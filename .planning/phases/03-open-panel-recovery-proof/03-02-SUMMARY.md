@@ -12,9 +12,9 @@ provides:
   - loopback-only disposable interruption proxy and Docker recovery proof
 affects: [milestone-audit, gateway-productization]
 actuals:
-  tokens: 14142
+  tokens: 17421
   tasks: 3
-  commits: 12
+  commits: 14
 tech-stack:
   added: []
   patterns: [allowlisted-structural-evidence, owned-root-runtime-cleanup, status-authoritative-recovery]
@@ -120,6 +120,7 @@ status: complete
 1. **Strict safe recovery evidence:** `9a5e0ff`, `0f4554c`
 2. **Pinned host-native qualification:** `e39a394`, `0f07ca7`, `9d4f503`, `c81e891`, `26fc14d`
 3. **Disposable Docker interruption and validation:** `490847a`, `c464636`, `c76e414`, `12070bf`, `cf5ce62`
+4. **Independent-review remediation:** `b3a9a2e`, `424d7fb`
 
 ## Files Created/Modified
 
@@ -160,7 +161,17 @@ status: complete
 - Shutdown now destroys owned upstream requests and client sockets before awaiting server close.
 - Verified by a dedicated active-stream regression test.
 
-**Total deviations:** 4 auto-fixed correctness issues; no production authority or topology-specific behavior was added.
+**5. Native qualification lifecycle paths were not uniformly fail-safe**
+
+- Consumed captured origins before Gateway launch, bounded readiness requests and child termination, returned an idempotent cleanup handle, and made origin-capture shutdown own idle sockets.
+- Verified by the host lifecycle suite, including a real idle TCP client while removing the bearer-bearing runtime.
+
+**6. Aggregate evidence and UI validation needed stricter failure behavior**
+
+- Required coherent host/Docker completion predicates and added safe inline feedback for invalid manual Run IDs.
+- Verified by negative evidence cases and the UI contract suite.
+
+**Total deviations:** 6 auto-fixed correctness issues; no production authority or topology-specific behavior was added.
 
 ## Issues Encountered
 
