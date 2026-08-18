@@ -36,8 +36,9 @@ function resultCopy(result) {
 export class HermesGatewayPanel {
   constructor(root) {
     this.root = root;
-    this.recoveryReceiptWriter = new RecoveryReceiptWriter();
-    this.probe = new ConnectionProbe({ files: window.muxy?.files ?? null });
+    const panelInstanceId = globalThis.crypto.randomUUID();
+    this.recoveryReceiptWriter = new RecoveryReceiptWriter({ panelInstanceId });
+    this.probe = new ConnectionProbe({ files: window.muxy?.files ?? null, randomId: () => panelInstanceId });
     this.snapshot = this.probe.snapshot;
     this.urlValue = "";
     this.tokenValue = "";

@@ -72,6 +72,9 @@ test("the panel keeps capability and evidence output safe while deriving run ava
   assert.doesNotMatch(panel, /exact-origin access|confirm its exact Muxy origin/i);
   assert.match(panel, /Cleaning previous relay journal/);
   assert.match(panel, /this\.probe\.prepare\(\)/);
+  assert.match(panel, /const panelInstanceId = globalThis\.crypto\.randomUUID\(\);/);
+  assert.match(panel, /new RecoveryReceiptWriter\(\{ panelInstanceId \}\)/);
+  assert.match(panel, /new ConnectionProbe\(\{ files: window\.muxy\?\.files \?\? null, randomId: \(\) => panelInstanceId \}\)/);
 
   for (const contract of [
     "supportsCoreRun(result.capabilityNames)",
