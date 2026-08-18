@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 0
+open_count: 1
 waived_count: 1
 fixed_count: 2
-total_count: 3
-last_updated: 2026-08-17T20:27:06.298Z
+total_count: 4
+last_updated: 2026-08-18T12:46:26.768Z
 ---
 
 # Broken Windows Ledger
@@ -18,6 +18,7 @@ last_updated: 2026-08-17T20:27:06.298Z
 | 1 | 01 | unrun-verify | src/gateway-client.js |  | Real Muxy controlled-fixture streaming check remains Not verified until Plan 01-04. | fixed |  | 2026-08-17T13:50:41.267Z | 2026-08-17T20:27:06.142Z |
 | 2 | 01 | unrun-verify | .planning/phases/01-verified-gateway-connectivity/01-02-PLAN.md |  | Task 2 Muxy visual inspection across themes, scales, keyboard navigation, narrow layout, and reduced motion remains outstanding. | fixed |  | 2026-08-17T14:07:48.415Z | 2026-08-17T20:27:06.221Z |
 | 3 | 01 | unrun-verify | src/panel/app.js |  | Real Muxy panel verification of five-row evidence rendering, focus, copy/view actions, and final dist remains required. | waived | Five-row final-dist rendering and keyboard focus were verified in native Muxy; current-pair stop copy/view actions depend on the superseded Plans 10-15 failure-receipt contract and are deferred under the user-approved fast path. | 2026-08-17T18:00:16.601Z | 2026-08-17T20:27:06.298Z |
+| 4 | 03 | unrun-verify | public/evidence/recovery-v1.json |  | npm run validate remains intentionally blocked until Plans 03-04 and 03-05 project real host/Docker recovery receipts | open |  | 2026-08-18T12:46:26.768Z |  |
 
 ````json
 [
@@ -56,6 +57,18 @@ last_updated: 2026-08-17T20:27:06.298Z
     "reason": "Five-row final-dist rendering and keyboard focus were verified in native Muxy; current-pair stop copy/view actions depend on the superseded Plans 10-15 failure-receipt contract and are deferred under the user-approved fast path.",
     "recorded_at": "2026-08-17T18:00:16.601Z",
     "resolved_at": "2026-08-17T20:27:06.298Z"
+  },
+  {
+    "id": 4,
+    "kind": "unrun-verify",
+    "phase": "03",
+    "file": "public/evidence/recovery-v1.json",
+    "line": null,
+    "description": "npm run validate remains intentionally blocked until Plans 03-04 and 03-05 project real host/Docker recovery receipts",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-18T12:46:26.768Z",
+    "resolved_at": null
   }
 ]
 ````
