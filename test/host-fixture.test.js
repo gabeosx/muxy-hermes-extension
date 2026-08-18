@@ -221,6 +221,7 @@ test("deterministic model fixture permits Hermes metadata while rejecting title 
 
 test("captured origins must be stable, syntactically exact non-null values and two sessions must be freshly distinct", () => {
   assert.equal(validateCapturedOrigin(["muxy-extension://panel"]), "muxy-extension://panel");
+  assert.equal(validateCapturedOrigin(["muxy-ext://muxy-hermes-extension"]), "muxy-ext://muxy-hermes-extension");
   for (const origins of [["muxy-extension://panel", "muxy-extension://panel"], ["null"], ["*"], ["one", "two"], [], ["https://gateway.example/path"], ["https://user:pass@gateway.example"], ["javascript://unsafe"]]) {
     assert.throws(() => validateCapturedOrigin(origins), /qualification_origin_/);
   }

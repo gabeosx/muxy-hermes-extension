@@ -237,7 +237,7 @@ export function validateCapturedOrigin(origins) {
   if (typeof origin !== "string" || origin.length === 0 || origin === "null" || origin === "*" || /[\r\n]/.test(origin)) throw new Error("qualification_origin_unsafe");
   let parsed;
   try { parsed = new URL(origin); } catch { throw new Error("qualification_origin_invalid"); }
-  if (!/^(https?|muxy-extension):\/\//.test(origin) || !parsed.hostname || parsed.username || parsed.password || !["", "/"].includes(parsed.pathname) || parsed.search || parsed.hash) {
+  if (!/^(https?|muxy-extension|muxy-ext):\/\//.test(origin) || !parsed.hostname || parsed.username || parsed.password || !["", "/"].includes(parsed.pathname) || parsed.search || parsed.hash) {
     throw new Error("qualification_origin_invalid");
   }
   return origin;
