@@ -6,9 +6,9 @@ current_phase: 03
 current_phase_name: open-panel-recovery-proof
 status: ready_to_execute
 stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-08-18T11:23:54.000Z"
+last_updated: "2026-08-18T14:07:57.000Z"
 last_activity: 2026-08-18
-last_activity_desc: Completed quick task 260818-a1t — real disposable Hermes Kanban proof in native Muxy
+last_activity_desc: Completed quick task 260818-dr9 — provider-aware Hermes Dashboard login and verified session state
 progress:
   total_phases: 2
   completed_phases: 1
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-16)
 Phase: 03 (open-panel-recovery-proof) — READY TO EXECUTE
 Plan: 03-01 of 2 plans
 Status: Planning complete; bounded runtime recovery is Wave 1 and evidence/native proof is Wave 2
-Last activity: 2026-08-18 — Completed quick task 260818-a1t: real disposable Hermes Kanban proof in native Muxy
+Last activity: 2026-08-18 — Completed quick task 260818-dr9: provider-aware Hermes Dashboard login and verified session state
 
 Progress: [█████████░] 94%
 
@@ -120,6 +120,7 @@ None yet.
 | 260817-qld | Implement the responsive Muxy project control surfaces | 2026-08-17 | fb3f6d9 | Passed | [260817-qld-implement-the-responsive-muxy-project-co](./quick/260817-qld-implement-the-responsive-muxy-project-co/) |
 | 260817-v6x | Add a deterministic Hermes Kanban dashboard fixture and prove the Muxy board UI end to end with Computer Use | 2026-08-17 | 9ad48f9 | Passed | [260817-v6x-add-a-deterministic-hermes-kanban-dashbo](./quick/260817-v6x-add-a-deterministic-hermes-kanban-dashbo/) |
 | 260818-a1t | Prove the Muxy Hermes board against a real disposable Hermes Gateway instance | 2026-08-18 | runtime-only | Passed | [260818-a1t-prove-the-muxy-hermes-board-against-a-re](./quick/260818-a1t-prove-the-muxy-hermes-board-against-a-re/) |
+| 260818-dr9 | Replace pasted Dashboard session token with provider-aware login, verified session state, and logout | 2026-08-18 | 7c8ecf0 | Passed | [260818-dr9-replace-pasted-dashboard-session-token-w](./quick/260818-dr9-replace-pasted-dashboard-session-token-w/) |
 
 ### Roadmap Evolution
 
