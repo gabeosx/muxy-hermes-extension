@@ -114,13 +114,51 @@ async function validateBoundary() {
   }
 }
 
-async function validateRecoveryEvidence() {
-  const recovery = JSON.parse(await readFile(join(evidenceDir, "recovery-v1.json"), "utf8"));
+const REQUIRED_RENDERED_SIGNATURES = Object.freeze([
+  "refused_or_unreachable", "observer_interrupted", "observer_restored", "buffered_or_delayed", "panel_recreated",
+]);
+const REQUIRED_SIMULATION_SIGNATURES = Object.freeze({
+  ssh_local_forward: ["refused_or_unreachable", "observer_interrupted", "observer_restored"],
+  direct_remote_https: ["authentication", "buffered_or_delayed", "certificate_validated", "exact_origin_cors", "unbuffered_delivery"],
+  remote_muxy_workspace: ["workspace_path_absent"],
+});
+
+/** The one fail-closed proof predicate shared by the CLI and mutation tests. */
+export function assertCompleteRecoveryEvidence(recovery) {
   const safe = sanitizeRecoveryEvidence(recovery, { requireComplete: true });
   assert.deepEqual(safe.conditions.map((row) => row.id), canonicalConditions, "recovery evidence must retain canonical conditions");
-  for (const row of safe.conditions.slice(2)) assert.equal(row.verdict, "Unverified", "simulated recovery row cannot be positive");
+  const [host, docker, ...simulations] = safe.conditions;
+  assert.deepEqual(host.provenance.proofSource, "recovery_receipt_bundle", "host proof must use a verifier receipt bundle");
+  assert.equal(host.nativePanel, true, "host proof must be a native panel observation");
+  assert.equal(host.cleanup, "scrubbed_removed", "host proof requires a post-cleanup receipt");
+  assert.equal(host.pinnedRuntime, true, "host proof must pin the tested runtime");
+  assert.deepEqual(host.panelLifecycle, "recreated", "host proof requires fresh-panel recovery");
+  assert.ok(host.signatures.includes("panel_recreated"), "host proof requires the panel recreation signature");
+
+  assert.deepEqual(docker.provenance.proofSource, "recovery_receipt_bundle", "Docker proof must use a verifier receipt bundle");
+  assert.equal(docker.nativePanel, true, "Docker proof must be a native panel observation");
+  assert.equal(docker.cleanup, "scrubbed_removed", "Docker proof requires a post-cleanup receipt");
+  assert.equal(docker.requestOutcome, "interrupted", "Docker proof must exercise an interruption");
+  assert.equal(docker.statusOutcome, "terminal", "Docker proof must reconcile terminal status");
+  assert.equal(docker.reattached, true, "Docker proof must restore its observer");
+  for (const signature of ["observer_interrupted", "observer_restored", "buffered_or_delayed"]) assert.ok(docker.signatures.includes(signature), `Docker proof lacks ${signature}`);
+
+  for (const row of simulations) {
+    assert.equal(row.actual, false, "simulated recovery row cannot claim a real deployment");
+    assert.equal(row.nativePanel, false, "simulated recovery row cannot claim a native panel");
+    assert.equal(row.verdict, "Unverified", "simulated recovery row cannot be positive");
+    assert.equal(row.provenance.proofSource, "simulation_receipt", "simulated recovery row needs an executed simulation receipt");
+    for (const signature of REQUIRED_SIMULATION_SIGNATURES[row.id]) assert.ok(row.signatures.includes(signature), `${row.id} lacks ${signature}`);
+  }
+  const renderedSignatures = new Set(safe.conditions.flatMap((row) => row.signatures));
+  for (const signature of REQUIRED_RENDERED_SIGNATURES) assert.ok(renderedSignatures.has(signature), `evidence lacks rendered ${signature} signature`);
   const durable = JSON.stringify(safe);
   for (const forbidden of ["bearer", "endpoint", "workspacepath", "journal", "approval command", "raw error"]) assert.equal(durable.toLowerCase().includes(forbidden), false, "recovery evidence contains content-bearing data");
+  return safe;
+}
+
+export async function validateRecoveryEvidence({ path = join(evidenceDir, "recovery-v1.json") } = {}) {
+  return assertCompleteRecoveryEvidence(JSON.parse(await readFile(path, "utf8")));
 }
 
 async function validateSentinel(index) {
@@ -131,24 +169,33 @@ async function validateSentinel(index) {
     capabilities: { state: "not_verified" }, stream: { state: "not_verified", rawFrame: sentinel },
   }, { endpoint: "https://gateway.example", startedAt: "2026-08-17T00:00:00.000Z", finishedAt: "2026-08-17T00:00:01.000Z" });
   const report = copyRedactedReport(evaluateStopGate({ evidenceIndex: index, requiresMuxyChange: true }));
-  const checked = [JSON.stringify(safeProbe), report, JSON.stringify(index)];
+  const checked = [JSON.stringify(safeProbe), report, JSON.stringify(index), await readFile(join(evidenceDir, "recovery-v1.json"), "utf8")];
   for (const file of await filesUnder(join(root, "dist"))) checked.push(await readFile(file, "utf8"));
   for (const value of checked) assert.equal(value.includes(sentinel), false, "high-entropy secret sentinel reached a durable or rendered artifact");
+  for (const forbidden of [
+    "PHASE3_BEARER_SENTINEL", "PHASE3_ENDPOINT_SENTINEL", "PHASE3_RUN_ID_SENTINEL", "PHASE3_EVENT_OUTPUT_SENTINEL",
+    "PHASE3_WORKSPACE_PATH_SENTINEL", "PHASE3_CERTIFICATE_PRIVATE_KEY_SENTINEL", "PHASE3_TEMP_ROOT_SENTINEL", "PHASE3_SUBPROCESS_SENTINEL",
+  ]) for (const value of checked) assert.equal(value.includes(forbidden), false, "unsafe recovery sentinel reached public evidence or dist");
 }
 
 async function main() {
   await run(npm, ["run", "build"], { cwd: root });
   const testFiles = (await readdir(join(root, "test"))).filter((name) => name.endsWith(".js")).sort().map((name) => join("test", name));
   await run(process.execPath, ["--test", ...testFiles], { cwd: root });
+  await run("docker", ["compose", "-f", join(root, "fixtures", "simulations", "docker-compose.yml"), "config", "--quiet"], { cwd: root });
   await run(process.execPath, ["scripts/validate-dist.mjs"], { cwd: root });
   const index = await validateEvidence();
   await validateBoundary();
   await validateRecoveryEvidence();
   await validateSentinel(index);
-  process.stdout.write("Phase 1 transport/evidence and Phase 2 run-control authority validation passed.\n");
+  process.stdout.write("Phase 3 recovery proof validation passed.\n");
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error?.message ?? "phase_validation_failed"}\n`);
-  process.exitCode = 1;
-});
+if (process.argv[1]?.endsWith("scripts/validate-phase.mjs")) {
+  try {
+    await main();
+  } catch (error) {
+    process.stderr.write(`${error?.message ?? "phase_validation_failed"}\n`);
+    process.exitCode = 1;
+  }
+}

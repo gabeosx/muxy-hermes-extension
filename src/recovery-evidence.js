@@ -65,10 +65,10 @@ function sanitizeRow(row, index) {
   if (!REQUEST_OUTCOMES.has(requestOutcome) || !STATUS_OUTCOMES.has(statusOutcome) || !PANEL_LIFECYCLES.has(panelLifecycle) || !CLEANUP.has(cleanup)) invalid();
   if (!CONFIDENCE.has(safeString(row.eventHistoryConfidence)) || !CONFIDENCE.has(safeString(row.approvalDetailConfidence))) invalid();
   if (row.reattached && row.observerAttempts < 1) invalid();
-  let actual = safeBoolean(row.actual);
-  let verdict = safeString(row.verdict, /^(Observed|Unverified)$/);
+  const actual = safeBoolean(row.actual);
+  const verdict = safeString(row.verdict, /^(Observed|Unverified)$/);
   if (!VERDICTS.has(verdict)) invalid();
-  if (REMOTE_ANALOGUES.has(row.id)) { actual = false; verdict = "Unverified"; }
+  if (REMOTE_ANALOGUES.has(row.id) && (actual || row.nativePanel || verdict !== "Unverified")) invalid();
   const real = actual && verdict === "Observed";
   if (real && (!row.nativePanel || cleanup !== "scrubbed_removed")) invalid();
   if (!real && (actual || verdict !== "Unverified")) invalid();
@@ -126,7 +126,7 @@ export function renderRecoveryEvidence(evidence) {
     const labels = row.signatures.map((signature) => SIGNATURE_COPY[signature]).join("; ");
     const signatureCopy = labels ? `Observed behavior signatures: ${labels}. ` : "";
     return Object.freeze({ id: row.id, verdict: row.verdict, details: row.verdict === "Unverified"
-      ? `${signatureCopy}Unverified: local behavior evidence does not establish deployment support. Event history is incomplete and approval detail is unavailable.`
+      ? `${signatureCopy}Unverified: local behavior evidence does not establish deployment support. Gateway status is authoritative; event history is incomplete and approval detail is unavailable.`
       : `${signatureCopy}Event history is incomplete; status is authoritative and approval detail is unavailable.`, observerAttempts: row.observerAttempts });
   }));
 }
