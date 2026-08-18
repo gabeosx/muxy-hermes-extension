@@ -60,6 +60,7 @@
   "scripts" : {
     "build" : "vite build && node scripts\/copy-manifest.mjs",
     "dev" : "vite",
+    "fixture:kanban" : "node scripts\/run-kanban-fixture.mjs",
     "test" : "node --test test/*.test.js",
     "validate" : "node scripts/validate-phase.mjs",
     "update-skill" : "node -e \"const fs=require('fs'),p=require('path');const url='https:\/\/raw.githubusercontent.com\/muxy-app\/muxy\/main\/Muxy\/Resources\/skills\/muxy-extension\/SKILL.md';fetch(url).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(t=>{for(const d of ['.claude\/skills\/muxy-extension','.agents\/skills\/muxy-extension']){fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p.join(d,'SKILL.md'),t);console.log('Updated '+p.join(d,'SKILL.md'))}}).catch(e=>{console.error('Failed to update skill:',e.message);process.exit(1)})\""
