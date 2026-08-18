@@ -9,6 +9,7 @@ import {
   buildSimulationRecord,
   loadSimulationScenarios,
   runRecoverySimulation,
+  runHttpsProxySimulation,
 } from "../scripts/qualify-simulations.mjs";
 
 const versions = Object.freeze({
@@ -114,4 +115,30 @@ test("simulation rows remain forced Unverified even when a caller requests a pos
   assert.equal(result.verdict, "Unverified");
   const row = JSON.parse(await readFile(evidencePath, "utf8")).conditions.find((condition) => condition.id === "ssh_local_forward");
   assert.deepEqual([row.actual, row.nativePanel, row.verdict], [false, false, "Unverified"]);
+});
+
+test("HTTPS reverse-proxy simulation validates its CA, exact CORS, authentication, and buffering without a TLS bypass", async () => {
+  const { root, evidencePath } = await simulationEvidenceCopy();
+  const result = await runHttpsProxySimulation({ projectRoot: root, evidencePath, versions });
+  assert.equal(result.certificateRefused, true);
+  assert.equal(result.certificateValidated, true);
+  assert.equal(result.authenticationRejected, true);
+  assert.equal(result.authenticationAccepted, true);
+  assert.equal(result.exactOriginCors, true);
+  assert.equal(result.unbufferedFirstChunk, true);
+  assert.equal(result.bufferedComparison, true);
+  assert.equal(result.cleanup, "scrubbed_removed");
+  assert.equal(result.verdict, "Unverified");
+  const row = JSON.parse(await readFile(evidencePath, "utf8")).conditions.find((condition) => condition.id === "direct_remote_https");
+  assert.deepEqual([row.actual, row.nativePanel, row.verdict], [false, false, "Unverified"]);
+  assert.deepEqual(row.signatures, ["authentication", "buffered_or_delayed", "certificate_validated", "exact_origin_cors", "unbuffered_delivery"]);
+});
+
+test("parallel HTTPS simulations use disjoint task-owned namespaces and remove every owned resource", async () => {
+  const [left, right] = await Promise.all([runHttpsProxySimulation({ versions }), runHttpsProxySimulation({ versions })]);
+  assert.notEqual(left.resourceDigest, right.resourceDigest);
+  assert.equal(left.cleanup, "scrubbed_removed");
+  assert.equal(right.cleanup, "scrubbed_removed");
+  assert.equal(left.resourcesDisjoint, true);
+  assert.equal(right.resourcesDisjoint, true);
 });
