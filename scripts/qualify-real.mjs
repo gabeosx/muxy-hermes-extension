@@ -291,6 +291,7 @@ export async function startHostGateway({
     },
     stdio: ["ignore", "ignore", logStderr ? "inherit" : "ignore"],
   });
+  const exited = new Promise((resolveExit) => child.once("exit", (code, signal) => resolveExit({ code, signal })));
   const url = `http://127.0.0.1:${port}`;
   const ready = async () => {
     const expiresAt = Date.now() + 20_000;
@@ -304,9 +305,13 @@ export async function startHostGateway({
     }
     throw new Error("qualification_gateway_not_ready");
   };
-  const stop = () => { if (child.exitCode === null) child.kill("SIGTERM"); };
+  const stop = async () => {
+    if (child.exitCode === null) child.kill("SIGTERM");
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("qualification_gateway_stop_timeout")), 10_000));
+    return Promise.race([exited, timeout]);
+  };
   await ready();
-  return { url, stop };
+  return { url, stop, exited };
 }
 
 export async function startHostGatewayFromOriginHandoff({ runtime, handoffPath, executable = process.env.HERMES_QUALIFICATION_EXECUTABLE, modelStub }) {
@@ -333,13 +338,22 @@ export async function qualifyRealDeployment({ fixture = "host-native", runtimeRo
   };
 }
 
-async function runInteractiveHostQualification(runtimeRoot) {
-  const versions = await resolveVersionTuple();
+async function runInteractiveHostQualification(runtimeRoot, { origin: suppliedOrigin = null } = {}) {
+  const versions = suppliedOrigin
+    ? {
+        hermesRelease: `v${PINNED_HERMES_RELEASE}`,
+        hermesVersion: PINNED_HERMES_VERSION,
+        hermesRevision: PINNED_HERMES_REVISION,
+      }
+    : await resolveVersionTuple();
   const runtime = await createQualificationRuntime({ root: runtimeRoot });
-  const capture = await startOriginCaptureServer();
-  process.stdout.write(`${JSON.stringify({ status: "awaiting_origin_capture", fixture: "host-native", captureUrl: capture.url, panelTokenFile: runtime.tokenFile, versions })}\n`);
-  const origin = await capture.waitForOrigin();
-  await capture.close();
+  let origin = suppliedOrigin ? validateCapturedOrigin([suppliedOrigin]) : null;
+  if (!origin) {
+    const capture = await startOriginCaptureServer();
+    process.stdout.write(`${JSON.stringify({ status: "awaiting_origin_capture", fixture: "host-native", captureUrl: capture.url, panelTokenFile: runtime.tokenFile, versions })}\n`);
+    origin = await capture.waitForOrigin();
+    await capture.close();
+  }
   const modelStub = await startDeterministicModelStub();
   let gateway;
   try {
@@ -350,8 +364,9 @@ async function runInteractiveHostQualification(runtimeRoot) {
       process.once("SIGTERM", resolveWait);
     });
   } finally {
-    gateway?.stop();
+    await gateway?.stop();
     await modelStub.close();
+    await cleanupQualificationRuntime({ root: runtimeRoot });
   }
 }
 
@@ -377,7 +392,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     } else {
       const fixture = process.argv[3] && process.argv[2] === "--fixture" ? process.argv[3] : "";
       if (fixture !== "host-native") throw new Error("qualification_fixture_unsupported");
-      await runInteractiveHostQualification(process.env.QUALIFICATION_RUNTIME_ROOT);
+      const originIndex = process.argv.indexOf("--origin");
+      const suppliedOrigin = originIndex >= 0 ? process.argv[originIndex + 1] : null;
+      await runInteractiveHostQualification(process.env.QUALIFICATION_RUNTIME_ROOT, { origin: suppliedOrigin });
     }
   } catch (error) {
     process.stderr.write(`${/^qualification_/.test(error?.message ?? "") ? error.message : "qualification_failed"}\n`);
