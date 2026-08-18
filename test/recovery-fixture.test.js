@@ -40,6 +40,36 @@ test("recovery proxy rejects non-loopback upstreams and non-fixed routes", async
   await assert.rejects(startRecoveryProxy({ upstream: "https://gateway.example", runId: "run_fixture" }), /recovery_proxy_upstream_unsafe/);
 });
 
+test("recovery proxy learns the run ID from the bounded submission response", async () => {
+  const upstream = createServer((request, response) => {
+    if (request.method === "POST" && request.url === "/v1/runs") {
+      request.resume();
+      request.on("end", () => response.writeHead(202, { "Content-Type": "application/json" }).end('{"run_id":"run_learned"}'));
+      return;
+    }
+    if (request.url === "/v1/runs/run_learned/events") {
+      response.writeHead(200, { "Content-Type": "text/event-stream" });
+      response.write("event: message.delta\ndata: {}\n\n");
+      response.end("event: terminal\ndata: {}\n\n");
+      return;
+    }
+    response.writeHead(200, { "Content-Type": "application/json" }).end("{}");
+  });
+  const upstreamPort = await listen(upstream);
+  const proxy = await startRecoveryProxy({ upstream: `http://127.0.0.1:${upstreamPort}` });
+  try {
+    const submitted = await fetch(`${proxy.url}/v1/runs`, { method: "POST", body: "{}" });
+    assert.equal(submitted.status, 202);
+    assert.deepEqual(await submitted.json(), { run_id: "run_learned" });
+    const first = await fetch(`${proxy.url}/v1/runs/run_learned/events`);
+    assert.equal((await first.text()).includes("terminal"), false);
+    assert.deepEqual(proxy.observation(), { interrupted: true, forwardedSubscriptions: 1, buffered: false });
+  } finally {
+    await proxy.close();
+    await new Promise((resolve) => upstream.close(resolve));
+  }
+});
+
 test("recovery scenario records observed behavior, not inferred topology, and keeps remote analogues unverified", async () => {
   const scenarios = JSON.parse(await readFile(new URL("../fixtures/simulations/recovery-scenarios.json", import.meta.url), "utf8"));
   assert.deepEqual(scenarios.conditions.map((row) => row.id), [

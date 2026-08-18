@@ -19,8 +19,7 @@ function closeServer(server) { return new Promise((resolve) => server.close(() =
 /** Test-only loopback relay. It never writes request/response data to disk or stdout. */
 export async function startRecoveryProxy({ upstream, runId } = {}) {
   const target = parseLoopbackUpstream(upstream);
-  const safeId = safeRunId(runId);
-  const eventsPath = `/v1/runs/${safeId}/events`;
+  let learnedRunId = runId == null ? null : safeRunId(runId);
   let interrupted = false;
   let forwardedSubscriptions = 0;
   let buffered = false;
@@ -29,7 +28,9 @@ export async function startRecoveryProxy({ upstream, runId } = {}) {
       outgoing.writeHead(404, { Connection: "close" }).end();
       return;
     }
+    const eventsPath = learnedRunId ? `/v1/runs/${learnedRunId}/events` : null;
     const isEvents = incoming.method === "GET" && incoming.url === eventsPath;
+    const isRunSubmission = incoming.method === "POST" && incoming.url === "/v1/runs" && learnedRunId === null;
     if (isEvents) forwardedSubscriptions += 1;
     const upstreamRequest = requestHttp({
       hostname: target.hostname,
@@ -39,6 +40,23 @@ export async function startRecoveryProxy({ upstream, runId } = {}) {
       headers: incoming.headers,
     }, (upstreamResponse) => {
       outgoing.writeHead(upstreamResponse.statusCode ?? 502, upstreamResponse.headers);
+      if (isRunSubmission) {
+        const chunks = [];
+        let size = 0;
+        upstreamResponse.on("data", (chunk) => {
+          size += chunk.length;
+          if (size <= 64 * 1024) chunks.push(chunk);
+          outgoing.write(chunk);
+        });
+        upstreamResponse.on("end", () => {
+          if (size <= 64 * 1024) {
+            try { learnedRunId = safeRunId(JSON.parse(Buffer.concat(chunks).toString("utf8")).run_id); } catch { /* fail closed: no interruption target */ }
+          }
+          outgoing.end();
+        });
+        upstreamResponse.on("error", () => { if (!outgoing.writableEnded) outgoing.end(); });
+        return;
+      }
       if (!isEvents || interrupted) {
         upstreamResponse.pipe(outgoing);
         return;
@@ -68,4 +86,21 @@ export async function startRecoveryProxy({ upstream, runId } = {}) {
     observation: () => Object.freeze({ interrupted, forwardedSubscriptions, buffered }),
     close: () => closeServer(server),
   });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  try {
+    if (process.argv[2] !== "--serve" || process.argv.length !== 3) throw new Error("recovery_proxy_mode_invalid");
+    const proxy = await startRecoveryProxy({ upstream: process.env.RECOVERY_PROXY_UPSTREAM });
+    process.stdout.write(`${JSON.stringify({ status: "ready", url: proxy.url })}\n`);
+    await new Promise((resolve) => {
+      process.once("SIGINT", resolve);
+      process.once("SIGTERM", resolve);
+    });
+    process.stdout.write(`${JSON.stringify({ status: "stopping", observation: proxy.observation() })}\n`);
+    await proxy.close();
+  } catch (error) {
+    process.stderr.write(`${/^recovery_proxy_/.test(error?.message ?? "") ? error.message : "recovery_proxy_failed"}\n`);
+    process.exitCode = 1;
+  }
 }
