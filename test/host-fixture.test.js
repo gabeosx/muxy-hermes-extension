@@ -77,13 +77,26 @@ test("host fixture creates a permission-restricted empty home/workspace and no d
 
 test("host qualification accepts only the explicit pinned temporary executable and scrubs its owned runtime", async () => {
   const executable = "/private/tmp/hermes-qualification-v2026.8.16/hermes";
-  const verified = await verifyQualificationExecutable({ executable, execFile: async (command, args) => {
-    assert.equal(command, executable);
-    assert.deepEqual(args, ["--version"]);
-    return { stdout: "Hermes Agent v0.20.2 (2026.8.16) df4b65147d7ddd74dd449f9067aabbca5aef0ec7\n" };
-  } });
+  const verified = await verifyQualificationExecutable({
+    executable,
+    attestedRevision: "df4b65147d7ddd74dd449f9067aabbca5aef0ec7",
+    execFile: async (command, args) => {
+      assert.equal(command, executable);
+      assert.deepEqual(args, ["--version"]);
+      return { stdout: "Hermes Agent v0.20.2 (2026.8.16)\n" };
+    },
+    readFile: async (path) => path.endsWith("pyproject.toml")
+      ? '[project]\nversion = "0.20.2"\n'
+      : '__version__ = "0.20.2"\n__release_date__ = "2026.8.16"\n',
+  });
   assert.deepEqual(verified, { version: "0.20.2", release: "2026.8.16", revision: "df4b65147d7ddd74dd449f9067aabbca5aef0ec7" });
   await assert.rejects(verifyQualificationExecutable({ executable: "/Applications/hermes", execFile: async () => ({ stdout: "" }) }), /qualification_executable_unsafe/);
+  await assert.rejects(verifyQualificationExecutable({
+    executable,
+    attestedRevision: "bbc20510676c48c6bfa0ef5c2eeefbf676449456",
+    execFile: async () => ({ stdout: "Hermes Agent v0.20.2 (2026.8.16)\n" }),
+    readFile: async () => 'version = "0.20.2"\n__release_date__ = "2026.8.16"\n',
+  }), /qualification_executable_identity_mismatch/);
 
   const root = await mkdtemp("/private/tmp/hermes-host-fixture-cleanup-");
   await cleanupQualificationRuntime({ root });
@@ -119,6 +132,11 @@ test("deterministic model fixture permits Hermes metadata while rejecting title 
     assert.equal(qualified.status, 200);
     assert.match(await qualified.text(), /alpha[\s\S]*beta[\s\S]*\[DONE\]/);
     assert.equal(stub.requestCount(), 1);
+
+    const runRequest = await post(qualifiedBody);
+    assert.equal(runRequest.status, 200);
+    assert.match(await runRequest.text(), /alpha[\s\S]*beta[\s\S]*\[DONE\]/);
+    assert.equal(stub.requestCount(), 2);
 
     const replay = await post(qualifiedBody);
     assert.equal(replay.status, 400);

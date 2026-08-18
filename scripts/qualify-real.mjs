@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { execFile as execFileCallback, spawn } from "node:child_process";
 import { chmod, mkdir, mkdtemp, open, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { createServer } from "node:http";
 import { promisify } from "node:util";
 
@@ -109,7 +109,12 @@ export async function createQualificationRuntime({ root, token = randomBytes(32)
 }
 
 /** Verify one user-supplied temporary binary; discovery and fallback installs are forbidden. */
-export async function verifyQualificationExecutable({ executable, execFile: execute = execFile } = {}) {
+export async function verifyQualificationExecutable({
+  executable,
+  attestedRevision,
+  execFile: execute = execFile,
+  readFile: read = readFile,
+} = {}) {
   if (typeof executable !== "string" || !executable.startsWith(FIXTURE_ROOT_PREFIX) || !executable.endsWith("/hermes") || executable.includes("\n")) {
     throw new Error("qualification_executable_unsafe");
   }
@@ -117,7 +122,23 @@ export async function verifyQualificationExecutable({ executable, execFile: exec
   try { ({ stdout } = await execute(executable, ["--version"], { timeout: 10_000 })); }
   catch { throw new Error("qualification_executable_unreadable"); }
   const output = String(stdout);
-  if (!output.includes(`v${PINNED_HERMES_VERSION}`) || !output.includes(PINNED_HERMES_RELEASE) || !output.includes(PINNED_HERMES_REVISION)) {
+  let packageMetadata = "";
+  let releaseMetadata = "";
+  try {
+    const sourceRoot = dirname(executable);
+    [packageMetadata, releaseMetadata] = await Promise.all([
+      read(join(sourceRoot, "pyproject.toml"), "utf8"),
+      read(join(sourceRoot, "hermes_cli", "__init__.py"), "utf8"),
+    ]);
+  } catch {
+    throw new Error("qualification_executable_identity_mismatch");
+  }
+  if (!output.includes(`v${PINNED_HERMES_VERSION}`)
+    || !output.includes(PINNED_HERMES_RELEASE)
+    || !new RegExp(`version\\s*=\\s*[\"']${PINNED_HERMES_VERSION}[\"']`).test(packageMetadata)
+    || !releaseMetadata.includes(`__version__ = \"${PINNED_HERMES_VERSION}\"`)
+    || !releaseMetadata.includes(`__release_date__ = \"${PINNED_HERMES_RELEASE}\"`)
+    || attestedRevision !== PINNED_HERMES_REVISION) {
     throw new Error("qualification_executable_identity_mismatch");
   }
   return Object.freeze({ version: PINNED_HERMES_VERSION, release: PINNED_HERMES_RELEASE, revision: PINNED_HERMES_REVISION });
@@ -207,7 +228,7 @@ export async function startOriginCaptureServer() {
   };
 }
 
-export async function startDeterministicModelStub() {
+export async function startDeterministicModelStub({ maxQualificationRequests = 2 } = {}) {
   let requestCount = 0;
   const isQualificationRequest = (body) => {
     let payload;
@@ -229,7 +250,7 @@ export async function startDeterministicModelStub() {
     let body = "";
     request.on("data", (chunk) => { body += chunk; });
     request.on("end", () => {
-      if (!isQualificationRequest(body) || requestCount > 0) { response.writeHead(400).end(); return; }
+      if (!isQualificationRequest(body) || requestCount >= maxQualificationRequests) { response.writeHead(400).end(); return; }
       requestCount += 1;
       response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
       response.write('data: {"id":"chatcmpl-fixture","object":"chat.completion.chunk","created":0,"model":"hermes-agent","choices":[{"index":0,"delta":{"role":"assistant","content":"alpha"},"finish_reason":null}]}\n\n');
@@ -243,8 +264,15 @@ export async function startDeterministicModelStub() {
   return { baseUrl: `http://127.0.0.1:${port}/v1`, requestCount: () => requestCount, close: () => close(server) };
 }
 
-export async function startHostGateway({ runtime, origin, executable = process.env.HERMES_QUALIFICATION_EXECUTABLE, modelStub, logStderr = false }) {
-  await verifyQualificationExecutable({ executable });
+export async function startHostGateway({
+  runtime,
+  origin,
+  executable = process.env.HERMES_QUALIFICATION_EXECUTABLE,
+  attestedRevision = process.env.HERMES_QUALIFICATION_REVISION,
+  modelStub,
+  logStderr = false,
+}) {
+  await verifyQualificationExecutable({ executable, attestedRevision });
   const server = createServer();
   const port = await listen(server);
   await close(server);
@@ -315,7 +343,7 @@ async function runInteractiveHostQualification(runtimeRoot) {
   const modelStub = await startDeterministicModelStub();
   let gateway;
   try {
-    gateway = await startHostGateway({ runtime, origin, modelStub });
+    gateway = await startHostGateway({ runtime, origin, modelStub, attestedRevision: versions.hermesRevision });
     process.stdout.write(`${JSON.stringify({ status: "awaiting_two_fresh_panel_sessions", fixture: "host-native", gatewayUrl: gateway.url, panelTokenFile: runtime.tokenFile, safeRequestContract: "two_delayed_deltas_no_tools" })}\n`);
     await new Promise((resolveWait) => {
       process.once("SIGINT", resolveWait);
