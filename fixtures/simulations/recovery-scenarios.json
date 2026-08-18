@@ -5,8 +5,26 @@
     { "id": "interrupted_restored_stream", "observedBehavior": "interrupted_then_restored", "forced_unverified": false },
     { "id": "proxy_buffering", "observedBehavior": "buffered_or_delayed", "forced_unverified": false },
     { "id": "panel_recreation", "observedBehavior": "fresh_credentials_and_status_only", "forced_unverified": false },
-    { "id": "ssh_local_forward", "observedBehavior": "local_interruption_analogue", "forced_unverified": true },
-    { "id": "direct_remote_https", "observedBehavior": "local_buffering_analogue", "forced_unverified": true },
-    { "id": "remote_muxy_workspace", "observedBehavior": "panel_recreation_analogue", "forced_unverified": true }
+    {
+      "id": "ssh_local_forward",
+      "observedBehavior": "local_interruption_restoration_analogue",
+      "forced_unverified": true,
+      "expectedSignatures": ["observer_interrupted", "observer_restored"],
+      "fixture": "common_run_client_controller"
+    },
+    {
+      "id": "direct_remote_https",
+      "observedBehavior": "local_tls_buffering_analogue",
+      "forced_unverified": true,
+      "expectedSignatures": ["certificate_validated", "authentication", "exact_origin_cors", "unbuffered_delivery", "buffered_or_delayed"],
+      "fixture": "isolated_docker_tls_proxy"
+    },
+    {
+      "id": "remote_muxy_workspace",
+      "observedBehavior": "workspace_path_absence_analogue",
+      "forced_unverified": true,
+      "expectedSignatures": ["workspace_path_absent"],
+      "fixture": "common_run_client_controller"
+    }
   ]
 }
