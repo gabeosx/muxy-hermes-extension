@@ -224,18 +224,6 @@ async function cleanupVerifierFiles(projectRoot) {
   }
 }
 
-async function assertVerifierFilesAbsent(projectRoot) {
-  for (const filename of [CONNECTION_CHALLENGE, CONNECTION_RECEIPT, RECOVERY_CHALLENGE, RECOVERY_RECEIPT]) {
-    try {
-      await stat(verifierPath(projectRoot, filename));
-      recoveryFailure("stale_verifier_artifact");
-    } catch (error) {
-      if (/^recovery_/.test(error?.message ?? "")) throw error;
-      if (error?.code !== "ENOENT") throw error;
-    }
-  }
-}
-
 function runSilent(command, args, { env, stdin = null } = {}) {
   return new Promise((resolveResult, reject) => {
     const child = spawn(command, args, { env, stdio: ["pipe", "ignore", "ignore"] });
@@ -279,7 +267,7 @@ export async function runDockerRecoveryQualification({ projectRoot = process.cwd
     proxy = await startRecoveryProxy({ upstream, bufferFirstEventsMs: 250, port: resources.proxyPort });
     const refusal = await runSilent("/usr/bin/curl", ["--silent", "--show-error", "--no-buffer", "--config", "-", "--connect-timeout", "1", "--max-time", "2", `http://127.0.0.1:${resources.refusedPort}/v1/capabilities`], { stdin: buildBearerConfig(resources.bearer) });
     refusalExercised = normalizeRefusalOutcome(refusal) === "refused_or_unreachable";
-    await assertVerifierFilesAbsent(projectRoot);
+    await cleanupVerifierFiles(projectRoot);
     await issueDockerConnectionChallenge(projectRoot);
     process.stdout.write(`${JSON.stringify({ status: "awaiting_native_docker_connection", fixture: "docker", gatewayUrl: proxy.url, panelTokenFile: resources.panelTokenFile, safeRequestContract: "one_shot_interrupted_event_stream" })}\n`);
     connectionReceipt = await waitForVerifierReceipt(projectRoot, "connection");

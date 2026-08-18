@@ -211,18 +211,6 @@ export async function cleanupVerifierArtifacts({ projectRoot = process.cwd() } =
   return true;
 }
 
-async function assertVerifierArtifactsAbsent(projectRoot) {
-  for (const filename of [CONNECTION_CHALLENGE, CONNECTION_RECEIPT, RECOVERY_CHALLENGE, RECOVERY_RECEIPT]) {
-    try {
-      await stat(verifierPath(projectRoot, filename));
-      recoveryFailure("stale_verifier_artifact");
-    } catch (error) {
-      if (/qualification_recovery_/.test(error?.message ?? "")) throw error;
-      if (error?.code !== "ENOENT") throw error;
-    }
-  }
-}
-
 function securePath(value, name) {
   const resolved = resolve(value);
   if (!resolved.startsWith(FIXTURE_ROOT_PREFIX) || basename(resolved) === "." || basename(resolved) === "/") throw new Error(`qualification_${name}_unsafe`);
@@ -647,7 +635,7 @@ async function runReceiptBackedHostQualification(runtimeRoot, { origin: supplied
     }
     modelStub = await startDeterministicModelStub();
     gateway = await startHostGateway({ runtime, origin, modelStub, attestedRevision: versions.hermesRevision, logStderr: process.env.HERMES_QUALIFICATION_DEBUG === "1" });
-    await assertVerifierArtifactsAbsent(projectRoot);
+    await cleanupVerifierArtifacts({ projectRoot });
     await issueConnectionChallenge({ projectRoot });
     process.stdout.write(`${JSON.stringify({ status: "awaiting_native_initial_connection", fixture: "host-native", gatewayUrl: gateway.url, panelTokenFile: runtime.tokenFile, safeRequestContract: "two_delayed_deltas_no_tools" })}\n`);
     connectionReceipt = await waitForVerifierReceipt({ projectRoot, kind: "connection", signal: interrupted.signal });
