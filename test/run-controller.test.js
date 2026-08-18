@@ -12,6 +12,11 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
+async function flushAsyncWork() {
+  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+}
+
 test("controller streams bounded activity, requires exact approval choices, and reconciles terminal status", async () => {
   const stream = deferred();
   let onEvent;
@@ -182,4 +187,147 @@ test("recreated-panel recover is status-only and clears untrusted live detail", 
   assert.equal(controller.snapshot.pendingApproval, null);
   assert.equal(controller.snapshot.streamState, "detached");
   assert.match(controller.snapshot.recoveryNotice, /not recovered/i);
+});
+
+test("status failures at every interruption boundary stop automatic recovery and leave Refresh status-only", async (t) => {
+  const cases = [
+    { name: "initial reconciliation", failedStatus: 1, expected: ["start", "status"] },
+    { name: "first reattach reconciliation", failedStatus: 2, expected: ["start", "status", "observe", "status"] },
+    { name: "final exhaustion reconciliation", failedStatus: 3, expected: ["start", "status", "observe", "status", "observe", "status"] },
+  ];
+
+  for (const scenario of cases) await t.test(scenario.name, async () => {
+    const initial = deferred();
+    const firstObserver = deferred();
+    const finalObserver = deferred();
+    const calls = [];
+    let statusCalls = 0;
+    const client = {
+      async start() { calls.push("start"); return { runId: "run_abc12345", stream: initial.promise }; },
+      observe() {
+        calls.push("observe");
+        return calls.filter((call) => call === "observe").length === 1 ? firstObserver.promise : finalObserver.promise;
+      },
+      async status() {
+        calls.push("status");
+        statusCalls += 1;
+        if (statusCalls === scenario.failedStatus) throw new Error("status unavailable");
+        return { runId: "run_abc12345", status: "running", output: "" };
+      },
+      async teardown() {},
+    };
+    const controller = new RunController({
+      baseUrl: "http://127.0.0.1:8642", bearer: "secret", capabilities: core, client,
+      recoveryDelays: [0, 0], sleep: async () => {},
+    });
+
+    await controller.start("work");
+    initial.resolve({});
+    await flushAsyncWork();
+    if (scenario.failedStatus > 1) {
+      firstObserver.resolve({});
+      await flushAsyncWork();
+    }
+    if (scenario.failedStatus > 2) {
+      finalObserver.resolve({});
+      await flushAsyncWork();
+    }
+
+    assert.deepEqual(calls, scenario.expected);
+    assert.deepEqual([
+      controller.snapshot.status,
+      controller.snapshot.streamState,
+      controller.snapshot.manualRefresh,
+      controller.snapshot.recovery.statusClass,
+    ], ["status_unavailable", "disconnected", true, "unavailable"]);
+    const beforeStaleSettlement = [...calls];
+    initial.resolve({}); firstObserver.resolve({}); finalObserver.resolve({});
+    await flushAsyncWork();
+    assert.deepEqual(calls, beforeStaleSettlement, "no observer follows the rejected authoritative status");
+
+    await controller.refresh();
+    assert.equal(controller.snapshot.status, "running");
+    assert.equal(controller.snapshot.streamState, "disconnected");
+    assert.equal(controller.snapshot.manualRefresh, true);
+    assert.equal(calls.filter((call) => call === "observe").length, scenario.failedStatus - 1, "manual Refresh never restarts SSE");
+  });
+});
+
+test("release invalidates pending recovery work and serializes replacement relay ownership", async (t) => {
+  const cases = ["backoff", "status", "observer"];
+
+  for (const timing of cases) await t.test(`release during pending ${timing}`, async () => {
+    const initial = deferred();
+    const pendingStatus = deferred();
+    const pendingSleep = deferred();
+    const pendingObserver = deferred();
+    const teardown = deferred();
+    const calls = [];
+    let owners = 0;
+    let maximumOwners = 0;
+    let teardownCalls = 0;
+    let oldSnapshotUpdates = 0;
+    const oldClient = {
+      async start() {
+        calls.push("old:start");
+        owners += 1;
+        maximumOwners = Math.max(maximumOwners, owners);
+        return { runId: "run_abc12345", stream: initial.promise };
+      },
+      status() {
+        calls.push("old:status");
+        return timing === "status" ? pendingStatus.promise : Promise.resolve({ runId: "run_abc12345", status: "running", output: "" });
+      },
+      observe() { calls.push("old:observe"); return pendingObserver.promise; },
+      async teardown() {
+        calls.push("old:teardown");
+        teardownCalls += 1;
+        await teardown.promise;
+        owners -= 1;
+      },
+    };
+    const oldController = new RunController({
+      baseUrl: "http://127.0.0.1:8642", bearer: "old-secret", capabilities: core, client: oldClient,
+      recoveryDelays: [0, 0], sleep: () => {
+        calls.push("old:sleep");
+        return timing === "backoff" ? pendingSleep.promise : Promise.resolve();
+      },
+    });
+    oldController.subscribe(() => { oldSnapshotUpdates += 1; });
+    await oldController.start("old work");
+    initial.resolve({});
+    await flushAsyncWork();
+    assert.ok(calls.includes(timing === "observer" ? "old:observe" : timing === "status" ? "old:status" : "old:sleep"));
+
+    const updatesBeforeRelease = oldSnapshotUpdates;
+    const replacementClient = {
+      async start() {
+        calls.push("replacement:start");
+        owners += 1;
+        maximumOwners = Math.max(maximumOwners, owners);
+        return { runId: "run_def67890", stream: new Promise(() => {}) };
+      },
+      async teardown() { owners -= 1; },
+    };
+    const replacement = new RunController({ baseUrl: "http://127.0.0.1:8642", bearer: "fresh-secret", capabilities: core, client: replacementClient });
+    const replace = (async () => {
+      await oldController.release();
+      await replacement.start("replacement work");
+    })();
+
+    await flushAsyncWork();
+    assert.equal(teardownCalls, 1);
+    assert.equal(calls.includes("replacement:start"), false, "replacement waits for old teardown");
+    if (timing === "backoff") pendingSleep.resolve();
+    if (timing === "status") pendingStatus.resolve({ runId: "run_abc12345", status: "completed", output: "stale" });
+    if (timing === "observer") pendingObserver.resolve({});
+    await flushAsyncWork();
+    assert.equal(oldSnapshotUpdates, updatesBeforeRelease, "released listeners receive no stale state");
+
+    teardown.resolve();
+    await replace;
+    assert.equal(teardownCalls, 1);
+    assert.equal(maximumOwners, 1, "old and replacement controllers never own a relay concurrently");
+    assert.equal(owners, 1, "only the replacement controller owns a relay after handoff");
+  });
 });

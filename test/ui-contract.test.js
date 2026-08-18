@@ -171,3 +171,17 @@ test("the panel requires fresh credentials and a manual run ID for truthful reco
   assert.match(css, /gateway-recovery/);
   assert.match(css, /gateway-run-id/);
 });
+
+test("replacement connection waits for prior run teardown before probing or creating a controller", async () => {
+  const panel = await readFile(new URL("../src/panel/app.js", import.meta.url), "utf8");
+  const submitStart = panel.indexOf("async submit(event)");
+  const submitEnd = panel.indexOf("\n  verdictSection()", submitStart);
+  const submit = panel.slice(submitStart, submitEnd);
+
+  const disconnect = submit.indexOf("await this.disconnectRun();");
+  const probe = submit.indexOf("await this.probe.start(");
+  const controller = submit.indexOf("this.runController = new RunController(");
+  assert.ok(disconnect >= 0, "submit must await old controller release");
+  assert.ok(probe > disconnect, "gateway probing starts only after old teardown");
+  assert.ok(controller > probe, "replacement controller is constructed only after successful fresh probe");
+});
