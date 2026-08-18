@@ -12,17 +12,65 @@ import {
   resolveLatestStable,
 } from "../scripts/resolve-versions.mjs";
 import {
+  buildHostRecoveryBundle,
+  cleanupVerifierArtifacts,
+  createQualificationCleanupReceipt,
   FIXTURE_REQUEST,
   consumeOriginHandoff,
   cleanupQualificationRuntime,
   createQualificationRuntime,
   qualifyRealDeployment,
   recordFreshSession,
+  issueConnectionChallenge,
+  issueRecoveryChallenge,
   startDeterministicModelStub,
   startOriginCaptureServer,
   validateCapturedOrigin,
   verifyQualificationExecutable,
 } from "../scripts/qualify-real.mjs";
+
+const recoveryDigest = (character) => `sha256:${character.repeat(64)}`;
+
+function recoveryChallenge(overrides = {}) {
+  return {
+    version: 1,
+    nonce: "host-recovery-verifier-nonce-42",
+    expiresAt: "2026-08-19T00:00:00.000Z",
+    expectedCondition: "host_native_loopback",
+    expectedLifecycle: "recreated_panel",
+    expectedSignatures: ["panel_recreated"],
+    challengeDigest: recoveryDigest("1"),
+    ...overrides,
+  };
+}
+
+function hostConnectionReceipt(overrides = {}) {
+  return {
+    version: 1,
+    challengeDigest: "2".repeat(64),
+    panelDigest: "3".repeat(64),
+    sessionOrdinal: 1,
+    outcomes: {
+      relay: "passed", authentication: "passed", capabilities: "passed", stream: "passed", cleanup: "passed",
+      digests: { execution: "4".repeat(64), timing: "5".repeat(64), frames: "6".repeat(64), cleanup: "7".repeat(64) },
+    },
+    ...overrides,
+  };
+}
+
+function hostRecoveryReceipt(overrides = {}) {
+  return {
+    version: 1,
+    challengeDigest: recoveryDigest("1"),
+    panelDigest: recoveryDigest("8"),
+    lifecycle: "recreated_panel",
+    observerAttempts: 0,
+    statusClass: "terminal",
+    signatures: ["panel_recreated"],
+    outcomeDigests: { recovery: recoveryDigest("9"), status: recoveryDigest("a") },
+    ...overrides,
+  };
+}
 
 const muxyRelease = { tag_name: "v1.5.0", draft: false, prerelease: false, published_at: "2026-08-16T00:00:00Z" };
 
@@ -181,6 +229,57 @@ test("captured origins must be stable, syntactically exact non-null values and t
   assert.equal(first.freshPanelSession, true);
   assert.equal(second.freshPanelSession, true);
   assert.throws(() => recordFreshSession({ sessionOrdinal: 2, panelSessionId: "panel-a", requiredStages: "passed", previous: first }), /qualification_fresh_panel_required/);
+});
+
+test("host receipt bundle requires a fresh second panel and a cleanup receipt before publication", () => {
+  const cleanup = createQualificationCleanupReceipt({
+    challengeDigest: recoveryDigest("1"),
+    checks: { gatewayStopped: true, modelStopped: true, portsFree: true, runtimeRemoved: true, verifierFilesRemoved: true },
+  });
+  const bundle = buildHostRecoveryBundle({
+    connectionReceipt: hostConnectionReceipt(),
+    recoveryChallenge: recoveryChallenge(),
+    recoveryReceipt: hostRecoveryReceipt(),
+    fixtureDigest: recoveryDigest("b"),
+    cleanup,
+  });
+  assert.equal(bundle.fixture.condition, "host_native_loopback");
+  assert.equal(bundle.fixture.lifecycle, "recreated_panel");
+  assert.equal(bundle.cleanup.cleanup, "scrubbed_removed");
+
+  for (const candidate of [
+    { recoveryReceipt: hostRecoveryReceipt({ panelDigest: recoveryDigest("3") }) },
+    { recoveryReceipt: hostRecoveryReceipt({ statusClass: "active" }) },
+    { recoveryReceipt: hostRecoveryReceipt({ observerAttempts: 1 }) },
+    { recoveryChallenge: recoveryChallenge({ challengeDigest: recoveryDigest("c") }) },
+    { cleanup: { ...cleanup, cleanup: "failed" } },
+  ]) {
+    assert.throws(() => buildHostRecoveryBundle({
+      connectionReceipt: hostConnectionReceipt(), recoveryChallenge: recoveryChallenge(), recoveryReceipt: hostRecoveryReceipt(), fixtureDigest: recoveryDigest("b"), cleanup, ...candidate,
+    }), /qualification_recovery_/);
+  }
+  assert.throws(() => createQualificationCleanupReceipt({
+    challengeDigest: recoveryDigest("1"),
+    checks: { gatewayStopped: true, modelStopped: true, portsFree: false, runtimeRemoved: true, verifierFilesRemoved: true },
+  }), /qualification_cleanup_unproved/);
+});
+
+test("host qualifier issues one-use fixed-path challenges and removes only its verifier artifacts", async () => {
+  const projectRoot = await mkdtemp("/private/tmp/muxy-host-receipt-project-");
+  try {
+    const connection = await issueConnectionChallenge({ projectRoot, now: "2026-08-18T00:00:00.000Z" });
+    const recovery = await issueRecoveryChallenge({ projectRoot, condition: "host_native_loopback", lifecycle: "recreated_panel", signatures: ["panel_recreated"], now: "2026-08-18T00:00:00.000Z" });
+    assert.match(connection.nonce, /^[A-Za-z0-9_-]{16,}$/);
+    assert.match(recovery.challengeDigest, /^sha256:[a-f0-9]{64}$/);
+    const directory = join(projectRoot, ".muxy-hermes-qualification", "current");
+    assert.equal(await stat(join(directory, "challenge.json")).then((value) => value.mode & 0o777), 0o600);
+    assert.equal(await stat(join(directory, "recovery-challenge.json")).then((value) => value.mode & 0o777), 0o600);
+    await assert.rejects(issueRecoveryChallenge({ projectRoot, condition: "host_native_loopback", lifecycle: "recreated_panel", signatures: ["panel_recreated"] }), /qualification_recovery_challenge_exists/);
+    await cleanupVerifierArtifacts({ projectRoot });
+    await assert.rejects(stat(directory));
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+  }
 });
 
 test("origin capture survives listener exit in a 0600 allowlisted one-use handoff", async () => {

@@ -1,11 +1,12 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { execFile as execFileCallback, spawn } from "node:child_process";
-import { chmod, mkdir, mkdtemp, open, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, open, readFile, readdir, rename, rmdir, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { createServer } from "node:http";
 import { promisify } from "node:util";
 
 import { resolveVersionTuple } from "./resolve-versions.mjs";
+import { projectRecoveryObservation } from "./project-recovery-observation.mjs";
 
 export const FIXTURE_REQUEST = "{\"model\":\"hermes-agent\",\"messages\":[{\"role\":\"user\",\"content\":\"HERMES_STREAM_QUALIFICATION_V1\"}],\"stream\":true}";
 const FIXTURE_ROOT_PREFIX = "/private/tmp/";
@@ -16,6 +17,199 @@ const execFile = promisify(execFileCallback);
 const PINNED_HERMES_VERSION = "0.20.2";
 const PINNED_HERMES_RELEASE = "2026.8.16";
 const PINNED_HERMES_REVISION = "df4b65147d7ddd74dd449f9067aabbca5aef0ec7";
+const VERIFIER_DIRECTORY = ".muxy-hermes-qualification/current";
+const CONNECTION_CHALLENGE = "challenge.json";
+const CONNECTION_RECEIPT = "panel-session.json";
+const RECOVERY_CHALLENGE = "recovery-challenge.json";
+const RECOVERY_RECEIPT = "recovery-panel-session.json";
+const RECEIPT_DIGEST = /^sha256:[a-f0-9]{64}$/;
+const PANEL_DIGEST = /^[a-f0-9]{64}$/;
+
+function recoveryFailure(code) { throw new Error(`qualification_recovery_${code}`); }
+
+function safeRecoveryDigest(value) {
+  if (typeof value !== "string" || !RECEIPT_DIGEST.test(value)) recoveryFailure("digest_invalid");
+  return value;
+}
+
+function exactObject(value, keys, code) {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || Object.keys(value).length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) {
+    recoveryFailure(code);
+  }
+  return value;
+}
+
+function canonical(value) {
+  if (value === null || typeof value === "boolean" || typeof value === "number" || typeof value === "string") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
+}
+
+function digestReceipt(value) {
+  return `sha256:${createHash("sha256").update(canonical(value)).digest("hex")}`;
+}
+
+function validateConnectionReceipt(value) {
+  exactObject(value, ["version", "challengeDigest", "panelDigest", "sessionOrdinal", "outcomes"], "connection_receipt_invalid");
+  if (value.version !== 1 || !PANEL_DIGEST.test(value.challengeDigest) || !PANEL_DIGEST.test(value.panelDigest) || value.sessionOrdinal !== 1) recoveryFailure("connection_receipt_invalid");
+  exactObject(value.outcomes, ["relay", "authentication", "capabilities", "stream", "cleanup", "digests"], "connection_receipt_invalid");
+  if (![value.outcomes.relay, value.outcomes.authentication, value.outcomes.capabilities, value.outcomes.stream, value.outcomes.cleanup].every((outcome) => outcome === "passed")) recoveryFailure("connection_receipt_invalid");
+  exactObject(value.outcomes.digests, ["execution", "timing", "frames", "cleanup"], "connection_receipt_invalid");
+  if (!Object.values(value.outcomes.digests).every((item) => PANEL_DIGEST.test(item))) recoveryFailure("connection_receipt_invalid");
+  return value;
+}
+
+function validateRecoveryChallenge(value) {
+  exactObject(value, ["version", "nonce", "expiresAt", "expectedCondition", "expectedLifecycle", "expectedSignatures", "challengeDigest"], "challenge_invalid");
+  if (value.version !== 1 || typeof value.nonce !== "string" || !/^[A-Za-z0-9_-]{16,256}$/.test(value.nonce)
+    || typeof value.expiresAt !== "string" || !Number.isFinite(Date.parse(value.expiresAt))
+    || value.expectedCondition !== "host_native_loopback" || value.expectedLifecycle !== "recreated_panel"
+    || !Array.isArray(value.expectedSignatures) || value.expectedSignatures.length !== 1 || value.expectedSignatures[0] !== "panel_recreated") {
+    recoveryFailure("challenge_invalid");
+  }
+  return { ...value, challengeDigest: safeRecoveryDigest(value.challengeDigest) };
+}
+
+function validateHostRecoveryReceipt(value, challenge) {
+  exactObject(value, ["version", "challengeDigest", "panelDigest", "lifecycle", "observerAttempts", "statusClass", "signatures", "outcomeDigests"], "receipt_invalid");
+  if (value.version !== 1 || value.challengeDigest !== challenge.challengeDigest || !RECEIPT_DIGEST.test(value.panelDigest)
+    || value.lifecycle !== "recreated_panel" || value.observerAttempts !== 0 || value.statusClass !== "terminal"
+    || !Array.isArray(value.signatures) || value.signatures.length !== 1 || value.signatures[0] !== "panel_recreated") recoveryFailure("receipt_invalid");
+  exactObject(value.outcomeDigests, ["recovery", "status"], "receipt_invalid");
+  safeRecoveryDigest(value.outcomeDigests.recovery); safeRecoveryDigest(value.outcomeDigests.status);
+  return value;
+}
+
+/** Builds the only host-native bundle accepted by the receipt projector. */
+export function buildHostRecoveryBundle({ connectionReceipt, recoveryChallenge, recoveryReceipt, fixtureDigest, cleanup } = {}) {
+  const first = validateConnectionReceipt(connectionReceipt);
+  const challenge = validateRecoveryChallenge(recoveryChallenge);
+  const second = validateHostRecoveryReceipt(recoveryReceipt, challenge);
+  if (first.panelDigest === second.panelDigest.slice("sha256:".length)) recoveryFailure("fresh_panel_required");
+  safeRecoveryDigest(fixtureDigest);
+  exactObject(cleanup, ["version", "challengeDigest", "cleanup", "cleanupDigest"], "cleanup_invalid");
+  if (cleanup.version !== 1 || cleanup.challengeDigest !== challenge.challengeDigest || cleanup.cleanup !== "scrubbed_removed") recoveryFailure("cleanup_invalid");
+  safeRecoveryDigest(cleanup.cleanupDigest);
+  return Object.freeze({
+    challenge,
+    panel: second,
+    fixture: Object.freeze({ version: 1, challengeDigest: challenge.challengeDigest, condition: "host_native_loopback", lifecycle: "recreated_panel", signatures: ["panel_recreated"], fixtureDigest }),
+    cleanup: Object.freeze({ ...cleanup }),
+  });
+}
+
+/** A cleanup claim is constructible only after all qualifier-owned resource checks pass. */
+export function createQualificationCleanupReceipt({ challengeDigest, checks } = {}) {
+  safeRecoveryDigest(challengeDigest);
+  exactObject(checks, ["gatewayStopped", "modelStopped", "portsFree", "runtimeRemoved", "verifierFilesRemoved"], "cleanup_checks_invalid");
+  if (!Object.values(checks).every((value) => value === true)) throw new Error("qualification_cleanup_unproved");
+  return Object.freeze({ version: 1, challengeDigest, cleanup: "scrubbed_removed", cleanupDigest: digestReceipt({ kind: "host_native", checks: Object.keys(checks).sort() }) });
+}
+
+function qualificationProjectDirectory(projectRoot) {
+  if (typeof projectRoot !== "string" || !projectRoot) recoveryFailure("project_root_invalid");
+  const root = resolve(projectRoot);
+  const directory = resolve(root, VERIFIER_DIRECTORY);
+  if (!directory.startsWith(`${root}/`)) recoveryFailure("project_root_invalid");
+  return { root, directory };
+}
+
+function verifierPath(projectRoot, filename) {
+  if (![CONNECTION_CHALLENGE, CONNECTION_RECEIPT, RECOVERY_CHALLENGE, RECOVERY_RECEIPT].includes(filename)) recoveryFailure("verifier_file_invalid");
+  const { directory } = qualificationProjectDirectory(projectRoot);
+  return join(directory, filename);
+}
+
+function recoveryChallengeFileValue(challenge) {
+  return {
+    version: challenge.version,
+    nonce: challenge.nonce,
+    expiresAt: challenge.expiresAt,
+    expectedCondition: challenge.expectedCondition,
+    expectedLifecycle: challenge.expectedLifecycle,
+    expectedSignatures: challenge.expectedSignatures,
+  };
+}
+
+/** Creates one ephemeral verifier challenge at the panel's fixed, non-production test path. */
+export async function issueRecoveryChallenge({ projectRoot = process.cwd(), condition, lifecycle, signatures, ttlMs = 120_000, now = new Date() } = {}) {
+  if (condition !== "host_native_loopback" || lifecycle !== "recreated_panel"
+    || !Array.isArray(signatures) || signatures.length !== 1 || signatures[0] !== "panel_recreated"
+    || !Number.isInteger(ttlMs) || ttlMs < 1_000 || ttlMs > 300_000 || Number.isNaN(Date.parse(now))) {
+    recoveryFailure("challenge_request_invalid");
+  }
+  const nonce = randomBytes(24).toString("base64url");
+  const challenge = Object.freeze({
+    version: 1,
+    nonce,
+    expiresAt: new Date(new Date(now).getTime() + ttlMs).toISOString(),
+    expectedCondition: condition,
+    expectedLifecycle: lifecycle,
+    expectedSignatures: Object.freeze([...signatures]),
+    challengeDigest: `sha256:${createHash("sha256").update(JSON.stringify(nonce)).digest("hex")}`,
+  });
+  const path = verifierPath(projectRoot, RECOVERY_CHALLENGE);
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  try {
+    await writeFile(path, JSON.stringify(recoveryChallengeFileValue(challenge)), { encoding: "utf8", mode: 0o600, flag: "wx" });
+  } catch (error) {
+    if (error?.code === "EEXIST") recoveryFailure("challenge_exists");
+    throw error;
+  }
+  return challenge;
+}
+
+/** The Phase 1 receipt still owns its original shape; this only creates its one-use challenge. */
+export async function issueConnectionChallenge({ projectRoot = process.cwd(), ttlMs = 120_000, now = new Date() } = {}) {
+  if (!Number.isInteger(ttlMs) || ttlMs < 1_000 || ttlMs > 300_000 || Number.isNaN(Date.parse(now))) recoveryFailure("connection_challenge_invalid");
+  const value = Object.freeze({ version: 1, nonce: randomBytes(24).toString("base64url"), expiresAt: new Date(new Date(now).getTime() + ttlMs).toISOString(), expectedOrdinal: 1 });
+  const path = verifierPath(projectRoot, CONNECTION_CHALLENGE);
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  try {
+    await writeFile(path, JSON.stringify(value), { encoding: "utf8", mode: 0o600, flag: "wx" });
+  } catch (error) {
+    if (error?.code === "EEXIST") recoveryFailure("connection_challenge_exists");
+    throw error;
+  }
+  return value;
+}
+
+export async function consumeVerifierReceipt({ projectRoot = process.cwd(), kind } = {}) {
+  const filename = kind === "connection" ? CONNECTION_RECEIPT : kind === "recovery" ? RECOVERY_RECEIPT : null;
+  if (!filename) recoveryFailure("receipt_kind_invalid");
+  const path = verifierPath(projectRoot, filename);
+  let value;
+  try { value = JSON.parse(await readFile(path, "utf8")); } catch { recoveryFailure("receipt_missing"); }
+  try { await unlink(path); } catch { recoveryFailure("receipt_cleanup_failed"); }
+  return value;
+}
+
+export async function waitForVerifierReceipt({ projectRoot = process.cwd(), kind, timeoutMs = 120_000, signal } = {}) {
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 300_000) recoveryFailure("receipt_timeout_invalid");
+  const filename = kind === "connection" ? CONNECTION_RECEIPT : kind === "recovery" ? RECOVERY_RECEIPT : null;
+  if (!filename) recoveryFailure("receipt_kind_invalid");
+  const path = verifierPath(projectRoot, filename);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (signal?.aborted) recoveryFailure("receipt_cancelled");
+    try { await stat(path); return consumeVerifierReceipt({ projectRoot, kind }); } catch (error) { if (error?.code !== "ENOENT") recoveryFailure("receipt_unreadable"); }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
+  }
+  recoveryFailure("receipt_timeout");
+}
+
+/** Removes only the fixed verifier artifacts created for this qualification; it never removes the project directory. */
+export async function cleanupVerifierArtifacts({ projectRoot = process.cwd() } = {}) {
+  const { directory } = qualificationProjectDirectory(projectRoot);
+  for (const filename of [CONNECTION_CHALLENGE, CONNECTION_RECEIPT, RECOVERY_CHALLENGE, RECOVERY_RECEIPT]) {
+    await unlink(join(directory, filename)).catch((error) => { if (error?.code !== "ENOENT") throw error; });
+  }
+  try {
+    if ((await readdir(directory)).length === 0) await rmdir(directory);
+  } catch (error) { if (error?.code !== "ENOENT" && error?.code !== "ENOTEMPTY") throw error; }
+  return true;
+}
 
 function securePath(value, name) {
   const resolved = resolve(value);
@@ -398,6 +592,96 @@ export async function qualifyRealDeployment({ fixture = "host-native", runtimeRo
   };
 }
 
+async function verifyPortAbsent(url) {
+  const parsed = new URL(url);
+  const probe = createServer();
+  try {
+    await listen(probe, Number(parsed.port));
+  } catch {
+    throw new Error("qualification_cleanup_port_bound");
+  } finally {
+    await close(probe).catch(() => {});
+  }
+}
+
+async function runReceiptBackedHostQualification(runtimeRoot, { origin: suppliedOrigin = null } = {}) {
+  const versions = suppliedOrigin
+    ? { hermesRelease: `v${PINNED_HERMES_RELEASE}`, hermesVersion: PINNED_HERMES_VERSION, hermesRevision: PINNED_HERMES_REVISION }
+    : await resolveVersionTuple();
+  const projectRoot = process.cwd();
+  const runtime = await createQualificationRuntime({ root: runtimeRoot });
+  let modelStub;
+  let gateway;
+  let connectionReceipt;
+  let recoveryChallenge;
+  let recoveryReceipt;
+  let publicationError;
+  const interrupted = new AbortController();
+  const cancel = () => interrupted.abort();
+  process.once("SIGINT", cancel);
+  process.once("SIGTERM", cancel);
+  try {
+    let origin = suppliedOrigin ? validateCapturedOrigin([suppliedOrigin]) : null;
+    if (!origin) {
+      const capture = await startOriginCaptureServer();
+      try {
+        process.stdout.write(`${JSON.stringify({ status: "awaiting_origin_capture", fixture: "host-native", captureUrl: capture.url, panelTokenFile: runtime.tokenFile, versions })}\n`);
+        const handoff = await capture.waitForOrigin();
+        await capture.closed;
+        await consumeOriginHandoff({ path: handoff.path, configure: async (capturedOrigin) => { origin = capturedOrigin; } });
+      } finally {
+        await capture.cleanup();
+      }
+    }
+    modelStub = await startDeterministicModelStub();
+    gateway = await startHostGateway({ runtime, origin, modelStub, attestedRevision: versions.hermesRevision, logStderr: process.env.HERMES_QUALIFICATION_DEBUG === "1" });
+    await cleanupVerifierArtifacts({ projectRoot });
+    await issueConnectionChallenge({ projectRoot });
+    process.stdout.write(`${JSON.stringify({ status: "awaiting_native_initial_connection", fixture: "host-native", gatewayUrl: gateway.url, panelTokenFile: runtime.tokenFile, safeRequestContract: "two_delayed_deltas_no_tools" })}\n`);
+    connectionReceipt = await waitForVerifierReceipt({ projectRoot, kind: "connection", signal: interrupted.signal });
+    validateConnectionReceipt(connectionReceipt);
+    await unlink(verifierPath(projectRoot, CONNECTION_CHALLENGE)).catch((error) => { if (error?.code !== "ENOENT") throw error; });
+    recoveryChallenge = await issueRecoveryChallenge({ projectRoot, condition: "host_native_loopback", lifecycle: "recreated_panel", signatures: ["panel_recreated"] });
+    process.stdout.write(`${JSON.stringify({ status: "awaiting_recreated_panel_status_recovery", fixture: "host-native", gatewayUrl: gateway.url, panelTokenFile: runtime.tokenFile, recoveryContract: "fresh_credentials_manual_run_id_status_only" })}\n`);
+    recoveryReceipt = await waitForVerifierReceipt({ projectRoot, kind: "recovery", signal: interrupted.signal });
+    validateHostRecoveryReceipt(recoveryReceipt, recoveryChallenge);
+  } finally {
+    process.off("SIGINT", cancel);
+    process.off("SIGTERM", cancel);
+    const gatewayUrl = gateway?.url;
+    const modelUrl = modelStub?.baseUrl;
+    let gatewayStopped = false;
+    let modelStopped = false;
+    let portsFree = false;
+    let runtimeRemoved = false;
+    let verifierFilesRemoved = false;
+    try { await gateway?.stop(); gatewayStopped = true; } catch { /* no positive publication */ }
+    try { await modelStub?.close(); modelStopped = true; } catch { /* no positive publication */ }
+    try {
+      if (gatewayUrl) await verifyPortAbsent(gatewayUrl);
+      if (modelUrl) await verifyPortAbsent(modelUrl);
+      portsFree = true;
+    } catch { /* no positive publication */ }
+    try { await cleanupQualificationRuntime({ root: runtimeRoot }); runtimeRemoved = true; } catch { /* no positive publication */ }
+    try { await cleanupVerifierArtifacts({ projectRoot }); verifierFilesRemoved = true; } catch { /* no positive publication */ }
+    if (connectionReceipt && recoveryChallenge && recoveryReceipt && gatewayStopped && modelStopped && portsFree && runtimeRemoved && verifierFilesRemoved) {
+      try {
+        const cleanup = createQualificationCleanupReceipt({ challengeDigest: recoveryChallenge.challengeDigest, checks: { gatewayStopped, modelStopped, portsFree, runtimeRemoved, verifierFilesRemoved } });
+        const bundle = buildHostRecoveryBundle({
+          connectionReceipt,
+          recoveryChallenge,
+          recoveryReceipt,
+          fixtureDigest: digestReceipt({ kind: "host_native_loopback", hermes: versions.hermesVersion, revision: versions.hermesRevision, request: "two_delayed_deltas_no_tools" }),
+          cleanup,
+        });
+        await projectRecoveryObservation({ root: projectRoot, inputPath: join(projectRoot, "public/evidence/recovery-v1.json"), outputPath: join(projectRoot, "public/evidence/recovery-v1.json"), bundle });
+        process.stdout.write(`${JSON.stringify({ status: "host_recovery_observed", fixture: "host-native", evidence: "projected_after_cleanup" })}\n`);
+      } catch (error) { publicationError = error; }
+    }
+  }
+  if (publicationError) throw publicationError;
+}
+
 async function runInteractiveHostQualification(runtimeRoot, { origin: suppliedOrigin = null } = {}) {
   const versions = suppliedOrigin
     ? {
@@ -466,7 +750,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       if (fixture !== "host-native") throw new Error("qualification_fixture_unsupported");
       const originIndex = process.argv.indexOf("--origin");
       const suppliedOrigin = originIndex >= 0 ? process.argv[originIndex + 1] : null;
-      await runInteractiveHostQualification(process.env.QUALIFICATION_RUNTIME_ROOT, { origin: suppliedOrigin });
+      if (process.argv.includes("--receipt-backed")) await runReceiptBackedHostQualification(process.env.QUALIFICATION_RUNTIME_ROOT, { origin: suppliedOrigin });
+      else await runInteractiveHostQualification(process.env.QUALIFICATION_RUNTIME_ROOT, { origin: suppliedOrigin });
     }
   } catch (error) {
     process.stderr.write(`${/^qualification_/.test(error?.message ?? "") ? error.message : "qualification_failed"}\n`);
