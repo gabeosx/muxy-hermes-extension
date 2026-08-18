@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { normalizeCapabilities } from "../src/capabilities.js";
+import { renderRecoveryEvidence, sanitizeRecoveryEvidence } from "../src/recovery-evidence.js";
 
 test("capability normalization keeps only safe documented metadata and names", () => {
   const normalized = normalizeCapabilities({
@@ -184,4 +185,14 @@ test("replacement connection waits for prior run teardown before probing or crea
   assert.ok(disconnect >= 0, "submit must await old controller release");
   assert.ok(probe > disconnect, "gateway probing starts only after old teardown");
   assert.ok(controller > probe, "replacement controller is constructed only after successful fresh probe");
+});
+
+test("recovery evidence renderer permanently shows every safe interruption signature and its history limit", async () => {
+  const recovery = JSON.parse(await readFile(new URL("../public/evidence/recovery-v1.json", import.meta.url), "utf8"));
+  const details = renderRecoveryEvidence(sanitizeRecoveryEvidence(recovery)).map((row) => row.details).join(" ");
+  for (const signature of ["Refusal or unreachable", "Observer interrupted", "Observer restored", "Buffered or delayed", "Panel recreated"]) {
+    assert.match(details, new RegExp(signature));
+  }
+  assert.match(details, /status is authoritative/i);
+  assert.match(details, /Event history is incomplete and approval detail is unavailable/i);
 });

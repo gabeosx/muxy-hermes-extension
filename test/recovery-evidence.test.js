@@ -60,10 +60,12 @@ test("recovery evidence permits only receipt-backed structural metadata and exac
   }
 });
 
-test("remote analogues are always Unverified and renderer visibly names behavior signatures without topology claims", () => {
+test("remote analogues reject positive/native claims and renderer visibly names behavior signatures without topology claims", () => {
   const unsafe = fixture(); unsafe.conditions[2].verdict = "Observed"; unsafe.conditions[2].actual = true;
-  const safe = sanitizeRecoveryEvidence(unsafe, { requireComplete: true });
-  assert.equal(safe.conditions[2].verdict, "Unverified"); assert.equal(safe.conditions[2].actual, false);
+  assert.throws(() => sanitizeRecoveryEvidence(unsafe, { requireComplete: true }), /recovery_evidence_invalid/);
+  const nativeClaim = fixture(); nativeClaim.conditions[2].nativePanel = true;
+  assert.throws(() => sanitizeRecoveryEvidence(nativeClaim, { requireComplete: true }), /recovery_evidence_invalid/);
+  const safe = sanitizeRecoveryEvidence(fixture(), { requireComplete: true });
   const copy = renderRecoveryEvidence(safe).map((row) => row.details).join(" ");
   for (const signature of ["Refusal or unreachable", "Observer interrupted", "Observer restored", "Buffered or delayed", "Panel recreated"]) assert.match(copy, new RegExp(signature));
   assert.match(copy, /Event history is incomplete/);
