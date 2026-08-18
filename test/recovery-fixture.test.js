@@ -70,6 +70,22 @@ test("recovery proxy learns the run ID from the bounded submission response", as
   }
 });
 
+test("recovery proxy closes without waiting for an active streamed connection", async () => {
+  const upstream = createServer((request, response) => {
+    response.writeHead(200, { "Content-Type": "text/event-stream" });
+    response.write("event: keepalive\ndata: {}\n\n");
+  });
+  const upstreamPort = await listen(upstream);
+  const proxy = await startRecoveryProxy({ upstream: `http://127.0.0.1:${upstreamPort}`, runId: "run_fixture" });
+  const response = await fetch(`${proxy.url}/v1/capabilities`);
+  assert.equal(response.status, 200);
+  await Promise.race([
+    proxy.close(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("recovery_proxy_close_timeout")), 1_000)),
+  ]);
+  await new Promise((resolve) => upstream.close(resolve));
+});
+
 test("recovery scenario records observed behavior, not inferred topology, and keeps remote analogues unverified", async () => {
   const scenarios = JSON.parse(await readFile(new URL("../fixtures/simulations/recovery-scenarios.json", import.meta.url), "utf8"));
   assert.deepEqual(scenarios.conditions.map((row) => row.id), [

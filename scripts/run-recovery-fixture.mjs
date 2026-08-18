@@ -14,7 +14,13 @@ function safeRunId(value) {
   return value;
 }
 
-function closeServer(server) { return new Promise((resolve) => server.close(() => resolve())); }
+function closeServer(server, sockets, upstreamRequests) {
+  return new Promise((resolve) => {
+    server.close(() => resolve());
+    for (const request of upstreamRequests) request.destroy();
+    for (const socket of sockets) socket.destroy();
+  });
+}
 
 /** Test-only loopback relay. It never writes request/response data to disk or stdout. */
 export async function startRecoveryProxy({ upstream, runId } = {}) {
@@ -23,6 +29,8 @@ export async function startRecoveryProxy({ upstream, runId } = {}) {
   let interrupted = false;
   let forwardedSubscriptions = 0;
   let buffered = false;
+  const sockets = new Set();
+  const upstreamRequests = new Set();
   const server = createServer((incoming, outgoing) => {
     if (!incoming.url?.startsWith("/v1/") || incoming.url.includes("..") || incoming.method === "CONNECT") {
       outgoing.writeHead(404, { Connection: "close" }).end();
@@ -73,8 +81,14 @@ export async function startRecoveryProxy({ upstream, runId } = {}) {
       upstreamResponse.on("end", () => { if (!cut) outgoing.end(); });
       upstreamResponse.on("error", () => { if (!outgoing.writableEnded) outgoing.end(); });
     });
+    upstreamRequests.add(upstreamRequest);
+    upstreamRequest.once("close", () => upstreamRequests.delete(upstreamRequest));
     upstreamRequest.on("error", () => { if (!outgoing.headersSent) outgoing.writeHead(502); outgoing.end(); });
     incoming.pipe(upstreamRequest);
+  });
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
   });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -84,7 +98,7 @@ export async function startRecoveryProxy({ upstream, runId } = {}) {
   return Object.freeze({
     url: `http://127.0.0.1:${port}`,
     observation: () => Object.freeze({ interrupted, forwardedSubscriptions, buffered }),
-    close: () => closeServer(server),
+    close: () => closeServer(server, sockets, upstreamRequests),
   });
 }
 

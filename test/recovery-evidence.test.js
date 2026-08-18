@@ -78,10 +78,14 @@ test("loader accepts only the same-origin recovery fixture and rejects secret-be
   await assert.rejects(loadRecoveryEvidence({ fetchImpl: async () => new Response(JSON.stringify({ ...fixture(), endpoint: "http://127.0.0.1" }), { status: 200 }) }), /recovery_evidence_invalid/);
 });
 
-test("committed recovery fixture remains content-free and intentionally incomplete until native capture", async () => {
+test("committed recovery fixture contains complete native observations and no content-bearing data", async () => {
   const parsed = JSON.parse(await readFile(new URL("../public/evidence/recovery-v1.json", import.meta.url), "utf8"));
-  const safe = sanitizeRecoveryEvidence(parsed);
+  const safe = sanitizeRecoveryEvidence(parsed, { requireComplete: true });
   assert.equal(safe.conditions.length, 5);
+  assert.equal(safe.conditions[0].verdict, "Observed");
+  assert.equal(safe.conditions[0].panelLifecycle, "recreated");
+  assert.equal(safe.conditions[1].verdict, "Observed");
+  assert.equal(safe.conditions[1].reattached, true);
   assert.equal(safe.conditions[2].verdict, "Unverified");
   assert.match(JSON.stringify(safe), /incomplete|unavailable/);
 });

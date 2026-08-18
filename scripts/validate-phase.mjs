@@ -116,7 +116,7 @@ async function validateBoundary() {
 
 async function validateRecoveryEvidence() {
   const recovery = JSON.parse(await readFile(join(evidenceDir, "recovery-v1.json"), "utf8"));
-  const safe = sanitizeRecoveryEvidence(recovery);
+  const safe = sanitizeRecoveryEvidence(recovery, { requireComplete: true });
   assert.deepEqual(safe.conditions.map((row) => row.id), canonicalConditions, "recovery evidence must retain canonical conditions");
   for (const row of safe.conditions.slice(2)) assert.equal(row.verdict, "Unverified", "simulated recovery row cannot be positive");
   const durable = JSON.stringify(safe);
