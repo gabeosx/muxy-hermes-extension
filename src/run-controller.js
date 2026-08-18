@@ -14,6 +14,7 @@ function freezeSnapshot(snapshot) {
     pendingApproval: snapshot.pendingApproval
       ? Object.freeze({ ...snapshot.pendingApproval, choices: Object.freeze([...snapshot.pendingApproval.choices]) })
       : null,
+    recovery: Object.freeze({ ...snapshot.recovery }),
   });
 }
 
@@ -54,6 +55,7 @@ export class RunController {
       status: "idle", runId: null, assistant: "", activity: [], pendingApproval: null,
       actionPending: false, error: null, streamState: "idle", reconnectAttempt: 0,
       recoveryNotice: null, manualRefresh: false,
+      recovery: { interruptionSeen: false, observerAttempts: 0, lifecycle: "same_panel", statusReconciled: false, statusClass: "not_run" },
     });
   }
 
@@ -90,6 +92,7 @@ export class RunController {
       status: "reconciling", runId, assistant: "", activity: [], pendingApproval: null, error: null,
       streamState: "detached", reconnectAttempt: 0, manualRefresh: true,
       recoveryNotice: "Previous live activity and approval detail were not recovered. Gateway status is authoritative.",
+      recovery: { interruptionSeen: true, observerAttempts: 0, lifecycle: "recreated_panel", statusReconciled: false, statusClass: "not_run" },
     });
     await this.reconcile({ generation, interruption: true, detached: true });
   }
@@ -140,12 +143,13 @@ export class RunController {
         pendingApproval: nextStatus === "waiting_for_approval" && !interruption ? this.#snapshot.pendingApproval : null,
         error: null, streamState: terminal ? (detached ? "detached" : this.#snapshot.streamState === "disconnected" ? "disconnected" : "closed") : this.#snapshot.streamState,
         manualRefresh: !terminal && (detached || this.#snapshot.streamState === "disconnected"),
+        recovery: interruption ? { ...this.#snapshot.recovery, interruptionSeen: true, lifecycle: detached ? "recreated_panel" : this.#snapshot.recovery.lifecycle, statusReconciled: true, statusClass: terminal ? "terminal" : "active" } : this.#snapshot.recovery,
       });
       return terminal ? "terminal" : "active";
     } catch {
       if (generation !== this.#generation) return "unavailable";
       if (interruption) {
-        this.#publish({ status: "status_unavailable", streamState: "disconnected", pendingApproval: null, error: "Gateway status could not be confirmed.", manualRefresh: true, recoveryNotice: this.#snapshot.recoveryNotice || REPLAY_LIMIT_NOTICE });
+        this.#publish({ status: "status_unavailable", streamState: "disconnected", pendingApproval: null, error: "Gateway status could not be confirmed.", manualRefresh: true, recoveryNotice: this.#snapshot.recoveryNotice || REPLAY_LIMIT_NOTICE, recovery: { ...this.#snapshot.recovery, interruptionSeen: true, statusReconciled: false, statusClass: "unavailable" } });
       } else this.#publish({ error: "The Gateway status could not be reconciled." });
       return "unavailable";
     }
@@ -164,7 +168,7 @@ export class RunController {
 
   async #streamSettled(generation, attempt) {
     if (generation !== this.#generation) return;
-    this.#publish({ status: TERMINAL_RUN_STATUSES.has(this.#snapshot.status) ? this.#snapshot.status : "reconciling", streamState: "reconnecting", pendingApproval: null, error: null, recoveryNotice: REPLAY_LIMIT_NOTICE });
+    this.#publish({ status: TERMINAL_RUN_STATUSES.has(this.#snapshot.status) ? this.#snapshot.status : "reconciling", streamState: "reconnecting", pendingApproval: null, error: null, recoveryNotice: REPLAY_LIMIT_NOTICE, recovery: { ...this.#snapshot.recovery, interruptionSeen: true } });
     const outcome = await this.reconcile({ generation, interruption: true });
     if (generation !== this.#generation || outcome !== "active") return;
     if (attempt >= this.#recoveryDelays.length) {
@@ -172,7 +176,7 @@ export class RunController {
       return;
     }
     const reconnectAttempt = attempt + 1;
-    this.#publish({ streamState: "reconnecting", reconnectAttempt, manualRefresh: false, recoveryNotice: REPLAY_LIMIT_NOTICE });
+    this.#publish({ streamState: "reconnecting", reconnectAttempt, manualRefresh: false, recoveryNotice: REPLAY_LIMIT_NOTICE, recovery: { ...this.#snapshot.recovery, interruptionSeen: true, observerAttempts: reconnectAttempt } });
     await this.#sleep(this.#recoveryDelays[attempt]);
     if (generation !== this.#generation) return;
     try {

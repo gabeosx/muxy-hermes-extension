@@ -6,6 +6,7 @@ import { RUN_FEATURES, supportsCoreRun } from "@/run-client";
 import { RunController } from "@/run-controller";
 import { buildBridgeContract, copyRedactedReport, evaluateStopGate, loadEvidenceIndex, renderDeploymentMatrix } from "@/stop-gate";
 import { loadRecoveryEvidence, renderRecoveryEvidence } from "@/recovery-evidence";
+import { RecoveryReceiptWriter } from "@/recovery-receipt";
 
 const STAGE_LABEL = Object.freeze({ passed: "Observed", failed: "Failed", not_verified: "Not verified" });
 const DEPLOYMENT_CONDITION_NAMES = Object.freeze({
@@ -35,6 +36,7 @@ function resultCopy(result) {
 export class HermesGatewayPanel {
   constructor(root) {
     this.root = root;
+    this.recoveryReceiptWriter = new RecoveryReceiptWriter();
     this.probe = new ConnectionProbe({ files: window.muxy?.files ?? null });
     this.snapshot = this.probe.snapshot;
     this.urlValue = "";
@@ -223,6 +225,7 @@ export class HermesGatewayPanel {
         this.runUnsubscribe = this.runController.subscribe((snapshot) => {
           this.runSnapshot = snapshot;
           this.render();
+          void this.recoveryReceiptWriter.observe(snapshot);
         });
       }
       this.tokenValue = "";
