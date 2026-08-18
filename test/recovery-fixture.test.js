@@ -3,7 +3,47 @@ import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import test from "node:test";
 
-import { startRecoveryProxy } from "../scripts/run-recovery-fixture.mjs";
+import {
+  buildDockerRecoveryBundle,
+  createDockerCleanupReceipt,
+  createDockerQualificationResources,
+  normalizeRefusalOutcome,
+  startRecoveryProxy,
+} from "../scripts/run-recovery-fixture.mjs";
+
+const digest = (character) => `sha256:${character.repeat(64)}`;
+
+function dockerRecoveryChallenge(overrides = {}) {
+  return {
+    version: 1,
+    nonce: "docker-recovery-verifier-nonce-42",
+    expiresAt: "2026-08-19T00:00:00.000Z",
+    expectedCondition: "docker_published_loopback",
+    expectedLifecycle: "same_panel",
+    expectedSignatures: ["refused_or_unreachable", "observer_interrupted", "observer_restored", "buffered_or_delayed"],
+    challengeDigest: digest("1"),
+    ...overrides,
+  };
+}
+
+function dockerConnectionReceipt(overrides = {}) {
+  return {
+    version: 1,
+    challengeDigest: "2".repeat(64), panelDigest: "3".repeat(64), sessionOrdinal: 1,
+    outcomes: { relay: "passed", authentication: "passed", capabilities: "passed", stream: "passed", cleanup: "passed", digests: { execution: "4".repeat(64), timing: "5".repeat(64), frames: "6".repeat(64), cleanup: "7".repeat(64) } },
+    ...overrides,
+  };
+}
+
+function dockerRecoveryReceipt(overrides = {}) {
+  return {
+    version: 1,
+    challengeDigest: digest("1"), panelDigest: digest("3"), lifecycle: "same_panel", observerAttempts: 1, statusClass: "terminal",
+    signatures: ["refused_or_unreachable", "observer_interrupted", "observer_restored", "buffered_or_delayed"],
+    outcomeDigests: { recovery: digest("8"), status: digest("9") },
+    ...overrides,
+  };
+}
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -97,6 +137,44 @@ test("recovery proxy learns the run ID from the bounded submission response", as
   } finally {
     await proxy.close();
     await new Promise((resolve) => upstream.close(resolve));
+  }
+});
+
+test("Docker qualification owns unique resources, reduces curl refusal to a safe signature, and gates publication on cleanup", async () => {
+  const [first, second] = await Promise.all([createDockerQualificationResources(), createDockerQualificationResources()]);
+  try {
+    assert.notEqual(first.projectName, second.projectName);
+    assert.notEqual(first.gatewayPort, second.gatewayPort);
+    assert.notEqual(first.proxyPort, second.proxyPort);
+    assert.equal(normalizeRefusalOutcome({ exitCode: 7, stdout: "never persist this", stderr: "never persist this" }), "refused_or_unreachable");
+    assert.equal(normalizeRefusalOutcome({ exitCode: 6 }), "refused_or_unreachable");
+    assert.throws(() => normalizeRefusalOutcome({ exitCode: 0 }), /recovery_refusal_unproved/);
+    const cleanup = createDockerCleanupReceipt({
+      challengeDigest: digest("1"),
+      checks: { composeRemoved: true, proxyClosed: true, portsFree: true, runtimeRemoved: true, verifierFilesRemoved: true, refusalExercised: true },
+    });
+    const bundle = buildDockerRecoveryBundle({
+      connectionReceipt: dockerConnectionReceipt(), recoveryChallenge: dockerRecoveryChallenge(), recoveryReceipt: dockerRecoveryReceipt(), fixtureDigest: digest("a"), cleanup,
+    });
+    assert.deepEqual(bundle.fixture.signatures, ["buffered_or_delayed", "observer_interrupted", "observer_restored", "refused_or_unreachable"]);
+    assert.equal(bundle.fixture.condition, "docker_published_loopback");
+    for (const mutation of [
+      { recoveryReceipt: dockerRecoveryReceipt({ panelDigest: digest("b") }) },
+      { recoveryReceipt: dockerRecoveryReceipt({ observerAttempts: 0 }) },
+      { recoveryReceipt: dockerRecoveryReceipt({ signatures: ["observer_interrupted", "observer_restored", "buffered_or_delayed"] }) },
+      { cleanup: { ...cleanup, cleanup: "failed" } },
+    ]) {
+      assert.throws(() => buildDockerRecoveryBundle({
+        connectionReceipt: dockerConnectionReceipt(), recoveryChallenge: dockerRecoveryChallenge(), recoveryReceipt: dockerRecoveryReceipt(), fixtureDigest: digest("a"), cleanup, ...mutation,
+      }), /recovery_/);
+    }
+    assert.throws(() => createDockerCleanupReceipt({
+      challengeDigest: digest("1"),
+      checks: { composeRemoved: true, proxyClosed: true, portsFree: true, runtimeRemoved: false, verifierFilesRemoved: true, refusalExercised: true },
+    }), /recovery_cleanup_unproved/);
+  } finally {
+    await first.cleanup();
+    await second.cleanup();
   }
 });
 
