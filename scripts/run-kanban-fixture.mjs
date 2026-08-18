@@ -1,9 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 export const KANBAN_FIXTURE_BOARD = "muxy-test";
-export const KANBAN_FIXTURE_TOKEN = "kanban-fixture-only";
+export const KANBAN_FIXTURE_USERNAME = "muxy-test-user";
+export const KANBAN_FIXTURE_PASSWORD = "kanban-fixture-password-only";
 const API_ROOT = "/api/plugins/kanban";
 const VALID_STATUSES = new Set(["triage", "todo", "scheduled", "ready", "running", "blocked", "review", "done"]);
 const MAX_REQUEST_BYTES = 32 * 1024;
@@ -20,6 +22,18 @@ function sendJson(response, status, body) {
     "Content-Length": Buffer.byteLength(text),
     "Cache-Control": "no-store",
     Connection: "close",
+  });
+  response.end(text);
+}
+
+function sendSessionJson(response, status, body, cookies = []) {
+  const text = JSON.stringify(body);
+  response.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": Buffer.byteLength(text),
+    "Cache-Control": "no-store",
+    Connection: "close",
+    ...(cookies.length ? { "Set-Cookie": cookies } : {}),
   });
   response.end(text);
 }
@@ -50,22 +64,89 @@ function validBoardRequest(url) {
   return url.searchParams.get("board") === KANBAN_FIXTURE_BOARD;
 }
 
+function parseCookies(request) {
+  return new Map(String(request.headers.cookie ?? "").split(";").map((part) => part.trim()).filter(Boolean).map((part) => {
+    const split = part.indexOf("=");
+    return split > 0 ? [part.slice(0, split), part.slice(split + 1)] : ["", ""];
+  }).filter(([name]) => name));
+}
+
+function sessionCookies(access, refresh, maxAge) {
+  return [
+    `hermes_session_at=${access}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`,
+    `hermes_session_rt=${refresh}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`,
+  ];
+}
+
+function clearedSessionCookies() {
+  return [
+    "hermes_session_at=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0",
+    "hermes_session_rt=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0",
+  ];
+}
+
 /** Test-only Hermes dashboard analogue. State is bounded, in-memory, and never persisted. */
-export async function startKanbanFixture({ token = KANBAN_FIXTURE_TOKEN } = {}) {
-  if (token !== KANBAN_FIXTURE_TOKEN) throw new Error("kanban_fixture_token_must_remain_fixed");
+export async function startKanbanFixture({ sessionTtlMs = 60_000 } = {}) {
+  if (!Number.isSafeInteger(sessionTtlMs) || sessionTtlMs < 1 || sessionTtlMs > 60 * 60 * 1000) throw new Error("kanban_fixture_invalid_session_ttl");
   const seed = JSON.parse(await readFile(SEED_URL, "utf8"));
   const board = safeClone(seed);
   let sequence = 0;
-  const observations = { authenticatedRequests: 0, created: 0, moved: 0 };
+  const sessions = new Map();
+  const observations = { loginAttempts: 0, authenticatedRequests: 0, created: 0, moved: 0, loggedOut: 0 };
 
   const server = createServer(async (request, response) => {
     try {
-      if (request.headers.authorization !== `Bearer ${KANBAN_FIXTURE_TOKEN}`) {
-        sendJson(response, 401, { detail: "authentication required" });
+      const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      if (request.method === "GET" && url.pathname === "/api/status") {
+        sendJson(response, 200, { auth_required: true, auth_providers: ["basic"], auth_flows: ["cookie"] });
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/api/auth/providers") {
+        sendJson(response, 200, { providers: [{ name: "basic", display_name: "Username and password", supports_password: true }] });
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/auth/password-login") {
+        observations.loginAttempts += 1;
+        const payload = await readJsonBody(request);
+        if (payload.provider !== "basic" || payload.username !== KANBAN_FIXTURE_USERNAME || payload.password !== KANBAN_FIXTURE_PASSWORD) {
+          sendJson(response, 401, { detail: "Invalid credentials" });
+          return;
+        }
+        const access = randomUUID();
+        const refresh = randomUUID();
+        const expiresAt = Date.now() + sessionTtlMs;
+        sessions.set(access, { refresh, expiresAt });
+        sendSessionJson(response, 200, { ok: true, next: "/" }, sessionCookies(access, refresh, Math.max(1, Math.ceil(sessionTtlMs / 1000))));
+        return;
+      }
+
+      const cookies = parseCookies(request);
+      const access = cookies.get("hermes_session_at") ?? "";
+      const session = sessions.get(access);
+      if (!session || session.refresh !== cookies.get("hermes_session_rt") || session.expiresAt <= Date.now()) {
+        if (session) sessions.delete(access);
+        sendJson(response, 401, { error: "session_expired", detail: "Unauthorized" });
         return;
       }
       observations.authenticatedRequests += 1;
-      const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      if (request.method === "GET" && url.pathname === "/api/auth/me") {
+        sendJson(response, 200, {
+          user_id: "muxy-fixture-user",
+          email: "muxy@example.invalid",
+          display_name: "Muxy Fixture User",
+          org_id: "muxy-fixture-org",
+          provider: "basic",
+          expires_at: Math.ceil(session.expiresAt / 1000),
+        });
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/auth/logout") {
+        sessions.delete(access);
+        observations.loggedOut += 1;
+        response.writeHead(302, { Location: "/login", "Cache-Control": "no-store", "Set-Cookie": clearedSessionCookies(), Connection: "close" });
+        response.end();
+        return;
+      }
       if (!validBoardRequest(url)) {
         sendJson(response, 404, { detail: "board not found" });
         return;
@@ -148,7 +229,6 @@ export async function startKanbanFixture({ token = KANBAN_FIXTURE_TOKEN } = {}) 
   return Object.freeze({
     url: `http://127.0.0.1:${address.port}`,
     board: KANBAN_FIXTURE_BOARD,
-    token: KANBAN_FIXTURE_TOKEN,
     observation: () => Object.freeze({ ...observations }),
     close: () => closeServer(server),
   });
@@ -160,8 +240,8 @@ async function runCli() {
     status: "kanban_fixture_ready",
     dashboardUrl: fixture.url,
     board: fixture.board,
-    sessionToken: fixture.token,
-    contract: "board_create_move_v1",
+    auth: "username_password",
+    contract: "board_session_create_move_v2",
   })}\n`);
   await new Promise((resolve) => {
     process.once("SIGINT", resolve);

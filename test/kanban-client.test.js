@@ -68,9 +68,9 @@ test("board normalization keeps UI fields and drops paths, bodies, tokens, and u
   assert.equal(normalized.columns.length, 1);
 });
 
-test("Kanban client uses the dashboard plugin contract and keeps the token out of URLs and bodies", async () => {
+test("Kanban client uses the verified dashboard session and keeps cookies out of URLs and bodies", async () => {
   const calls = [];
-  const relay = {
+  const session = {
     async requestJson(request) {
       calls.push(request);
       if (request.method === "POST") return { status: 200, body: { task: { id: "t_new", title: "New", status: "triage" } } };
@@ -78,7 +78,7 @@ test("Kanban client uses the dashboard plugin contract and keeps the token out o
       return { status: 200, body: { columns: KANBAN_STATUSES.map((name) => ({ name, tasks: [] })), assignees: [], tenants: [] } };
     },
   };
-  const client = new KanbanClient({ baseUrl: "https://hermes.example", bearer: "sentinel-token", board: "muxy-project", relay });
+  const client = new KanbanClient({ baseUrl: "https://hermes.example", session, board: "muxy-project" });
 
   await client.loadBoard();
   await client.createTask({ title: "New", triage: true, idempotencyKey: "muxy-123" });
@@ -89,19 +89,17 @@ test("Kanban client uses the dashboard plugin contract and keeps the token out o
   assert.equal(calls[2].url, "https://hermes.example/api/plugins/kanban/tasks/t_new?board=muxy-project");
   assert.deepEqual(calls[1].body, { title: "New", triage: true, workspace_kind: "scratch", idempotency_key: "muxy-123" });
   assert.deepEqual(calls[2].body, { status: "ready" });
-  assert.equal(JSON.stringify(calls.map((call) => ({ url: call.url, body: call.body }))).includes("sentinel-token"), false);
-  assert.equal(calls.every((call) => call.bearer === "sentinel-token"), true);
+  assert.equal(JSON.stringify(calls).includes("cookie"), false);
   client.release();
-  assert.equal(client.bearer, "");
+  assert.equal(client.session, null);
 });
 
 test("Kanban client distinguishes authentication, unavailable plugin, and generic failures", async () => {
   for (const [status, code] of [[401, "dashboard_authentication_failed"], [404, "kanban_not_available"], [500, "kanban_request_failed"]]) {
     const client = new KanbanClient({
       baseUrl: "https://hermes.example",
-      bearer: "token",
       board: "default",
-      relay: { async requestJson() { return { status, body: null }; } },
+      session: { async requestJson() { return { status, body: null }; } },
     });
     await assert.rejects(client.loadBoard(), (error) => error instanceof KanbanClientError && error.code === code && error.status === status);
   }

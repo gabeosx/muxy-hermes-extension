@@ -1,5 +1,3 @@
-import { CurlRelay } from "./curl-relay.js";
-
 export const KANBAN_STATUSES = Object.freeze([
   "triage",
   "todo",
@@ -112,12 +110,11 @@ function taskPath(taskId) {
 }
 
 export class KanbanClient {
-  constructor({ baseUrl, bearer, board, relay = new CurlRelay() }) {
+  constructor({ baseUrl, session, board }) {
     this.baseUrl = normalizeHermesDashboardUrl(baseUrl);
-    if (typeof bearer !== "string" || !bearer) throw new Error("Enter the dashboard session token.");
-    this.bearer = bearer;
+    if (!session || typeof session.requestJson !== "function") throw new Error("Sign in to the Hermes dashboard first.");
+    this.session = session;
     this.board = normalizeBoardSlug(board);
-    this.relay = relay;
   }
 
   endpoint(path) {
@@ -125,9 +122,8 @@ export class KanbanClient {
   }
 
   async loadBoard() {
-    const response = await this.relay.requestJson({
+    const response = await this.session.requestJson({
       url: this.endpoint("/board"),
-      bearer: this.bearer,
     });
     return normalizeBoard(classifyResponse(response));
   }
@@ -135,9 +131,8 @@ export class KanbanClient {
   async createTask({ title, triage = false, idempotencyKey }) {
     const normalizedTitle = String(title ?? "").trim();
     if (!normalizedTitle || normalizedTitle.length > 1_000) throw new Error("Task title must be 1–1,000 characters.");
-    const response = await this.relay.requestJson({
+    const response = await this.session.requestJson({
       url: this.endpoint("/tasks"),
-      bearer: this.bearer,
       method: "POST",
       body: {
         title: normalizedTitle,
@@ -154,9 +149,8 @@ export class KanbanClient {
 
   async updateStatus(taskId, status) {
     if (!KANBAN_STATUSES.includes(status)) throw new Error("Invalid task status.");
-    const response = await this.relay.requestJson({
+    const response = await this.session.requestJson({
       url: this.endpoint(taskPath(taskId)),
-      bearer: this.bearer,
       method: "PATCH",
       body: { status },
     });
@@ -164,6 +158,6 @@ export class KanbanClient {
   }
 
   release() {
-    this.bearer = "";
+    this.session = null;
   }
 }
