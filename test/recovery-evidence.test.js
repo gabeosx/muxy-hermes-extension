@@ -27,7 +27,7 @@ function fixture(overrides = {}) {
       : index === 1 ? ["observer_interrupted", "observer_restored", "buffered_or_delayed"]
         : index === 2 ? ["refused_or_unreachable"]
           : index === 3 ? ["certificate_validated", "authentication", "exact_origin_cors", "unbuffered_delivery"] : ["workspace_path_absent"],
-    provenance: index < 2 ? realProvenance(String(index + 1)) : simulationProvenance(String(index + 6)),
+    provenance: index < 2 ? realProvenance(String(index + 1)) : simulationProvenance(["6", "7", "8"][index - 2]),
   });
   return {
     schemaVersion: 2, fixtureId: "recovery-v1",

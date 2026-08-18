@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { RecoveryReceiptWriter } from "../src/recovery-receipt.js";
+import { sanitizeRecoveryEvidence } from "../src/recovery-evidence.js";
 import { buildRecoveryReceiptBundle, projectRecoveryObservation } from "../scripts/project-recovery-observation.mjs";
 
 const ROOT = ".muxy-hermes-qualification/current";
@@ -120,6 +121,17 @@ function correlatedBundle(overrides = {}) {
   };
 }
 
+function bundleFor({ condition, lifecycle, signatures, observerAttempts = lifecycle === "same_panel" ? 1 : 0 }) {
+  const nonce = `recovery-verifier-nonce-${condition}`.replaceAll("_", "-").padEnd(20, "x");
+  const challengeDigest = digest(condition === "host_native_loopback" ? "a" : condition === "docker_published_loopback" ? "b" : condition === "ssh_local_forward" ? "c" : condition === "direct_remote_https" ? "d" : "e");
+  return {
+    challenge: { version: 1, nonce, expiresAt: "2026-08-19T00:00:00.000Z", expectedCondition: condition, expectedLifecycle: lifecycle, expectedSignatures: signatures, challengeDigest },
+    panel: { version: 1, challengeDigest, panelDigest: digest("2"), lifecycle, observerAttempts, statusClass: "terminal", signatures, outcomeDigests: { recovery: digest("3"), status: digest("4") } },
+    fixture: { version: 1, challengeDigest, condition, lifecycle, signatures, fixtureDigest: digest("5") },
+    cleanup: { version: 1, challengeDigest, cleanup: "scrubbed_removed", cleanupDigest: digest("6") },
+  };
+}
+
 test("recovery receipts remain inert without a valid verifier challenge and redact every raw snapshot field", async () => {
   const missing = filesWithChallenge();
   missing.files.delete(challengePath);
@@ -185,4 +197,23 @@ test("a correlated recovery receipt bundle projects only one safe row and reject
     mutate(candidate);
     assert.throws(() => buildRecoveryReceiptBundle(candidate), /recovery_observation_invalid/);
   }
+});
+
+test("a receipt-ready template becomes complete only through isolated host, Docker, and simulation projections", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "muxy-recovery-complete-"));
+  const evidence = join(directory, "recovery-evidence.json");
+  await writeFile(evidence, JSON.stringify(evidenceTemplate()));
+  const cases = [
+    bundleFor({ condition: "host_native_loopback", lifecycle: "recreated_panel", signatures: ["panel_recreated"] }),
+    bundleFor({ condition: "docker_published_loopback", lifecycle: "same_panel", signatures: ["observer_interrupted", "observer_restored", "buffered_or_delayed"] }),
+    bundleFor({ condition: "ssh_local_forward", lifecycle: "same_panel", signatures: ["refused_or_unreachable"] }),
+    bundleFor({ condition: "direct_remote_https", lifecycle: "same_panel", signatures: ["certificate_validated", "authentication", "exact_origin_cors", "unbuffered_delivery"] }),
+    bundleFor({ condition: "remote_muxy_workspace", lifecycle: "same_panel", signatures: ["workspace_path_absent"] }),
+  ];
+  for (const bundle of cases) await projectRecoveryObservation({ root: directory, inputPath: evidence, outputPath: evidence, bundle });
+  const complete = sanitizeRecoveryEvidence(JSON.parse(await readFile(evidence, "utf8")), { requireComplete: true });
+  assert.equal(complete.conditions[0].verdict, "Observed");
+  assert.equal(complete.conditions[1].verdict, "Observed");
+  for (const row of complete.conditions.slice(2)) assert.equal(row.verdict, "Unverified");
+  await assert.rejects(projectRecoveryObservation({ root: directory, inputPath: evidence, outputPath: evidence, bundle: cases[1] }), /recovery_observation_invalid/);
 });

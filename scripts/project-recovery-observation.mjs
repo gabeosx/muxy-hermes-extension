@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 
+import { sanitizeRecoveryEvidence } from "../src/recovery-evidence.js";
+
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
 const CONDITIONS = new Set(["host_native_loopback", "docker_published_loopback", "ssh_local_forward", "direct_remote_https", "remote_muxy_workspace"]);
 const REAL_CONDITIONS = new Set(["host_native_loopback", "docker_published_loopback"]);
@@ -70,8 +72,8 @@ export function buildRecoveryReceiptBundle(value) {
   if (challenge.expectedCondition !== fixture.condition || challenge.expectedLifecycle !== panel.lifecycle || fixture.lifecycle !== panel.lifecycle) invalid();
   const expected = challenge.expectedSignatures.join("\0");
   if (panel.signatures.join("\0") !== expected || fixture.signatures.join("\0") !== expected) invalid();
-  if (panel.lifecycle === "same_panel" && (panel.observerAttempts < 1 || !panel.signatures.includes("observer_interrupted") || !panel.signatures.includes("observer_restored"))) invalid();
-  if (panel.lifecycle === "recreated_panel" && (panel.observerAttempts !== 0 || !panel.signatures.includes("panel_recreated"))) invalid();
+  if (REAL_CONDITIONS.has(fixture.condition) && panel.lifecycle === "same_panel" && (panel.observerAttempts < 1 || !panel.signatures.includes("observer_interrupted") || !panel.signatures.includes("observer_restored"))) invalid();
+  if (REAL_CONDITIONS.has(fixture.condition) && panel.lifecycle === "recreated_panel" && (panel.observerAttempts !== 0 || !panel.signatures.includes("panel_recreated"))) invalid();
   return Object.freeze({ condition: fixture.condition, lifecycle: panel.lifecycle, statusClass: panel.statusClass, observerAttempts: panel.observerAttempts, signatures: Object.freeze(panel.signatures), challengeDigest: challenge.challengeDigest, panelDigest: panel.panelDigest, fixtureDigest: fixture.fixtureDigest, cleanupDigest: cleanup.cleanupDigest, bundleDigest: digest({ challenge, panel, fixture, cleanup }) });
 }
 
@@ -118,13 +120,14 @@ export async function projectRecoveryObservation({ root, inputPath, outputPath, 
   const lockPath = `${output}.lock`;
   return withLock(lockPath, async () => {
     let document;
-    try { document = JSON.parse(await readFile(input, "utf8")); } catch { invalid(); }
-    if (!Array.isArray(document?.conditions) || document.conditions.length !== 5) invalid();
+    try { document = sanitizeRecoveryEvidence(JSON.parse(await readFile(input, "utf8"))); } catch { invalid(); }
     const index = document.conditions.findIndex((row) => row?.id === safeBundle.condition);
     if (index < 0) invalid();
+    if (document.conditions[index].provenance?.bundleDigest === safeBundle.bundleDigest) invalid();
     const conditions = [...document.conditions];
     conditions[index] = replacement(conditions[index], safeBundle);
-    const projected = { ...document, conditions };
+    let projected;
+    try { projected = sanitizeRecoveryEvidence({ ...document, conditions }); } catch { invalid(); }
     const temporary = `${output}.${process.pid}.${Date.now()}.tmp`;
     await writeFile(temporary, `${JSON.stringify(projected, null, 2)}\n`, { mode: 0o600, flag: "wx" });
     await rename(temporary, output);
