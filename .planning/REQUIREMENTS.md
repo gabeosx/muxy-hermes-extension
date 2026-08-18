@@ -23,9 +23,9 @@
 - [x] **DEPL-01**: User connects to host-native, Docker-published, SSH-forwarded, and direct HTTPS Gateways through the same URL/token client contract without selecting a deployment type.
 - [ ] **DEPL-02**: A host-native loopback fixture proves authenticated capability discovery and unbuffered Runs event streaming through the consented relay and open Muxy panel.
 - [ ] **DEPL-03**: A local Docker published-port fixture proves the same relay behavior and documents unreachable-port and interrupted-stream behavior without the extension inspecting or managing Docker.
-- [ ] **DEPL-04**: A Docker-simulated SSH local-forward condition exercises the same client behavior, including tunnel-loss and restoration, without creating or managing a real tunnel; the deployment class remains `Unverified` until tested through a real SSH-forwarded path.
-- [ ] **DEPL-05**: A Docker-hosted HTTPS and reverse-proxy simulation exercises certificate, authentication, CORS, and unbuffered-stream behavior; direct remote HTTPS remains `Unverified` until tested through its real network path.
-- [ ] **DEPL-06**: A locally simulated remote-workspace condition exercises workspace-independent panel-to-Gateway transport and verifies that no workspace path is sent to Hermes; the deployment class remains `Unverified` until tested from a real remote Muxy workspace.
+- [x] **DEPL-04**: A Docker-simulated SSH local-forward condition exercises the same client behavior, including tunnel-loss and restoration, without creating or managing a real tunnel; the deployment class remains `Unverified` until tested through a real SSH-forwarded path.
+- [x] **DEPL-05**: A Docker-hosted HTTPS and reverse-proxy simulation exercises certificate, authentication, CORS, and unbuffered-stream behavior; direct remote HTTPS remains `Unverified` until tested through its real network path.
+- [x] **DEPL-06**: A locally simulated remote-workspace condition exercises workspace-independent panel-to-Gateway transport and verifies that no workspace path is sent to Hermes; the deployment class remains `Unverified` until tested from a real remote Muxy workspace.
 
 ### Run Control
 
@@ -122,14 +122,14 @@
 | DEPL-01 | Phase 1 | Complete |
 | DEPL-02 | Phase 3 | Deferred fast-path qualification |
 | DEPL-03 | Phase 3 | Partial: live connection passed; faults deferred |
-| DEPL-04 | Phase 3 | Deferred fast-path qualification |
-| DEPL-05 | Phase 3 | Deferred fast-path qualification |
-| DEPL-06 | Phase 3 | Deferred fast-path qualification |
+| DEPL-04 | Phase 3 | Complete simulation; real SSH path remains Unverified by contract |
+| DEPL-05 | Phase 3 | Complete simulation; direct remote HTTPS remains Unverified by contract |
+| DEPL-06 | Phase 3 | Complete simulation; real remote Muxy workspace remains Unverified by contract |
 | SEC-01 | Phase 1 | Complete |
 | SEC-02 | Phase 1 | Complete |
 | SEC-04 | Phase 1 | Complete |
 | SEC-05 | Phase 1 | Complete |
-| EVID-01 | Phase 3 | Deferred until control/recovery evidence exists |
+| EVID-01 | Phase 3 | Partial: strict fixture and simulation receipts exist; fresh host/Docker receipt projection pending |
 | EVID-02 | Phase 1 | Complete |
 | EVID-03 | Phase 1 | Complete |
 | EVID-04 | Phase 1 | Complete |

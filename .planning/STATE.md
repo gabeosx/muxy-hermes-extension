@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 03
 current_phase_name: open-panel-recovery-proof
-status: ready_to_execute
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-08-18T14:07:57.000Z"
+status: executing
+stopped_at: Phase 03 Plan 04 native receipt capture pending; implementation commits already exist
+last_updated: "2026-08-18T23:00:21.000Z"
 last_activity: 2026-08-18
-last_activity_desc: Completed quick task 260818-dr9 — provider-aware Hermes Dashboard login and verified session state
+last_activity_desc: Reconciled GSD state to actual execution — Phase 3 is 4/6 with 03-04 next
 progress:
-  total_phases: 2
-  completed_phases: 1
-  total_plans: 17
-  completed_plans: 16
+  total_phases: 3
+  completed_phases: 2
+  total_plans: 22
+  completed_plans: 20
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-08-16)
 
 ## Current Position
 
-Phase: 03 (open-panel-recovery-proof) — READY TO EXECUTE
-Plan: 03-01 of 2 plans
-Status: Planning complete; bounded runtime recovery is Wave 1 and evidence/native proof is Wave 2
-Last activity: 2026-08-18 — Completed quick task 260818-dr9: provider-aware Hermes Dashboard login and verified session state
+Phase: 03 (open-panel-recovery-proof) — EXECUTING
+Plan: 03-04 of 6 plans
+Status: Plans 03-01, 03-02, 03-03, and 03-05 are complete. Plan 03-04 has implementation commits but still requires fresh native host/Docker receipt capture and projection. Plan 03-06 is blocked on that evidence and final verification.
+Last activity: 2026-08-18 — Reconciled GSD state to actual execution and made 03-04 the continuation target
 
-Progress: [█████████░] 94%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
@@ -66,7 +66,11 @@ Progress: [█████████░] 94%
 | Phase 01 P07 | 6min | 3 tasks | 8 files |
 | Phase 01 P08 | 4min | 2 tasks | 8 files |
 | Phase 01-verified-gateway-connectivity P09 | 7m 42s | 2 tasks | 5 files |
+| Phase 02 P01 | 20m | 4 tasks | 9 files |
 | Phase 03 P01 | 24m | 2 tasks | 7 files |
+| Phase 03 P02 | 14h 23m | 3 tasks | 11 files |
+| Phase 03 P03 | 8m | 2 tasks | 8 files |
+| Phase 03 P05 | completed | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -109,7 +113,8 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 3]: The current Muxy webview exposes Promise-based `exec`, not cancellable `execAsync`; interrupted and closed-panel stream ownership must remain bounded and truthful.
-- [Phase 3]: Host-native, SSH-forward, direct-HTTPS, remote-workspace, and Docker fault/recovery qualification remain deferred and must stay `Unverified` until tested.
+- [Phase 3]: Fresh receipt-backed host-native and Docker native Muxy observations are still required before the canonical recovery evidence and aggregate validator can pass.
+- [Phase 3]: SSH-forward, direct-HTTPS, and remote-workspace analogues executed successfully but deliberately remain `Unverified` for their real deployment classes.
 
 ### Quick Tasks Completed
 
@@ -126,6 +131,7 @@ None yet.
 
 - Phase 1 completed through the user-approved fast path: one disposable Docker live proof, native UI checks, and no broader deployment support claim.
 - Phase 2 completed through quick task 260817-mzi: one native completed run plus advertised steer and authoritative cancellation against a disposable pinned Docker Gateway.
+- Phase 3 gap closure added receipt provenance and executable remote analogues. Execution resumes at 03-04 for fresh native host/Docker receipts; 03-06 then owns final validation and verification.
 
 ## Deferred Items
 
@@ -137,6 +143,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-17T21:21:01.710Z
-Stopped at: Completed 03-01-PLAN.md
-Resume file: 03-02-PLAN.md
+Last session: 2026-08-18T23:00:21.000Z
+Stopped at: Phase 03 Plan 04 native receipt capture pending; implementation commits already exist
+Resume file: 03-04-PLAN.md

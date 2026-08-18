@@ -89,7 +89,7 @@ Plans:
 
 ### Phase 2: Capability-Driven Run Control
 
-**Goal:** Users can safely start, observe, and control one Hermes run using only controls the connected Gateway advertises.
+**Goal:** As a Hermes Gateway user, I want to safely start, observe, and control one run using only advertised controls, so that I can operate Hermes from Muxy without granting unsupported authority.
 **Mode:** mvp
 **Depends on:** Phase 1
 **Requirements:** RUN-01, RUN-02, RUN-03, RUN-04, RUN-05, RUN-06, RUN-07, SEC-03, UX-01, UX-02, UX-03, UX-04
@@ -123,7 +123,7 @@ Plans:
   3. User can inspect validation evidence that distinguishes tunnel loss, Gateway loss, proxy buffering, and panel recreation by observed behavior without the extension claiming to identify deployment topology.
   4. User is clearly told when event history cannot be recovered; the panel never promises lossless replay without fixture evidence.
 
-**Plans:** 1/2 plans executed
+**Plans:** 4/6 plans executed; 03-04 is the active native qualification plan and 03-06 is blocked on its receipts
 
 Plans:
 **Wave 1**
@@ -132,7 +132,25 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02-PLAN.md — Publish safe recovery evidence and run disposable host-native plus Docker/Muxy proofs.
+- [x] 03-02-PLAN.md — Publish the initial safe recovery evidence and run disposable host-native plus Docker/Muxy proofs.
+
+**Wave 3** *(verification gap closure)*
+
+- [x] 03-03-PLAN.md — Add verifier-challenged recovery receipts and a strict evidence projector.
+
+**Wave 4** *(active; blocked only on completing fresh native receipt capture)*
+
+- [ ] 03-04-PLAN.md — Republish host-native and Docker rows from fresh correlated native Muxy receipts and post-cleanup proof.
+
+**Wave 5** *(executable remote analogues; complete)*
+
+- [x] 03-05-PLAN.md — Exercise SSH-forward, HTTPS/proxy, and remote-workspace analogues while forcing their verdicts to Unverified.
+
+**Wave 6** *(blocked on 03-04 and 03-05)*
+
+- [ ] 03-06-PLAN.md — Run the final fail-closed evidence gate, re-verify Phase 3, and write the completion summary.
+
+**Continuation:** Resume at `03-04-PLAN.md`. Its implementation commits already exist; only the fresh native host/Docker receipt run, safe projection, cleanup proof, and summary remain. Do not repeat Plans 03-01 through 03-03 or 03-05.
 
 **UI hint:** yes
 
@@ -144,4 +162,4 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Verified Gateway Connectivity | 15/15 | Complete | 2026-08-17 |
 | 2. Capability-Driven Run Control | 1/1 | Complete | 2026-08-17 |
-| 3. Open-Panel Recovery Proof | 1/2 | In Progress|  |
+| 3. Open-Panel Recovery Proof | 4/6 | In Progress |  |

@@ -94,9 +94,12 @@ coverage:
 duration: 14h 23m
 completed: 2026-08-18
 status: complete
+superseded_for_current_evidence_by: [03-03, 03-04, 03-05, 03-06]
 ---
 
 # Phase 03 Plan 02: Native recovery proof Summary
+
+> Historical execution record: this plan completed its original proof, but the later 03-03 provenance hardening intentionally reset the canonical host/Docker rows to `Unverified`. Do not use this summary as evidence that the current receipt-backed gate passes. Current execution resumes at 03-04.
 
 **Pinned host-native and disposable Docker Hermes runs now back a strict, redacted recovery record rendered inside Muxy.**
 
