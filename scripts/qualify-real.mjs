@@ -179,10 +179,12 @@ export async function startOriginCaptureServer() {
   let settleOrigin;
   let rejectOrigin;
   let settleClosed;
+  let rejectClosed;
   let terminal = false;
+  const sockets = new Set();
   const originResult = new Promise((resolveOrigin, reject) => { settleOrigin = resolveOrigin; rejectOrigin = reject; });
   originResult.catch(() => {});
-  const closed = new Promise((resolveClosed) => { settleClosed = resolveClosed; });
+  const closed = new Promise((resolveClosed, reject) => { settleClosed = resolveClosed; rejectClosed = reject; });
   const finish = async ({ origin, error } = {}) => {
     if (terminal) return;
     terminal = true;
@@ -191,7 +193,13 @@ export async function startOriginCaptureServer() {
       try { settleOrigin(await writeOriginHandoff(origin, destination)); }
       catch (handoffError) { rejectOrigin(handoffError); }
     }
-    server.close(() => settleClosed());
+    const closeTimeout = setTimeout(() => rejectClosed(new Error("qualification_origin_capture_stop_timeout")), 5_000);
+    server.close((closeError) => {
+      clearTimeout(closeTimeout);
+      if (closeError) rejectClosed(new Error("qualification_origin_capture_stop_failed"));
+      else settleClosed();
+    });
+    setImmediate(() => { for (const socket of sockets) socket.destroy(); });
   };
   const server = createServer((request, response) => {
     const originHeaders = [];
@@ -212,6 +220,10 @@ export async function startOriginCaptureServer() {
       response.writeHead(400, { Connection: "close" }).end();
       void finish({ error });
     }
+  });
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
   });
   let port;
   try { port = await listen(server); }

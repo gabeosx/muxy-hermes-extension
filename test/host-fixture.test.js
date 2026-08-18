@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { connect } from "node:net";
+import { once } from "node:events";
 import test from "node:test";
 
 import {
@@ -81,7 +83,15 @@ test("qualification setup returns an idempotent cleanup handle for its listener 
   const lifecycle = await qualifyRealDeployment({ runtimeRoot: root });
   assert.equal(typeof lifecycle.cleanup, "function");
   assert.equal(await stat(lifecycle.panelTokenFile).then((value) => value.mode & 0o777), 0o600);
-  assert.deepEqual(await lifecycle.cleanup(), { cleanup: "scrubbed_removed" });
+  const captureUrl = new URL(lifecycle.captureUrl);
+  const idleClient = connect(Number(captureUrl.port), captureUrl.hostname);
+  idleClient.on("error", () => {});
+  await once(idleClient, "connect");
+  assert.deepEqual(await Promise.race([
+    lifecycle.cleanup(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("qualification_cleanup_timeout")), 1_000)),
+  ]), { cleanup: "scrubbed_removed" });
+  assert.equal(idleClient.destroyed, true);
   assert.deepEqual(await lifecycle.cleanup(), { cleanup: "scrubbed_removed" });
   await assert.rejects(stat(root));
 });
