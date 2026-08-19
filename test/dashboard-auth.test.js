@@ -234,3 +234,40 @@ test("dashboard auth rejects malformed tickets and clears only on authoritative 
   assert.equal(expired.snapshot.state, "session_expired");
   assert.equal(expired.cookieHeaderForTest(), "");
 });
+
+test("authenticated Dashboard requests serialize through cookie rotation", async () => {
+  let releaseFirst;
+  const firstGate = new Promise((resolve) => { releaseFirst = resolve; });
+  const calls = [];
+  const relay = {
+    async requestSessionJson(request) {
+      calls.push(request);
+      if (request.url.endsWith("/first")) {
+        assert.match(request.cookie, /hermes_session_at=access-one/);
+        await firstGate;
+        return response(200, { ok: true }, [{ name: "hermes_session_at", value: "access-two", expired: false }]);
+      }
+      assert.match(request.cookie, /hermes_session_at=access-two/);
+      return response(200, { ok: true });
+    },
+  };
+  const auth = DashboardAuthSession.fromSession({
+    baseUrl: "https://hermes.example",
+    relay,
+    session: {
+      version: 1,
+      providers: [{ name: "basic", displayName: "Password", supportsPassword: true }],
+      identity: { userId: "user-1", email: "", displayName: "Muxy User", organizationId: "", provider: "basic", expiresAt: 1 },
+      cookies: [["hermes_session_at", "access-one"], ["hermes_session_rt", "refresh-one"]],
+    },
+  });
+
+  const first = auth.requestJson({ url: "https://hermes.example/first" });
+  const second = auth.requestJson({ url: "https://hermes.example/second" });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls.length, 1, "the second authenticated call must wait for the first cookie merge");
+  releaseFirst();
+  await Promise.all([first, second]);
+  assert.equal(calls.length, 2);
+  assert.match(calls[1].cookie, /hermes_session_at=access-two/);
+});

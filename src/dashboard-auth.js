@@ -92,7 +92,14 @@ export class DashboardAuthSession {
     this.now = now;
     this.cookies = new Map();
     this.providers = Object.freeze([]);
+    this.requestQueue = Promise.resolve();
     this.snapshot = Object.freeze({ state: "disconnected", providers: this.providers, identity: null, label: "" });
+  }
+
+  #serialize(operation) {
+    const queued = this.requestQueue.then(operation, operation);
+    this.requestQueue = queued.then(() => undefined, () => undefined);
+    return queued;
   }
 
   #publish(state, identity = null) {
@@ -149,7 +156,11 @@ export class DashboardAuthSession {
     return this.#publish("logged_in", restored.identity);
   }
 
-  async discover() {
+  discover() {
+    return this.#serialize(() => this.#discover());
+  }
+
+  async #discover() {
     this.#publish("checking");
     const status = await this.relay.requestSessionJson({ url: `${this.baseUrl}/api/status` });
     if (status.status < 200 || status.status >= 300 || !status.body || typeof status.body !== "object") {
@@ -166,7 +177,11 @@ export class DashboardAuthSession {
     return this.#publish(hasPassword ? "logged_out" : "oauth_required");
   }
 
-  async login({ provider, username, password }) {
+  login(credentials) {
+    return this.#serialize(() => this.#login(credentials));
+  }
+
+  async #login({ provider, username, password }) {
     const supported = this.providers.find((candidate) => candidate.name === provider && candidate.supportsPassword);
     if (!supported) throw new DashboardAuthError("password_login_not_supported");
     const safeUsername = typeof username === "string" ? username.trim() : "";
@@ -202,10 +217,14 @@ export class DashboardAuthSession {
       this.#clear("logged_out");
       throw new DashboardAuthError("auth_contract_mismatch", response.status);
     }
-    return this.verify();
+    return this.#verifyUnlocked();
   }
 
-  async verify() {
+  verify() {
+    return this.#serialize(() => this.#verifyUnlocked());
+  }
+
+  async #verifyUnlocked() {
     const cookie = this.#cookieHeader();
     if (!cookie) {
       this.#clear("logged_out");
@@ -226,7 +245,11 @@ export class DashboardAuthSession {
     return this.#publish("logged_in", identity);
   }
 
-  async requestJson({ url, method = "GET", body = null }) {
+  requestJson(request) {
+    return this.#serialize(() => this.#requestJson(request));
+  }
+
+  async #requestJson({ url, method = "GET", body = null }) {
     // The identity timestamp describes the current access token, but Hermes may
     // rotate that token from the refresh cookie during this request. Let the
     // Dashboard make the authoritative decision instead of logging the user out
@@ -263,7 +286,11 @@ export class DashboardAuthSession {
     return Object.freeze({ ticket, ttlSeconds });
   }
 
-  async logout() {
+  logout() {
+    return this.#serialize(() => this.#logout());
+  }
+
+  async #logout() {
     const cookie = this.#cookieHeader();
     try {
       if (cookie) await this.relay.requestSessionJson({ url: `${this.baseUrl}/auth/logout`, cookie, method: "POST" });
