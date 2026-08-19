@@ -6,11 +6,11 @@
   },
   "muxy" : {
     "$schema" : "https:\/\/raw.githubusercontent.com\/muxy-app\/muxy\/main\/docs\/extensions\/schema\/manifest.schema.json",
-    "description" : "Controls an existing Hermes Gateway and its project Kanban boards from Muxy",
+    "description" : "Connects to Hermes with one sign-in for agent work and project boards in Muxy",
     "commands" : [
       {
         "id" : "toggle-hermes-gateway",
-        "title" : "Hermes: Toggle Gateway Panel",
+        "title" : "Hermes: Toggle Agent Panel",
         "action" : {
           "kind" : "togglePanel",
           "panel" : "hermes-gateway"
@@ -41,16 +41,11 @@
         "id" : "hermes-gateway",
         "mode" : "pinned",
         "position" : "right",
-        "title" : "Hermes Gateway"
+        "title" : "Hermes Agent"
       }
-    ],
-    "events" : [
-      "file.changed"
     ],
     "permissions" : [
       "commands:exec",
-      "files:read",
-      "files:write",
       "panels:write",
       "storage:read",
       "storage:write",

@@ -60,11 +60,13 @@ test("the committed evidence index is a complete safe matrix with simulated remo
   assert.equal(evaluateStopGate({ evidenceIndex: safe }).active, false);
 });
 
-test("the aggregate validator is non-watch and Phase 2 controls remain inside the existing authority boundary", async () => {
-  const [manifest, validator, panel, projector, simulations, compose] = await Promise.all([
+test("the aggregate validator is non-watch and agent controls remain inside the existing authority boundary", async () => {
+  const [manifest, validator, panel, gateway, agent, projector, simulations, compose] = await Promise.all([
     readFile(new URL("package.json", root), "utf8"),
     readFile(new URL("scripts/validate-phase.mjs", root), "utf8"),
     readFile(new URL("src/panel/app.js", root), "utf8"),
+    readFile(new URL("src/dashboard-gateway.js", root), "utf8"),
+    readFile(new URL("src/dashboard-agent.js", root), "utf8"),
     readFile(new URL("scripts/project-recovery-observation.mjs", root), "utf8"),
     readFile(new URL("scripts/qualify-simulations.mjs", root), "utf8"),
     readFile(new URL("fixtures/simulations/docker-compose.yml", root), "utf8"),
@@ -74,8 +76,9 @@ test("the aggregate validator is non-watch and Phase 2 controls remain inside th
   assert.match(validator, /validateEvidence/);
   assert.match(validator, /assertCompleteRecoveryEvidence/);
   assert.match(validator, /docker", \["compose"/);
-  assert.match(panel, /supportsCoreRun/);
-  assert.match(panel, /RUN_FEATURES\.(?:approval|stop|steer)/);
+  assert.match(panel, /DashboardGatewayClient/);
+  assert.match(gateway, /requestWebSocketTicket/);
+  assert.match(agent, /(?:approval\.respond|session\.interrupt|session\.steer)/);
   assert.doesNotMatch(panel, /install bridge|register.*agent|provider registration|certificate bypass|workspace path/i);
   assert.doesNotMatch(panel, /project-recovery-observation|qualify-simulations|docker compose|openssl|certificateRoot/i);
   assert.doesNotMatch(projector, /from\s+["'][^"']*src\/panel|from\s+["'][^"']*src\/main/i);

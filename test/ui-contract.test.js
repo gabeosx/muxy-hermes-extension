@@ -5,199 +5,136 @@ import test from "node:test";
 import { normalizeCapabilities } from "../src/capabilities.js";
 import { renderRecoveryEvidence, sanitizeRecoveryEvidence } from "../src/recovery-evidence.js";
 
+const root = new URL("../", import.meta.url);
+
 test("capability normalization keeps only safe documented metadata and names", () => {
   const normalized = normalizeCapabilities({
     version: "fixture-v1",
-    features: {
-      run_stop: true,
-      run_start: true,
-      unsafe_object: { enabled: true },
-      disabled_feature: false,
-      "not valid": true,
-    },
+    features: { run_stop: true, run_start: true, unsafe_object: { enabled: true }, disabled_feature: false, "not valid": true },
     secret: "must-not-survive",
   });
-
-  assert.deepEqual(normalized, {
-    state: "partial",
-    version: "fixture-v1",
-    names: ["run_start", "run_stop"],
-  });
+  assert.deepEqual(normalized, { state: "partial", version: "fixture-v1", names: ["run_start", "run_stop"] });
   assert.equal(JSON.stringify(normalized).includes("must-not-survive"), false);
-  assert.deepEqual(normalizeCapabilities({ version: "fixture-v1", features: {} }), {
-    state: "empty",
-    version: "fixture-v1",
-    names: [],
-  });
+  assert.deepEqual(normalizeCapabilities({ version: "fixture-v1", features: {} }), { state: "empty", version: "fixture-v1", names: [] });
   assert.deepEqual(normalizeCapabilities(null), { state: "unavailable", version: null, names: [] });
 });
 
-test("the manifest exposes the compact panel and full board tab with least required permissions", async () => {
-  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-
+test("the manifest exposes the agent panel and board with least required permissions", async () => {
+  const manifest = JSON.parse(await readFile(new URL("package.json", root), "utf8"));
   assert.deepEqual(manifest.muxy.commands, [
-    {
-      id: "toggle-hermes-gateway",
-      title: "Hermes: Toggle Gateway Panel",
-      action: { kind: "togglePanel", panel: "hermes-gateway" },
-    },
-    {
-      id: "open-hermes-project-board",
-      title: "Hermes: Open Project Board",
-      action: { kind: "openTab", tabType: "hermes-project-board" },
-    },
+    { id: "toggle-hermes-gateway", title: "Hermes: Toggle Agent Panel", action: { kind: "togglePanel", panel: "hermes-gateway" } },
+    { id: "open-hermes-project-board", title: "Hermes: Open Project Board", action: { kind: "openTab", tabType: "hermes-project-board" } },
   ]);
   assert.deepEqual(manifest.muxy.tabTypes, [{ id: "hermes-project-board", title: "Hermes Project Board", entry: "board/index.html" }]);
-  assert.equal(Object.hasOwn(manifest.muxy, "background"), false, "webview storage must not require a background script");
-  assert.deepEqual(manifest.muxy.permissions, ["commands:exec", "files:read", "files:write", "panels:write", "storage:read", "storage:write", "tabs:write"]);
-  assert.deepEqual(manifest.muxy.events, ["file.changed"]);
+  assert.deepEqual(manifest.muxy.permissions, ["commands:exec", "panels:write", "storage:read", "storage:write", "tabs:write"]);
+  assert.equal(Object.hasOwn(manifest.muxy, "background"), false);
+  assert.equal(Object.hasOwn(manifest.muxy, "events"), false);
   for (const forbiddenSurface of ["topbarItems", "statusbarItems", "scripts"]) {
     assert.equal(Object.hasOwn(manifest.muxy, forbiddenSurface), false, `manifest must not declare ${forbiddenSurface}`);
   }
 });
 
-test("the panel keeps capability and evidence output safe while deriving run availability from advertised names", async () => {
-  const panel = await readFile(new URL("../src/panel/app.js", import.meta.url), "utf8");
+test("the panel presents one user-facing Dashboard sign-in and restores it", async () => {
+  const [panel, auth, gateway, broker] = await Promise.all([
+    readFile(new URL("src/panel/app.js", root), "utf8"),
+    readFile(new URL("src/dashboard-auth.js", root), "utf8"),
+    readFile(new URL("src/dashboard-gateway.js", root), "utf8"),
+    readFile(new URL("src/session-broker.js", root), "utf8"),
+  ]);
 
-  for (const text of [
-    "No controls available",
-    "This Gateway does not offer controls for this panel.",
-    "Only controls confirmed by this Gateway are shown.",
-    "Validation evidence",
-    "No versioned fixture result has been recorded for this deployment condition.",
-    "Your connection is saved on this Mac.",
-    "Your access token is stored only for this extension.",
-    "Gateway unreachable",
-    "Gateway timed out",
-  ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  for (const copy of [
+    "Connect to Hermes",
+    "Enter the address you use to open Hermes.",
+    "Sign in once to use Hermes and your project boards.",
+    "You’ll stay signed in on this Mac until you log out.",
+    "Connected",
+    "Connecting…",
+    "Reconnecting…",
+    "Offline — retrying",
+    "Signed out",
+    "Trying to reconnect automatically. No action is needed.",
+  ]) assert.ok(panel.includes(copy), `panel is missing copy: ${copy}`);
 
-  assert.doesNotMatch(panel, /exact-origin access|confirm its exact Muxy origin/i);
-  assert.match(panel, /Preparing connection/);
-  assert.match(panel, /this\.probe\.prepare\(\)/);
-  assert.match(panel, /const panelInstanceId = globalThis\.crypto\.randomUUID\(\);/);
-  assert.match(panel, /new RecoveryReceiptWriter\(\{ panelInstanceId \}\)/);
-  assert.match(panel, /new ConnectionProbe\(\{ files: window\.muxy\?\.files \?\? null, randomId: \(\) => panelInstanceId \}\)/);
-
-  for (const contract of [
-    "supportsCoreRun(result.capabilityNames)",
-    "RUN_FEATURES.submit",
-    "RUN_FEATURES.status",
-    "RUN_FEATURES.events",
-    "RUN_FEATURES.approval",
-    "RUN_FEATURES.steer",
-    "RUN_FEATURES.stop",
-    "Start run",
-    "Request stop",
-    "Gateway status is authoritative",
-  ]) assert.match(panel, new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.doesNotMatch(panel, /workspace path|certificate bypass|auto.?approve/i);
-  assert.match(panel, /type: "password", autocomplete: "off"/);
-  assert.match(panel, /this\.tokenValue = ""/);
-  assert.match(panel, /this\.disconnectRun\(\)/);
-  assert.match(panel, /SessionBrokerClient/);
-  assert.match(panel, /restoreGatewaySession/);
-  assert.match(panel, /verifySavedGateway/);
+  assert.match(panel, /type: "password",\s*autocomplete: "current-password"/);
+  assert.match(panel, /autocomplete: "username"/);
+  assert.match(panel, /DashboardAuthSession/);
+  assert.match(panel, /DashboardGatewayClient/);
+  assert.match(panel, /restoreSavedSession/);
+  assert.match(panel, /verifyPrimarySession/);
   assert.match(panel, /SESSION_CHECK_INTERVAL_MS/);
-  assert.match(panel, /saveGateway/);
-  assert.match(panel, /Forget connection/);
-  assert.doesNotMatch(panel, /Panel-only credentials|scrubbing a temporary journal|filesystem path/i);
+  assert.match(panel, /clearCredentials/);
+  assert.match(auth, /requestWebSocketTicket/);
+  assert.match(gateway, /authSession\.requestWebSocketTicket\(\)/);
+  assert.match(broker, /session\.dashboard\.v1/);
+  assert.doesNotMatch(broker, /gateway\.save|readGateway|saveGateway|localStorage|sessionStorage/);
+
+  for (const internalCopy of [
+    /API_SERVER_KEY/i,
+    /bearer token/i,
+    /dashboard session token/i,
+    /paste.*token/i,
+    /temporary journal/i,
+    /filesystem path/i,
+    /board mapping is explicit/i,
+    /JSON-RPC/i,
+  ]) assert.doesNotMatch(panel, internalCopy);
 });
 
-test("the panel preserves the five-row evidence boundary alongside capability-gated run controls", async () => {
-  const panel = await readFile(new URL("../src/panel/app.js", import.meta.url), "utf8");
-
-  for (const text of [
-    "loadEvidenceIndex",
-    "renderDeploymentMatrix",
-    "/evidence/index.json",
-    "Copy failure report",
-    "View bridge contract",
-    "Recovery evidence",
-    "loadRecoveryEvidence",
-    "/evidence/recovery-v1.json",
-    "Event history is incomplete and approval detail is unavailable",
-    "Copying report…",
-    "Loading bridge contract…",
-    "Could not copy the failure report.",
-    "Could not load the bridge contract.",
-  ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")));
-
-  assert.doesNotMatch(panel, /install bridge|register.*agent|provider registration|certificate bypass/i);
-  assert.match(panel, /run\.pendingApproval\.choices\.map/);
-  assert.match(panel, /this\.runController\.has\(RUN_FEATURES\.approval\)/);
+test("a fresh short-lived ticket is internal to each connection and reconnect", async () => {
+  const [auth, gateway, broker] = await Promise.all([
+    readFile(new URL("src/dashboard-auth.js", root), "utf8"),
+    readFile(new URL("src/dashboard-gateway.js", root), "utf8"),
+    readFile(new URL("src/session-broker.js", root), "utf8"),
+  ]);
+  assert.match(auth, /POST/);
+  assert.match(auth, /\/api\/auth\/ws-ticket/);
+  assert.match(gateway, /#open/);
+  assert.match(gateway, /requestWebSocketTicket\(\)/);
+  assert.match(gateway, /\/api\/ws/);
+  assert.match(gateway, /#scheduleReconnect/);
+  assert.doesNotMatch(broker, /ws-ticket|ttlSeconds|passwordValue|current-password/);
 });
 
-test("native styles wrap content, preserve visible interaction state, and honor reduced motion", async () => {
-  const css = await readFile(new URL("../src/styles/global.css", import.meta.url), "utf8");
+test("the agent exposes run controls without auto-approval", async () => {
+  const [panel, gateway, agent] = await Promise.all([
+    readFile(new URL("src/panel/app.js", root), "utf8"),
+    readFile(new URL("src/dashboard-gateway.js", root), "utf8"),
+    readFile(new URL("src/dashboard-agent.js", root), "utf8"),
+  ]);
+  const production = `${gateway}\n${agent}`;
+  for (const method of ["session.create", "prompt.submit", "approval.respond", "session.steer", "session.interrupt"]) {
+    assert.match(production, new RegExp(method.replace(".", "\\.")));
+  }
+  for (const copy of ["Start request", "Approval required", "Allow once", "Allow for session", "Always allow", "Deny", "Send guidance", "Stop"]) {
+    assert.match(panel, new RegExp(copy));
+  }
+  assert.doesNotMatch(production, /auto.?approve/i);
+});
 
+test("native styles use Muxy tokens, visible interaction states, scale variables, and reduced motion", async () => {
+  const css = await readFile(new URL("src/styles/global.css", root), "utf8");
   assert.match(css, /var\(--muxy-background\)/);
   assert.match(css, /var\(--muxy-accent\)/);
   assert.match(css, /:focus-visible/);
   assert.match(css, /var\(--muxy-hover\)/);
   assert.match(css, /overflow-y:\s*auto/);
-  assert.match(css, /height:\s*100%;\s*min-height:\s*0/);
   assert.match(css, /overflow-wrap:\s*anywhere/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.match(css, /gateway-run/);
-  assert.match(css, /gateway-danger/);
+  assert.match(css, /gateway-reconnect-icon/);
+  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b/i);
   assert.doesNotMatch(css, /overflow-x:\s*(?:auto|scroll)/);
 });
 
-test("the panel leads with the board and keeps proof and recovery internals behind disclosures", async () => {
-  const panel = await readFile(new URL("../src/panel/app.js", import.meta.url), "utf8");
-
-  assert.match(panel, /Project board/);
+test("the signed-in panel opens the project board without another sign-in", async () => {
+  const panel = await readFile(new URL("src/panel/app.js", root), "utf8");
   assert.match(panel, /Open board/);
   assert.match(panel, /hermes-project-board/);
   assert.match(panel, /singleton: true/);
-  assert.match(panel, /Advanced diagnostics and validation evidence/);
-  assert.match(panel, /Recover an existing run/);
-  assert.match(panel, /Run recovery details/);
-});
-
-test("the panel restores the persistent Gateway connection while keeping manual run recovery explicit", async () => {
-  const [panel, css] = await Promise.all([
-    readFile(new URL("../src/panel/app.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/styles/global.css", import.meta.url), "utf8"),
-  ]);
-
-  for (const text of [
-    "Recover a run",
-    "Run ID",
-    "Refresh status",
-    "Gateway status could not be confirmed.",
-    "Attempting to resume live updates",
-    "Live events may be missing or duplicated",
-    "Previous live activity and approval detail were not recovered.",
-    "Enter a valid Run ID.",
-    "aria-live",
-    "this.runController.recover",
-    "this.runController.refresh",
-  ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")));
-
-  assert.match(panel, /this\.tokenValue = ""/);
-  assert.match(panel, /sessionBroker\.readGateway/);
-  assert.doesNotMatch(panel, /localStorage|sessionStorage|muxy\.storage|deployment selector|certificate bypass/i);
-  assert.match(css, /gateway-recovery/);
-  assert.match(css, /gateway-run-id/);
-});
-
-test("replacement connection waits for prior run teardown before probing or creating a controller", async () => {
-  const panel = await readFile(new URL("../src/panel/app.js", import.meta.url), "utf8");
-  const submitStart = panel.indexOf("async submit(event)");
-  const submitEnd = panel.indexOf("\n  verdictSection()", submitStart);
-  const submit = panel.slice(submitStart, submitEnd);
-
-  const disconnect = submit.indexOf("await this.disconnectRun();");
-  const probe = submit.indexOf("await this.probe.start(");
-  const controller = submit.indexOf("this.runController = new RunController(");
-  assert.ok(disconnect >= 0, "submit must await old controller release");
-  assert.ok(probe > disconnect, "gateway probing starts only after old teardown");
-  assert.ok(controller > probe, "replacement controller is constructed only after successful fresh probe");
+  assert.match(panel, /persistDashboardSession/);
 });
 
 test("recovery evidence renderer permanently shows every safe interruption signature and its history limit", async () => {
-  const recovery = JSON.parse(await readFile(new URL("../public/evidence/recovery-v1.json", import.meta.url), "utf8"));
+  const recovery = JSON.parse(await readFile(new URL("public/evidence/recovery-v1.json", root), "utf8"));
   const details = renderRecoveryEvidence(sanitizeRecoveryEvidence(recovery)).map((row) => row.details).join(" ");
   for (const signature of ["Refusal or unreachable", "Observer interrupted", "Observer restored", "Buffered or delayed", "Panel recreated"]) {
     assert.match(details, new RegExp(signature));

@@ -3,19 +3,6 @@ import test from "node:test";
 
 import { PersistentSessionBroker, SessionBrokerClient } from "../src/session-broker.js";
 
-function gateway() {
-  return {
-    url: "https://gateway.example",
-    bearer: "gateway-token",
-    result: {
-      status: "success", endpoint: "https://gateway.example", endpointTrustClass: "https",
-      url: { state: "passed" }, relayOutcome: { state: "passed" }, authenticationOutcome: { state: "passed" },
-      capabilityOutcome: { state: "passed" }, streamOutcome: { state: "passed" },
-      capabilityNames: ["run_events_sse", "run_status", "run_submission"], capabilityVersion: "v1", streamEventCount: 2,
-    },
-  };
-}
-
 function dashboard() {
   return {
     baseUrl: "https://hermes.example",
@@ -38,40 +25,33 @@ function extensionStorage() {
   };
 }
 
-test("webviews persist gateway and Dashboard sessions directly in extension-scoped storage", async () => {
+test("webviews persist only the Dashboard session in extension-scoped storage", async () => {
   const storage = extensionStorage();
   let sequence = 0;
   const client = new SessionBrokerClient({ storage, randomId: () => `request-${++sequence}` });
 
-  await client.saveGateway(gateway());
   await client.saveDashboard(dashboard());
-  const restoredGateway = await client.readGateway();
   const restoredDashboard = await client.readDashboard();
 
-  assert.equal(restoredGateway.bearer, "gateway-token");
-  assert.equal(restoredGateway.result.status, "success");
   assert.equal(restoredDashboard.auth.cookies[0][1], "access-one");
-  restoredGateway.result.capabilityNames.push("changed-by-panel");
-  assert.equal((await client.readGateway()).result.capabilityNames.includes("changed-by-panel"), false, "the broker must not share mutable references");
+  restoredDashboard.auth.cookies.push(["hermes_session_rt", "changed-by-panel"]);
+  assert.equal((await client.readDashboard()).auth.cookies.length, 3, "the broker must not share mutable references");
 
   const restartedClient = new SessionBrokerClient({ storage, randomId: () => `restart-${++sequence}` });
-  assert.equal((await restartedClient.readGateway()).bearer, "gateway-token", "the connection must survive a Muxy restart");
   assert.equal((await restartedClient.readDashboard()).auth.identity.userId, "user-1", "the Dashboard sign-in must survive a Muxy restart");
 
-  await restartedClient.clearGateway();
   await restartedClient.clearDashboard();
-  assert.equal(await restartedClient.readGateway(), null);
   assert.equal(await restartedClient.readDashboard(), null);
 });
 
-test("the broker rejects malformed credentials and never accepts a failed connection as restorable", async () => {
-  const broker = new PersistentSessionBroker({ storage: extensionStorage() });
-  const rejected = await broker.handle({ requestId: "one", action: "gateway.save", data: { ...gateway(), bearer: "not valid\n" } });
-  assert.equal(rejected.ok, false);
-  const failed = gateway();
-  failed.result.status = "failure";
-  assert.equal((await broker.handle({ requestId: "two", action: "gateway.save", data: failed })).ok, false);
-  assert.equal((await broker.handle({ requestId: "three", action: "gateway.read" })).data, null);
+test("legacy Gateway credentials cannot be saved or restored", async () => {
+  const storage = extensionStorage();
+  storage.set("session.gateway.v1", { url: "https://gateway.example", bearer: "old-token" });
+  const broker = new PersistentSessionBroker({ storage });
+
+  assert.equal((await broker.handle({ requestId: "one", action: "gateway.save", data: { bearer: "new-token" } })).ok, false);
+  assert.equal((await broker.handle({ requestId: "two", action: "gateway.read" })).data, null);
+  assert.equal(storage.get("session.gateway.v1"), null);
 });
 
 test("Dashboard sessions may be restored before a board is chosen", async () => {

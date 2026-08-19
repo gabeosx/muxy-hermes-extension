@@ -70,14 +70,14 @@ function assertManifestShape(manifest, label) {
     }
   }
   assert.deepEqual(manifest.muxy.commands, [
-    { id: "toggle-hermes-gateway", title: "Hermes: Toggle Gateway Panel", action: { kind: "togglePanel", panel: panel.id } },
+    { id: "toggle-hermes-gateway", title: "Hermes: Toggle Agent Panel", action: { kind: "togglePanel", panel: panel.id } },
     { id: "open-hermes-project-board", title: "Hermes: Open Project Board", action: { kind: "openTab", tabType: tabType.id } },
   ], `${label} commands must open only the declared Hermes surfaces`);
-  assert.deepEqual(manifest.muxy.events, ["file.changed"], `${label} must subscribe only to journal changes`);
+  assert.equal(Object.hasOwn(manifest.muxy, "events"), false, `${label} must not subscribe to workspace events`);
   assert.deepEqual(
     manifest.muxy.permissions,
-    ["commands:exec", "files:read", "files:write", "panels:write", "storage:read", "storage:write", "tabs:write"],
-    `${label} must request only the approved relay, journal, panel, extension-storage, and board-tab permissions`,
+    ["commands:exec", "panels:write", "storage:read", "storage:write", "tabs:write"],
+    `${label} must request only the approved authentication relay, panel, extension-storage, and board-tab permissions`,
   );
   return [panel.entry, tabType.entry];
 }

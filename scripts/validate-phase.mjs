@@ -90,6 +90,9 @@ async function validateBoundary() {
   const productionSources = [
     join(root, "src", "main.js"),
     join(root, "src", "panel", "app.js"),
+    join(root, "src", "dashboard-auth.js"),
+    join(root, "src", "dashboard-gateway.js"),
+    join(root, "src", "dashboard-agent.js"),
     join(root, "src", "gateway-client.js"),
     join(root, "src", "probe.js"),
     join(root, "src", "curl-relay.js"),
@@ -110,8 +113,12 @@ async function validateBoundary() {
   }
   const panel = await readFile(join(root, "src", "panel", "app.js"), "utf8");
   for (const pattern of forbiddenPanelPatterns) assert.doesNotMatch(panel, pattern, "panel renders an out-of-scope authority");
-  for (const requiredGate of ["supportsCoreRun", "RUN_FEATURES.approval", "RUN_FEATURES.stop", "RUN_FEATURES.steer"]) {
-    assert.match(panel, new RegExp(requiredGate.replace(".", "\\.")), `panel is missing advertised capability gate ${requiredGate}`);
+  const gateway = await readFile(join(root, "src", "dashboard-gateway.js"), "utf8");
+  const agent = await readFile(join(root, "src", "dashboard-agent.js"), "utf8");
+  assert.match(panel, /DashboardGatewayClient/, "panel must use the authenticated Dashboard gateway");
+  assert.match(gateway, /requestWebSocketTicket\(\)/, "every WebSocket connection must mint a fresh ticket");
+  for (const method of ["session.create", "prompt.submit", "approval.respond", "session.steer", "session.interrupt"]) {
+    assert.match(`${gateway}\n${agent}`, new RegExp(method.replace(".", "\\.")), `agent is missing ${method}`);
   }
   const broker = await readFile(join(root, "src", "session-broker.js"), "utf8");
   assert.match(broker, /globalThis\.muxy\?\.storage/, "session broker must use Muxy's extension-scoped store");

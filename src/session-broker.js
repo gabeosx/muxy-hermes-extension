@@ -1,6 +1,5 @@
 const GATEWAY_STORAGE_KEY = "session.gateway.v1";
 const DASHBOARD_STORAGE_KEY = "session.dashboard.v1";
-const TOKEN = /^[A-Za-z0-9._~+/=-]{1,4096}$/;
 const COOKIE_NAME = /^(?:(?:__Secure-|__Host-)?hermes_session_(?:at|rt|provider))$/;
 const COOKIE_VALUE = /^[A-Za-z0-9._~+/%=-]{1,4096}$/;
 const PROVIDER = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -24,41 +23,6 @@ function baseUrl(value) {
 function boardSlug(value) {
   const slug = String(value ?? "").trim().toLowerCase();
   return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug) ? slug : null;
-}
-
-function outcome(value) {
-  return value?.state === "passed" ? { state: "passed" } : { state: "not_verified" };
-}
-
-function gatewayResult(value, endpoint) {
-  if (!value || value.status !== "success" || value.endpoint !== endpoint) return null;
-  const capabilityNames = [...new Set((Array.isArray(value.capabilityNames) ? value.capabilityNames : [])
-    .filter((name) => typeof name === "string" && /^[a-z0-9_-]{1,128}$/i.test(name)))].sort();
-  return {
-    status: "success",
-    startedAt: safeText(value.startedAt, 64),
-    finishedAt: safeText(value.finishedAt, 64),
-    endpoint,
-    endpointTrustClass: value.endpointTrustClass === "loopback_http" ? "loopback_http" : "https",
-    url: outcome(value.url),
-    relayOutcome: outcome(value.relayOutcome),
-    authenticationOutcome: outcome(value.authenticationOutcome),
-    capabilityOutcome: outcome(value.capabilityOutcome),
-    streamOutcome: outcome(value.streamOutcome),
-    failureClass: null,
-    retryable: true,
-    capabilityNames,
-    capabilityVersion: typeof value.capabilityVersion === "string" ? safeText(value.capabilityVersion, 128) : null,
-    streamEventCount: Number.isSafeInteger(value.streamEventCount) ? value.streamEventCount : null,
-    previousResult: null,
-  };
-}
-
-function gatewaySession(value) {
-  const url = baseUrl(value?.url);
-  if (!url || !TOKEN.test(value?.bearer ?? "")) return null;
-  const result = gatewayResult(value?.result, url);
-  return result ? { url, bearer: value.bearer, result } : null;
 }
 
 function provider(value) {
@@ -128,12 +92,9 @@ export class PersistentSessionBroker {
     const requestId = typeof request?.requestId === "string" ? request.requestId : "";
     if (!requestId) return { requestId, ok: false, data: null };
     switch (request.action) {
-      case "gateway.read": return { requestId, ok: true, data: await this.#read(GATEWAY_STORAGE_KEY, gatewaySession) };
-      case "gateway.save": {
-        const value = gatewaySession(request.data);
-        if (!value) return { requestId, ok: false, data: null };
-        return { requestId, ok: await this.#save(GATEWAY_STORAGE_KEY, value), data: null };
-      }
+      case "gateway.read":
+        await this.#clear(GATEWAY_STORAGE_KEY);
+        return { requestId, ok: true, data: null };
       case "gateway.clear":
         return { requestId, ok: await this.#clear(GATEWAY_STORAGE_KEY), data: null };
       case "dashboard.read": return { requestId, ok: true, data: await this.#read(DASHBOARD_STORAGE_KEY, dashboardSession) };
@@ -155,8 +116,6 @@ export class SessionBrokerClient {
     this.randomId = randomId;
   }
 
-  async readGateway() { return this.#request("gateway.read"); }
-  async saveGateway(data) { return this.#request("gateway.save", data); }
   async clearGateway() { return this.#request("gateway.clear"); }
   async readDashboard() { return this.#request("dashboard.read"); }
   async saveDashboard(data) { return this.#request("dashboard.save", data); }
