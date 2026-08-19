@@ -42,7 +42,7 @@
 - [x] **RECV-01**: User sees bounded reconnect attempts with backoff when an active event stream is interrupted while the panel remains open.
 - [x] **RECV-02**: User receives a reconciled Gateway status after a stream interruption, regardless of whether event-stream reattachment succeeds.
 - [x] **RECV-03**: User can close and reopen the panel during an active run and is guided through token re-entry and the reattachment behavior supported by the pinned Gateway.
-- [ ] **RECV-04**: User can distinguish tunnel loss, Gateway loss, proxy buffering, and panel recreation in the validation evidence without the extension claiming to detect deployment topology.
+- [x] **RECV-04**: User can distinguish tunnel loss, Gateway loss, proxy buffering, and panel recreation in the validation evidence without the extension claiming to detect deployment topology.
 - [x] **RECV-05**: User is clearly warned when event history cannot be recovered; the extension never promises lossless replay without fixture evidence.
 
 ### Security Boundaries
@@ -148,7 +148,7 @@
 | RECV-01 | Phase 3 | Complete |
 | RECV-02 | Phase 3 | Complete |
 | RECV-03 | Phase 3 | Complete |
-| RECV-04 | Phase 3 | Pending |
+| RECV-04 | Phase 3 | Complete |
 | RECV-05 | Phase 3 | Complete |
 
 **Coverage:**

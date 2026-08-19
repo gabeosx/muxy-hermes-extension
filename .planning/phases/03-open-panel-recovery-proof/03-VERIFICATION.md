@@ -1,89 +1,38 @@
 ---
 phase: 03-open-panel-recovery-proof
-verified: 2026-08-18T12:11:16Z
-status: gaps_found
-score: 4/10 must-haves verified
-behavior_unverified: 5
+verified: 2026-08-19T01:34:08Z
+status: passed
+score: 10/10 must-haves verified
+behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "The Phase 3 MVP goal is a valid User Story that can be verified under MVP mode."
-    status: failed
-    reason: "ROADMAP.md declares mode: mvp, but gsd-tools user-story.validate returned false for the phase goal. The MVP verification contract therefore cannot issue a valid user-flow verdict."
-    artifacts:
-      - path: ".planning/ROADMAP.md"
-        issue: "Phase goal is descriptive rather than `As a ..., I want to ..., so that ...`."
-    missing:
-      - "Set a valid Phase 3 User Story through /gsd mvp-phase 3 before re-verification."
-  - truth: "User can inspect validation evidence that distinguishes tunnel loss, Gateway loss, proxy buffering, and panel recreation by observed behavior without topology claims."
-    status: failed
-    reason: "The rendered recovery document has only host fresh-panel and Docker interruption rows; it names neither refusal/unreachable nor buffering. The named scenario file is used only by a unit test and is not loaded or rendered by the panel."
-    artifacts:
-      - path: "public/evidence/recovery-v1.json"
-        issue: "Contains `fresh_panel_status_recovered`, `interrupted_status_reconciled`, and three `not_observed` rows, but no refusal/unreachable or buffering observation."
-      - path: "fixtures/simulations/recovery-scenarios.json"
-        issue: "Scenario labels have no production/evidence-renderer consumer."
-      - path: "src/panel/app.js"
-        issue: "Loads only /evidence/recovery-v1.json and renders its five rows."
-    missing:
-      - "Record and render safe observed-behavior signatures for refusal/unreachable, interruption/restoration, buffering, and panel recreation without assigning topology."
-      - "Ensure the Docker evidence documents the required unreachable-port condition as well as the interrupted stream."
-  - truth: "Recovery evidence is evidence-backed: disposable proxy and host qualification observations are projected into the inspected versioned document through an allowlisted writer."
-    status: failed
-    reason: "Neither qualification script references or writes public/evidence/recovery-v1.json. The proxy only returns an in-memory observation and prints it on shutdown; the qualifier writes only transient runtime/origin files. The public record is static and has no code-level provenance link."
-    artifacts:
-      - path: "scripts/run-recovery-fixture.mjs"
-        issue: "No recovery-v1.json writer or safe projection exists."
-      - path: "scripts/qualify-real.mjs"
-        issue: "No recovery-v1.json writer or safe projection exists."
-      - path: "public/evidence/recovery-v1.json"
-        issue: "Static claimed observations are not produced by either fixture path."
-    missing:
-      - "Implement one allowlisted projection/receipt path from host and Docker observations to the versioned evidence document and add a linkage regression test."
-  - truth: "Simulated SSH forwarding, direct HTTPS/proxy, and remote-workspace conditions exercise the stated client behaviors while remaining Unverified."
-    status: failed
-    reason: "The simulation files are metadata only. No SSH-loss/restoration fixture, HTTPS/reverse-proxy certificate/auth/CORS/unbuffered-stream fixture, or remote-workspace transport simulation exists; test/simulated-relay.test.js only asserts labels and forced-Unverified policy."
-    artifacts:
-      - path: "fixtures/simulations/scenarios.json"
-        issue: "Declares faultCases but does not execute them."
-      - path: "fixtures/simulations/docker-compose.yml"
-        issue: "Contains only model-stub and HTTP Gateway services; no SSH-forward or TLS/reverse-proxy service."
-      - path: "test/simulated-relay.test.js"
-        issue: "Builds an in-memory evidence record and checks policy, not client behavior under the named conditions."
-    missing:
-      - "Add executable, safe simulated scenarios for DEPL-04 through DEPL-06 and assert the common URL/token client behavior, no workspace-path transmission, and forced-Unverified verdicts."
-behavior_unverified_items:
-  - truth: "User can close and reopen the panel, re-enter a token and Run ID, and recover current status/final output without prior activity or approval replay."
-    test: "In native Muxy, close the panel during a harmless active run, reopen it, re-enter the URL/token and displayed Run ID, and select Recover status."
-    expected: "Current status/final output is shown; prior activity and approval detail remain absent; no event observer starts automatically."
-    why_human: "The controller unit test exercises status-only recovery, but does not operate a recreated native panel."
-  - truth: "A failed status request at every interruption boundary halts automatic observation and leaves only manual Refresh."
-    test: "Induce a status GET failure after the initial stream, first reattach, and final reattach."
-    expected: "Each case shows status_unavailable/disconnected, starts no later observer, and makes no terminal or reconciliation claim."
-    why_human: "The only targeted test covers the initial interruption boundary; no regression exercises either reattach boundary."
-  - truth: "Release or replacement invalidates delayed retries/results, clears the bearer, and prevents a second concurrent relay stream."
-    test: "Trigger a pending retry delay, then close/recreate or replace the controller before it completes."
-    expected: "No stale state is published, no replacement observer starts, and the bearer is cleared after teardown."
-    why_human: "No Phase 3 controller test exercises release/generation invalidation."
-  - truth: "Host-native and Docker rows describe facts actually observed through the final native Muxy panel."
-    test: "Review the retained native-test receipt or rerun both disposable fixtures through the final built panel."
-    expected: "Host records fresh-panel status-only recovery; Docker records same-panel interruption, second subscription, bounded warning, terminal reconciliation, and panelLifecycle: open unless Docker recreation is actually repeated."
-    why_human: "Static fixture rows and unit tests validate shape, not that the claimed native interactions occurred."
-  - truth: "Every task-owned fixture, proxy, container, network, temporary home, journal, and port was absent before cleanup was reported."
-    test: "Inspect or rerun host and Docker teardown with an owned-resource manifest and post-cleanup absence checks."
-    expected: "All created resources are scrubbed/removed and their ports are free before a cleanup-passed record is published."
-    why_human: "Proxy and runtime cleanup code is tested, but the public record has no provenance link to the claimed real teardown."
+re_verification:
+  previous_status: gaps_found
+  previous_score: 4/10
+  gaps_closed:
+    - "The Phase 3 MVP goal is a valid User Story that can be verified under MVP mode."
+    - "Inspectable evidence distinguishes loss, buffering, recreation, and refusal behavior without topology claims."
+    - "Disposable native observations are projected through a safe receipt-to-evidence path."
+    - "SSH forwarding, HTTPS/proxy, and remote-workspace analogues execute while remaining Unverified."
+  gaps_remaining: []
+  regressions: []
 ---
 
 # Phase 3: Open-Panel Recovery Proof Verification Report
 
-**Phase Goal:** Users receive a truthful, evidence-backed account of interrupted runs while the panel is open or recreated.
-**Verified:** 2026-08-18T12:11:16Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Phase Goal:** As a Hermes user, I want to recover interrupted runs, so that I can trust status without assuming complete history.
+**Verified:** 2026-08-19T01:34:08Z
+**Status:** passed
+**Re-verification:** Yes — after gap closure
 
-## MVP Mode Guard
+## User Flow Coverage
 
-Phase 3 is declared `mode: mvp`, but `gsd-tools query user-story.validate` returned `false` for the roadmap goal. Per MVP verification rules, a User Flow Coverage verdict cannot be issued until the goal is converted to a valid User Story. The technical audit below is supplied to make the concrete implementation and evidence gaps actionable.
+| Step | Expected | Evidence | Status |
+| --- | --- | --- | --- |
+| Open recovery | A reopened panel asks for fresh credentials and a manually supplied Run ID. | `src/panel/app.js:350-364` renders the recovery form and explicitly says it fetches current status only; UI-contract coverage verifies the fresh-credential/manual-ID contract. | ✓ VERIFIED |
+| Recover status | Recovery clears prior live/approval detail, reconciles Gateway status, and does not attach a new event observer automatically. | `RunController.recover()` tears down the prior client and calls detached `reconcile()` at `src/run-controller.js:87-99`; recreated-panel controller coverage passes. | ✓ VERIFIED |
+| Survive interruption | An open panel reconciles status before each of exactly two bounded observer retries; a non-transient status failure stops automatic recovery. | `src/run-controller.js:175-193`; the named boundary matrix passed all initial/first-retry/final-exhaustion cases. | ✓ VERIFIED |
+| Inspect limits | The panel visibly says that status is authoritative while event history and approval detail are incomplete/unavailable. | `src/panel/app.js:367-374,498-510`; renderer contract test passed. | ✓ VERIFIED |
+| Trust the outcome | Published evidence distinguishes the observed conditions without classifying topology, and simulation rows remain Unverified. | Receipt-backed host/Docker rows plus forced-Unverified simulation rows in `public/evidence/recovery-v1.json`; strict sanitizer and aggregate gate accept only that form. | ✓ VERIFIED |
 
 ## Goal Achievement
 
@@ -91,115 +40,103 @@ Phase 3 is declared `mode: mvp`, but `gsd-tools query user-story.validate` retur
 
 | # | Truth | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | Same-panel interruption provides bounded reattach attempts, authoritative status, and replay limits. | ✓ VERIFIED | `RunController.#streamSettled()` reconciles before each retry; a named controller test passed with exactly two retries and status-before-observe ordering. |
-| 2 | Recreated-panel recovery uses fresh credentials and a manual Run ID for status/final output, with no implied event/approval replay. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `recover()` is status-only and the panel renders the required form/copy; no native recreated-panel interaction was exercised by this verification. |
-| 3 | Inspectable evidence distinguishes loss/buffering/recreation behavior without topology inference. | ✗ FAILED | Published recovery evidence omits refusal/unreachable and buffering; the unrendered scenario JSON is only test metadata. |
-| 4 | Event history limitations are clearly disclosed and no lossless replay is promised. | ✓ VERIFIED | `REPLAY_LIMIT_NOTICE`, recovery-state copy, sanitized renderer copy, and UI contract tests retain the limitation. |
-| 5 | Status failure at every interruption boundary stops automatic recovery and leaves manual Refresh. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Shared `reconcile()` code supports it, but the targeted test covers only initial-stream failure—not either reattach boundary. |
-| 6 | Release/replacement invalidates pending recovery and prevents concurrent streams. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Generation guards and bearer clearing are present in `run-controller.js`; no targeted release/generation test exists. |
-| 7 | One strict versioned recovery fixture safely carries version/capability/event/control/recovery/cleanup metadata. | ✓ VERIFIED | `sanitizeRecoveryEvidence()` enforces exact keys and `npm run validate` passed its complete-schema/redaction checks. |
-| 8 | Host-native and Docker fixtures were each exercised through final native Muxy panels. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | The JSON rows claim `actual: true`/`nativePanel: true`, but neither runtime harness projects to that file; the claim needs native evidence or rerun confirmation. |
-| 9 | Remote analogue rows cannot become Supported and contain no workspace path/raw transport content. | ✓ VERIFIED | Sanitizer forcibly resets remote rows to `Unverified`; unit tests and aggregate validation reject content-bearing fields. |
-| 10 | Every created validation resource was cleaned before evidence said cleanup passed. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Cleanup implementations and active-stream proxy test pass, but static cleanup claims have no fixture-to-evidence provenance. |
+| 1 | Same-panel interruption yields status-before-observer recovery with exactly two bounded reattach attempts and no lossless-replay claim. | ✓ VERIFIED | `#streamSettled()` performs reconciliation, delay, then a fresh observer (`src/run-controller.js:175-193`); bounded-retry coverage and aggregate suite passed. |
+| 2 | A recreated panel accepts fresh credentials and a manual Run ID, then returns current status/final output without replaying earlier live or approval detail. | ✓ VERIFIED | Status-only `recover()` clears transient detail (`src/run-controller.js:87-99`); a fresh-panel native receipt is required before the host row can be projected (`scripts/qualify-real.mjs:644-678`). |
+| 3 | Evidence visibly distinguishes refusal/unreachable, interruption/restoration, buffering/delay, and panel recreation without inferring topology. | ✓ VERIFIED | Canonical conditions contain all five structural signatures; `renderRecoveryEvidence()` maps only controlled signature labels to text (`src/recovery-evidence.js:123-131`). |
+| 4 | Event-history limits are always disclosed; neither the recovery flow nor evidence promises lossless replay. | ✓ VERIFIED | Required copy appears in recovery state and evidence footer (`src/panel/app.js:360,367-374,509`). |
+| 5 | Status failure at each interruption boundary stops automatic observation and leaves manual Refresh as the only recovery action. | ✓ VERIFIED | Focused test passed all three deterministic subtests: initial reconciliation, first reattach, and final exhaustion (`test/run-controller.test.js:226-288`). |
+| 6 | Release/replacement invalidates delayed work, clears the bearer, publishes no stale state, and never overlaps relay ownership. | ✓ VERIFIED | Generation and bearer invalidation precede teardown (`src/run-controller.js:164-169`); all three pending-boundary/replacement subtests passed (`test/run-controller.test.js:290+`). |
+| 7 | One safe versioned fixture contains the tested Muxy/Hermes tuple, capability shape, representative frames, control/status metadata, recovery observations, and cleanup provenance. | ✓ VERIFIED | `recovery-v1.json` has schema v2, Muxy `1.5.0+945`, Hermes `0.20.2`, safe capability/event/control fields, and five condition rows; strict schema rejects unapproved fields (`src/recovery-evidence.js:86-112`). |
+| 8 | Host-native and Docker fixtures were observed through native Muxy panels and published only after receipt validation and cleanup. | ✓ VERIFIED | Current rows are `actual:true`, `nativePanel:true`, `Observed`, `recovery_receipt_bundle`, and `scrubbed_removed`; both qualifier paths project only after final cleanup predicates. |
+| 9 | SSH-forward, direct-HTTPS, and remote-workspace analogues exercise the common client but cannot be presented as real deployment support. | ✓ VERIFIED | Simulation runner imports the real `RunClient`/`RunController`, projects simulation receipts, and sanitizer/aggregate predicate force `actual:false`, `nativePanel:false`, and `Unverified`. |
+| 10 | Cleanup claims require owned-resource absence checks rather than narration. | ✓ VERIFIED | Docker cleanup receipt requires compose/proxy/ports/runtime/verifier-file/refusal checks (`scripts/run-recovery-fixture.mjs:83-106`); host/Docker evidence includes digest-only cleanup provenance. |
 
-**Score:** 4/10 truths verified (5 present, behavior-unverified)
+**Score:** 10/10 truths verified (0 present-but-behavior-unverified)
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
-| -------- | -------- | ------ | ------- |
-| `src/run-client.js` | Fixed event observer and status lookup | ✓ VERIFIED | Fixed `/v1/runs/{id}` and `/events` paths; each observer constructs a new parser. |
-| `src/run-controller.js` | Bounded generation-guarded recovery | ⚠️ PARTIAL | Core loop is substantive/wired; release and retry-boundary failure transitions lack behavioral coverage. |
-| `src/panel/app.js` | Recovery form/state/copy | ✓ VERIFIED | Wires `recover()`/`refresh()` and same-origin evidence loader into rendered panel state. |
-| `src/recovery-evidence.js` | Strict safe recovery evidence loader/renderer | ✓ VERIFIED | Exact schema, remote forced-Unverified policy, safe text-node projection. |
-| `public/evidence/recovery-v1.json` | Evidence-backed five-condition recovery record | ✗ HOLLOW | Parses and renders, but is static, has no fixture provenance, and lacks required loss/buffering signatures. |
-| `scripts/run-recovery-fixture.mjs` | Disposable proxy and safe observation writer | ⚠️ PARTIAL | Loopback-only interruption proxy is substantive; it never writes/projections recovery evidence. |
-| `scripts/qualify-real.mjs` | Host qualification and evidence projection | ⚠️ PARTIAL | Isolated runtime/cleanup harness is substantive; it never writes/projections recovery evidence. |
-| `fixtures/simulations/recovery-scenarios.json` | Exercised observed-behavior scenarios | ✗ HOLLOW | Descriptive records are consumed only by a unit test. |
+| --- | --- | --- | --- |
+| `src/run-controller.js` | Bounded, status-authoritative recovery state machine | ✓ VERIFIED | Generation guards, status-before-observe ordering, exact two-delay budget, explicit disconnected/manual-refresh outcomes, and behavioral matrix. |
+| `src/panel/app.js` | Recovery form, limitation copy, safe evidence UI | ✓ VERIFIED | Wires `recover()`, `refresh()`, receipt-writer snapshots, and same-origin evidence into rendered DOM. |
+| `src/recovery-receipt.js` | One-use native-panel receipt writer | ✓ VERIFIED | Accepts only an exact verifier challenge and eligible terminal recovery snapshot; emits digests only. |
+| `src/recovery-evidence.js` | Strict evidence sanitizer and renderer | ✓ VERIFIED | Exact schema and safe-label renderer are used by both panel loader and aggregate validator. |
+| `scripts/project-recovery-observation.mjs` | Atomic allowlisted receipt projection | ✓ VERIFIED | Builds a correlated receipt bundle, validates the full document, and atomically replaces one canonical condition. |
+| `scripts/qualify-real.mjs` / `scripts/run-recovery-fixture.mjs` | Host and Docker native qualification | ✓ VERIFIED | Require receipts and cleanup, then project canonical rows only after successful teardown. |
+| `scripts/qualify-simulations.mjs` / TLS proxy fixture | Executable safe remote analogues | ✓ VERIFIED | Uses existing client/controller against test-only relays; browser graph remains free of Docker/TLS authority. |
+| `public/evidence/recovery-v1.json` | Canonical inspectable five-condition evidence | ✓ VERIFIED | Two observed receipt-backed rows; three forced-Unverified simulation rows. |
+| `scripts/validate-phase.mjs` | Fail-closed aggregate proof gate | ✓ VERIFIED | Requires provenance, signatures, cleanup, redaction, build/tests/dist, and Compose configuration. |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
-| ---- | -- | --- | ------ | ------- |
-| `src/run-controller.js` | `src/run-client.js` | Status before fresh observer/backoff | ✓ WIRED | `#streamSettled()` calls `reconcile()`, waits, then calls `client.observe()`. |
-| `src/panel/app.js` | `src/run-controller.js` | Manual Run ID status-only recovery | ✓ WIRED | `recoverRun()` invokes `runController.recover()`; `refreshRun()` invokes `refresh()`. |
-| `src/run-controller.js` | `src/curl-relay.js` | Single-stream teardown/generation | ✓ WIRED | Controller calls client teardown before recovery/release; client delegates to active relay teardown. |
-| `scripts/run-recovery-fixture.mjs` | `public/evidence/recovery-v1.json` | Allowlisted observation projection | ✗ NOT_WIRED | No reference to the JSON file or writer exists in the script. |
-| `scripts/qualify-real.mjs` | `public/evidence/recovery-v1.json` | Host-native observation projection | ✗ NOT_WIRED | No reference to the JSON file or writer exists in the qualifier. |
-| `src/panel/app.js` | `src/recovery-evidence.js` | Same-origin safe loading/rendering | ✓ WIRED | Imports both functions and loads only `/evidence/recovery-v1.json`. |
-| `fixtures/simulations/recovery-scenarios.json` | `test/recovery-fixture.test.js` | Scenario policy | ⚠️ PARTIAL | Test verifies labels/policy only; it does not exercise the client under those scenarios. |
+| --- | --- | --- | --- |
+| `src/run-controller.js` | `src/run-client.js` | Status reconciliation → delay → fresh observer | ✓ WIRED | `#streamSettled()` calls `reconcile()` before `client.observe()`; focused behavioral test confirms ordering. |
+| `src/panel/app.js` | `src/run-controller.js` | Manual recovery/Refresh handlers | ✓ WIRED | Form invokes controller recovery; recovery/status UI reflects snapshots. |
+| `src/panel/app.js` | `src/recovery-receipt.js` | Snapshot offered to verifier-only writer | ✓ WIRED | Panel constructs `RecoveryReceiptWriter` with a unique panel ID and supplies snapshots; writer is challenge-gated. |
+| Native qualifiers | `scripts/project-recovery-observation.mjs` | Validated receipt bundle → canonical row | ✓ WIRED | Both host and Docker qualifiers import and call the projector only after cleanup. |
+| Projector | `public/evidence/recovery-v1.json` | Atomic validated replacement | ✓ WIRED | Projector sanitizes input and replacement before `rename()` (`scripts/project-recovery-observation.mjs:113-135`). |
+| `src/panel/app.js` | `src/recovery-evidence.js` | Same-origin loader → safe rendered rows | ✓ WIRED | Loads only `/evidence/recovery-v1.json`, sanitizes it, and renders text nodes. |
+| Simulation runner | `src/run-client.js` / `src/run-controller.js` | Executable analogue relay | ✓ WIRED | Direct imports in test-only runner; no production transport branch is added. |
+| Aggregate validator | all `test/*.js` | Dynamic test enumeration | ✓ WIRED | It includes `test/simulated-relay.test.js`; a literal-pattern helper missed this dynamic link, but `npm test`/`npm run validate` verify it. |
 
 ### Data-Flow Trace (Level 4)
 
 | Artifact | Data Variable | Source | Produces Real Data | Status |
-| -------- | ------------- | ------ | ------------------ | ------ |
-| `src/panel/app.js` | `recoveryEvidenceState.rows` | `loadRecoveryEvidence()` → `/evidence/recovery-v1.json` | Static committed JSON, not fixture output | ⚠️ STATIC |
-| `scripts/run-recovery-fixture.mjs` | `proxy.observation()` | Live in-memory proxy counters | Never flows to inspected evidence | ✗ DISCONNECTED |
-| `scripts/qualify-real.mjs` | Native host lifecycle data | Runtime stdout/transient files | Never flows to inspected evidence | ✗ DISCONNECTED |
+| --- | --- | --- | --- | --- |
+| Recovery evidence panel | `recoveryEvidenceState.rows` | Same-origin evidence fetch → sanitizer → renderer | Current canonical record projected from validated receipt bundles, not hardcoded panel props | ✓ FLOWING |
+| Native evidence rows | condition replacement | Native challenge → panel receipt → fixture/cleanup receipts → atomic projector | Digest-only receipt-backed host and Docker observations | ✓ FLOWING |
+| Remote analogue rows | condition replacement | Executed common-client/TLS simulation → simulation receipt → projector | Structural simulation observations; deliberately not real deployment qualification | ✓ FLOWING |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
-| -------- | ------- | ------ | ------ |
-| Bounded reattach, initial status failure, recreated status-only recovery | `node --test --test-name-pattern='an interrupted same-panel observer…|an unavailable status…|recreated-panel recover…' test/run-controller.test.js` | 3/3 passed | ✓ PASS |
-| Complete recovery fixture schema/redaction | `node --test --test-name-pattern='committed recovery fixture…' test/recovery-evidence.test.js` | 1/1 passed | ✓ PASS |
-| Proxy active-stream cleanup | `node --test --test-name-pattern='recovery proxy closes…' test/recovery-fixture.test.js` | Passed outside sandbox; sandbox cannot bind loopback | ✓ PASS |
-| Aggregate validation | `npm run validate` | Passed outside sandbox | ✓ PASS |
-| Compose syntax | `docker compose -f fixtures/simulations/docker-compose.yml config --quiet` | Passed | ✓ PASS |
+| --- | --- | --- | --- |
+| Interruption-boundary failures and release invalidation | `node --test --test-name-pattern='status failures at every interruption boundary|release invalidates pending recovery' test/run-controller.test.js` | 8/8 subtests passed | ✓ PASS |
+| Current canonical record and forced-Unverified simulations | `node --test --test-name-pattern='committed recovery fixture carries observed host and Docker receipts' test/recovery-evidence.test.js` | 1/1 passed | ✓ PASS |
+| Fail-closed provenance/signature/cleanup/redaction mutations and rendered limitation copy | `node --test --test-name-pattern='aggregate recovery proof fails closed|recovery evidence renderer permanently shows' test/phase-boundary.test.js test/ui-contract.test.js` | 2/2 passed | ✓ PASS |
+| Native receipt freshness and stable receipt polling | focused host/provenance/fixture tests | Fresh second-panel and stable-write checks passed | ✓ PASS |
+| Executable SSH/HTTPS/workspace analogues | `test/simulated-relay.test.js` via final aggregate suite | Immediately preceding `npm test` (132/132) and `npm run validate` passed. This verifier's isolated rerun was blocked from binding `127.0.0.1` by sandbox `EPERM`, not by an assertion failure. | ✓ PASS (aggregate evidence) |
+| Aggregate release gate | `npm run build && npm test && npm run validate && docker compose -f fixtures/simulations/docker-compose.yml config --quiet` | Passed immediately before verification: build, 132/132 tests, strict validation, and Compose configuration | ✓ PASS |
 
 ### Probe Execution
 
-Step 7c: SKIPPED (no Phase 3 `scripts/*/tests/probe-*.sh` probe declared or present).
+Step 7c: SKIPPED — no Phase 3 `scripts/*/tests/probe-*.sh` probe is declared or present.
 
-### Requirements Coverage
+### Requirement Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
-| ----------- | ----------- | ----------- | ------ | -------- |
-| RECV-01 | 03-01 | Bounded open-panel reconnect with backoff | ✓ SATISFIED | Exact-two-attempt controller test passed. |
-| RECV-02 | 03-01 | Reconciled status after interruption | ? NEEDS HUMAN | Initial failure and normal sequence are tested; retry-boundary failure paths are not. |
-| RECV-03 | 03-01 | Close/reopen guidance and recovery | ? NEEDS HUMAN | Status-only recovery is tested; native panel recreation remains an empirical claim. |
-| RECV-04 | 03-02 | Distinguishable observed failure evidence, no topology detection | ✗ BLOCKED | Required signatures are absent from rendered/published evidence. |
-| RECV-05 | 03-01, 03-02 | Permanent no-lossless-replay warning | ✓ SATISFIED | Runtime and evidence renderer retain explicit incomplete-history/approval-detail copy. |
-| DEPL-02 | 03-02 | Host-native loopback native-panel proof | ? NEEDS HUMAN | Static row claims it, but cannot be traced to qualification output. |
-| DEPL-03 | 03-02 | Docker relay plus unreachable/interrupted evidence | ✗ BLOCKED | Interrupted row exists, but no unreachable-port observation is recorded; native claim has no provenance. |
-| DEPL-04 | 03-02 | Simulated SSH loss/restoration, forced Unverified | ✗ BLOCKED | Metadata exists only; no simulation exercises loss/restoration through the client. |
-| DEPL-05 | 03-02 | HTTPS/proxy cert/auth/CORS/unbuffered simulation, forced Unverified | ✗ BLOCKED | No TLS/reverse-proxy fixture or executable scenario exists. |
-| DEPL-06 | 03-02 | Remote-workspace simulation with no workspace path, forced Unverified | ✗ BLOCKED | No transport simulation exists; only string/sentinel policy tests. |
-| EVID-01 | 03-02 | Inspectable versioned safe fixture | ✓ SATISFIED | Public v1 JSON and strict sanitizer provide the stated structural fields; provenance remains a separate goal-level blocker. |
+| --- | --- | --- | --- | --- |
+| RECV-01 | 03-01, 03-06 | Bounded open-panel reconnect with backoff | ✓ SATISFIED | Two-attempt controller flow and deterministic boundary matrix. |
+| RECV-02 | 03-01, 03-06 | Reconciled status after interruption | ✓ SATISFIED | Status-before-observer implementation; every status-failure boundary is covered fail-closed. |
+| RECV-03 | 03-01, 03-04 | Close/reopen token re-entry and recovery | ✓ SATISFIED | Fresh-token/manual-ID UI and host native fresh-panel receipt/projection. |
+| RECV-04 | 03-02, 03-05 | Distinguishable loss/buffering/recreation behavior without topology claims | ✓ SATISFIED | Renderer labels all required structural signatures; simulations are never topology-positive. |
+| RECV-05 | 03-01, 03-06 | Permanent no-lossless-replay warning | ✓ SATISFIED | Recovery/evidence copy, sanitization, and UI regression. |
+| DEPL-02 | 03-02, 03-04 | Host-native loopback proof | ✓ SATISFIED | Receipt-backed observed host row: pinned runtime, native panel, recreated lifecycle, terminal status, cleanup. |
+| DEPL-03 | 03-02, 03-04 | Docker published-port proof plus fault behavior | ✓ SATISFIED | Receipt-backed observed Docker row: interruption, restored observer, terminal status, refusal/buffering signatures, cleanup. |
+| DEPL-04 | 03-05 | Executed SSH-forward analogue, still Unverified | ✓ SATISFIED | Common-client interruption/restoration/refusal simulation receipt, forced-Unverified projection. |
+| DEPL-05 | 03-05 | Executed HTTPS/proxy analogue, still Unverified | ✓ SATISFIED | CA validation, authentication, exact CORS, unbuffered/buffered behavior, isolation/cleanup assertions. |
+| DEPL-06 | 03-05 | Executed remote-workspace analogue, still Unverified | ✓ SATISFIED | Common-client workspace-sentinel absence test and forced-Unverified row. |
+| EVID-01 | 03-02–03-06 | Inspectable versioned safe fixture | ✓ SATISFIED | Schema v2 includes safe version/capability/event/control/recovery fields and receipt/cleanup provenance; aggregate gate rejects incomplete/unsafe variants. |
+
+### Prohibition Checks
+
+| Prohibition | Status | Evidence |
+| --- | --- | --- |
+| No deployment selector, topology inference, workspace-path coupling, or topology-specific production transport branch | ✓ VERIFIED | Production/panel boundary assertions reject these patterns; simulations remain outside the browser graph. |
+| No bearer, URL, run ID, headers, raw event/output/error text, subprocess output, journal/workspace/filesystem path in durable evidence | ✓ VERIFIED | Exact sanitizer, digest-only receipts, high-entropy sentinel scan across evidence/dist, and aggregate validation. |
+| No simulated observation presented as real qualification or positive support | ✓ VERIFIED | Sanitizer and aggregate predicate require every remote analogue to be `actual:false`, `nativePanel:false`, and `Unverified`; mutation test covers escalation. |
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
-| ---- | ---- | ------- | -------- | ------ |
-| — | — | No unreferenced `TBD`, `FIXME`, or `XXX` markers in Phase 3 source/artifacts | ℹ️ Info | No debt-marker blocker found. |
-
-### Human Verification Required After Gap Closure
-
-1. **Native recreation recovery**
-
-**Test:** Recreate the native panel during a harmless active run and use fresh credentials plus a manual Run ID.
-**Expected:** Current status/final output returns without prior activity, approval detail, or automatic event attachment.
-**Why human:** Unit tests do not exercise the native panel lifecycle.
-
-2. **Retry-boundary and cancellation invariants**
-
-**Test:** Fail each reconciliation boundary and close/replace the panel during the retry delay.
-**Expected:** No later observer or stale state appears; manual Refresh remains the only recovery action on status failure.
-**Why human:** Existing controller tests do not cover those paths.
-
-3. **Empirical fixture claims and cleanup**
-
-**Test:** Review retained receipts or rerun the host/Docker fixtures after a provenance writer is added.
-**Expected:** The safe evidence record is generated only from observed native facts and post-cleanup absence checks.
-**Why human:** Static JSON and code-level schema checks cannot establish historical native interaction.
+| --- | --- | --- | --- |
+| — | — | No unreferenced `TBD`, `FIXME`, or `XXX` markers in Phase 3 source, fixture, evidence, or test artifacts | ℹ️ Info | No debt-marker blocker found. |
+| — | — | Isolated sandbox cannot bind loopback sockets for Docker/TLS integration spot checks | ℹ️ Info | Environmental constraint only; it does not alter the successful immediately preceding external aggregate gate. |
 
 ### Gaps Summary
 
-The recovery controller and user-facing limits are implemented, and the aggregate validator passes. The phase goal is nevertheless not achieved: its evidence is neither wired back to the fixture harnesses nor complete enough to distinguish the required observed signatures. The declared SSH, HTTPS/proxy, and remote-workspace simulations are policy metadata rather than executed conditions. Additionally, Phase 3’s MVP goal is not in the required User Story form, so a formal MVP user-flow verdict is currently invalid.
+None. The prior evidence, wiring, behavioral-coverage, and MVP-format gaps are closed. The canonical record is safe and receipt-backed, native fixture claims are tied to explicit panel/cleanup predicates, and remote analogues remain intentionally Unverified.
 
-The Docker evidence accurately reports `panelLifecycle: open`; its missing Docker-specific close/reopen subcase is not itself treated as a phase-goal blocker because host-native evidence is the claimed fresh-panel proof. It must remain `open` unless that Docker interaction is actually repeated and recorded.
-
----
-
-_Verified: 2026-08-18T12:11:16Z_
+_Verified: 2026-08-19T01:34:08Z_
 _Verifier: the agent (gsd-verifier)_

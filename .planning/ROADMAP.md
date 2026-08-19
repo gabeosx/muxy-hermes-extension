@@ -13,7 +13,7 @@ V1 proves that a native-feeling Muxy panel can safely control one existing Herme
 
 - [x] **Phase 1: Verified Gateway Connectivity** - Build the extension, record the direct-WebKit negative result, and prove the consented relay boundary.
 - [x] **Phase 2: Capability-Driven Run Control** - Let users operate one Hermes run with advertised controls in a native Muxy panel.
-- [ ] **Phase 3: Open-Panel Recovery Proof** - Make interruption, panel recreation, and replay limits truthful and reproducible.
+- [x] **Phase 3: Open-Panel Recovery Proof** - Make interruption, panel recreation, and replay limits truthful and reproducible. (completed 2026-08-18)
 
 ## Phase Details
 
@@ -123,7 +123,7 @@ Plans:
   3. User can inspect validation evidence that distinguishes tunnel loss, Gateway loss, proxy buffering, and panel recreation by observed behavior without the extension claiming to identify deployment topology.
   4. User is clearly told when event history cannot be recovered; the panel never promises lossless replay without fixture evidence.
 
-**Plans:** 4/6 plans executed; 03-04 is the active native qualification plan and 03-06 is blocked on its receipts
+**Plans:** 6/6 plans complete
 
 Plans:
 **Wave 1**
@@ -140,7 +140,7 @@ Plans:
 
 **Wave 4** *(active; blocked only on completing fresh native receipt capture)*
 
-- [ ] 03-04-PLAN.md — Republish host-native and Docker rows from fresh correlated native Muxy receipts and post-cleanup proof.
+- [x] 03-04-PLAN.md — Republish host-native and Docker rows from fresh correlated native Muxy receipts and post-cleanup proof.
 
 **Wave 5** *(executable remote analogues; complete)*
 
@@ -148,7 +148,7 @@ Plans:
 
 **Wave 6** *(blocked on 03-04 and 03-05)*
 
-- [ ] 03-06-PLAN.md — Run the final fail-closed evidence gate, re-verify Phase 3, and write the completion summary.
+- [x] 03-06-PLAN.md — Run the final fail-closed evidence gate, re-verify Phase 3, and write the completion summary.
 
 **Continuation:** Resume at `03-04-PLAN.md`. Its implementation commits already exist; only the fresh native host/Docker receipt run, safe projection, cleanup proof, and summary remain. Do not repeat Plans 03-01 through 03-03 or 03-05.
 
@@ -162,4 +162,4 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Verified Gateway Connectivity | 15/15 | Complete | 2026-08-17 |
 | 2. Capability-Driven Run Control | 1/1 | Complete | 2026-08-17 |
-| 3. Open-Panel Recovery Proof | 4/6 | In Progress |  |
+| 3. Open-Panel Recovery Proof | 6/6 | Complete    | 2026-08-18 |
