@@ -96,6 +96,42 @@ test("requestSessionJson reads headers and JSON from stdout without temporary re
   assert.deepEqual(calls[0].argv.slice(calls[0].argv.indexOf("--dump-header"), calls[0].argv.indexOf("--dump-header") + 4), ["--dump-header", "-", "--output", "-"]);
 });
 
+test("requestSessionJson preserves the complete Hermes session cookie family", async () => {
+  const relay = new CurlRelay({
+    exec: async () => ({ stdout: [
+      "HTTP/1.1 200 OK",
+      "Set-Cookie: __Host-hermes_session_at=\"access-token==\"; HttpOnly; Secure; SameSite=Lax",
+      "Set-Cookie: __Host-hermes_session_rt=\"refresh-token==\"; HttpOnly; Secure; SameSite=Lax",
+      "Set-Cookie: __Host-hermes_session_provider=basic; HttpOnly; Secure; SameSite=Lax",
+      "",
+      JSON.stringify({ ok: true }),
+      "__MUXY_HERMES_STATUS__:200",
+    ].join("\r\n"), stderr: "", exitCode: 0, timedOut: false, truncated: false }),
+  });
+
+  const response = await relay.requestSessionJson({ url: "https://hermes.example/auth/password-login", method: "POST", body: { provider: "basic", username: "admin", password: "sentinel-password" } });
+
+  assert.deepEqual(response.setCookies, [
+    { name: "__Host-hermes_session_at", value: "access-token==", expired: false },
+    { name: "__Host-hermes_session_rt", value: "refresh-token==", expired: false },
+    { name: "__Host-hermes_session_provider", value: "basic", expired: false },
+  ]);
+});
+
+test("requestSessionJson rejects escaped or otherwise malformed quoted session cookies", async () => {
+  const relay = new CurlRelay({
+    exec: async () => ({ stdout: [
+      "HTTP/1.1 200 OK",
+      "Set-Cookie: hermes_session_at=\"access\\\\token\"; HttpOnly; SameSite=Lax",
+      "",
+      JSON.stringify({ ok: true }),
+      "__MUXY_HERMES_STATUS__:200",
+    ].join("\r\n"), stderr: "", exitCode: 0, timedOut: false, truncated: false }),
+  });
+
+  await assert.rejects(relay.requestSessionJson({ url: "http://127.0.0.1:9119/auth/password-login", method: "POST", body: { provider: "basic", username: "admin", password: "sentinel-password" } }), /relay_protocol_error/);
+});
+
 test("requestSessionJson rejects malformed response output without touching files", async () => {
   const relay = new CurlRelay({
     exec: async () => ({ stdout: "", stderr: "failed", exitCode: 7, timedOut: false, truncated: false }),

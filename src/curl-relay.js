@@ -4,8 +4,12 @@ const RUNTIME_ROOT = ".muxy-hermes-runtime";
 
 export const MAX_JOURNAL_BYTES = 4 * 1024 * 1024;
 const MAX_SESSION_RESPONSE_BYTES = 1024 * 1024;
-const SESSION_COOKIE = /^(?:__Secure-)?hermes_session_(?:at|rt)$/;
+// Hermes uses the bare names on loopback HTTP, `__Secure-` behind a TLS
+// prefix, and `__Host-` on a direct HTTPS origin. The provider cookie is a
+// routing hint that must travel with the access and refresh cookies.
+const SESSION_COOKIE = /^(?:(?:__Secure-|__Host-)?hermes_session_(?:at|rt|provider))$/;
 const COOKIE_HEADER = /^(?:[A-Za-z0-9_-]+=[A-Za-z0-9._~+/%=-]+)(?:; [A-Za-z0-9_-]+=[A-Za-z0-9._~+/%=-]+)*$/;
+const SESSION_COOKIE_VALUE = /^[A-Za-z0-9._~+/%=-]+$/;
 
 function relayError(code) {
   return new Error(code);
@@ -146,8 +150,10 @@ function parseSessionCookies(rawHeaders) {
   for (const line of String(rawHeaders ?? "").split(/\r?\n/)) {
     const match = line.match(/^set-cookie:\s*([^=;\s]+)=([^;\r\n]*)(.*)$/i);
     if (!match || !SESSION_COOKIE.test(match[1])) continue;
-    const value = match[2];
-    if (value && !/^[A-Za-z0-9._~+/%=-]+$/.test(value)) throw relayError("relay_protocol_error");
+    const rawValue = match[2];
+    const quoted = rawValue.match(/^"([A-Za-z0-9._~+/%=-]+)"$/);
+    const value = quoted ? quoted[1] : rawValue;
+    if (value && !SESSION_COOKIE_VALUE.test(value)) throw relayError("relay_protocol_error");
     cookies.push(Object.freeze({
       name: match[1],
       value,

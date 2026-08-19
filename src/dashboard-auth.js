@@ -1,7 +1,10 @@
 import { CurlRelay } from "./curl-relay.js";
 import { normalizeHermesDashboardUrl } from "./kanban-client.js";
 
-const SESSION_COOKIE = /^(?:__Secure-)?hermes_session_(?:at|rt)$/;
+// Keep the complete cookie family Hermes emits. The prefix varies with the
+// Dashboard's transport, and the provider cookie is needed to route a later
+// authenticated request to the same sign-in provider.
+const SESSION_COOKIE = /^(?:(?:__Secure-|__Host-)?hermes_session_(?:at|rt|provider))$/;
 const SESSION_COOKIE_VALUE = /^[A-Za-z0-9._~+/%=-]{1,4096}$/;
 
 export class DashboardAuthError extends Error {
@@ -171,11 +174,17 @@ export class DashboardAuthSession {
       throw new DashboardAuthError("credentials_invalid");
     }
     this.#clear("checking");
-    const response = await this.relay.requestSessionJson({
-      url: `${this.baseUrl}/auth/password-login`,
-      method: "POST",
-      body: { provider: supported.name, username: safeUsername, password },
-    });
+    let response;
+    try {
+      response = await this.relay.requestSessionJson({
+        url: `${this.baseUrl}/auth/password-login`,
+        method: "POST",
+        body: { provider: supported.name, username: safeUsername, password },
+      });
+    } catch {
+      this.#clear("logged_out");
+      throw new DashboardAuthError("login_response_unreadable");
+    }
     if (response.status === 401 || response.status === 403) {
       this.#clear("logged_out");
       throw new DashboardAuthError("invalid_credentials", response.status);

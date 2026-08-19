@@ -1,7 +1,7 @@
 const GATEWAY_STORAGE_KEY = "session.gateway.v1";
 const DASHBOARD_STORAGE_KEY = "session.dashboard.v1";
 const TOKEN = /^[A-Za-z0-9._~+/=-]{1,4096}$/;
-const COOKIE_NAME = /^(?:__Secure-)?hermes_session_(?:at|rt)$/;
+const COOKIE_NAME = /^(?:(?:__Secure-|__Host-)?hermes_session_(?:at|rt|provider))$/;
 const COOKIE_VALUE = /^[A-Za-z0-9._~+/%=-]{1,4096}$/;
 const PROVIDER = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 

@@ -21,6 +21,7 @@ function errorCopy(error) {
   if (error instanceof DashboardAuthError && error.code === "session_expired") return "Your sign-in expired. Sign in again to open this board.";
   if (error instanceof DashboardAuthError && error.code === "password_login_not_supported") return "This Dashboard needs a sign-in method this extension cannot open yet.";
   if (error instanceof DashboardAuthError && error.code === "auth_contract_mismatch") return "This Dashboard’s sign-in setup is not supported by this extension.";
+  if (error instanceof DashboardAuthError && error.code === "login_response_unreadable") return "Hermes accepted the sign-in, but the extension could not use the returned session. Try again after updating the extension.";
   if (error instanceof DashboardAuthError && error.code === "session_check_failed") return "Hermes could not verify your sign-in. Try again when the Dashboard is reachable.";
   if (error instanceof KanbanClientError && error.code === "kanban_not_available") {
     return "Boards are not enabled for this Hermes Dashboard. Ask its administrator to enable them.";

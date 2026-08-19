@@ -24,7 +24,7 @@ function dashboard() {
       version: 1,
       providers: [{ name: "basic", displayName: "Password", supportsPassword: true }],
       identity: { userId: "user-1", email: "user@example.com", displayName: "Muxy User", organizationId: "org-1", provider: "basic", expiresAt: 4_102_444_800 },
-      cookies: [["hermes_session_at", "access-one"], ["hermes_session_rt", "refresh-one"]],
+      cookies: [["hermes_session_at", "access-one"], ["hermes_session_rt", "refresh-one"], ["hermes_session_provider", "basic"]],
     },
   };
 }

@@ -63,6 +63,35 @@ test("dashboard auth logs in, verifies identity, rotates cookies, and logs out",
   assert.equal(auth.cookieHeaderForTest(), "");
 });
 
+test("dashboard auth forwards Hermes's provider routing cookie when it verifies a session", async () => {
+  let verifyCookie = "";
+  const relay = {
+    async requestSessionJson(request) {
+      if (request.url.endsWith("/api/status")) return response(200, { auth_required: true });
+      if (request.url.endsWith("/api/auth/providers")) return response(200, { providers: [{ name: "basic", display_name: "Password", supports_password: true }] });
+      if (request.url.endsWith("/auth/password-login")) return response(200, { ok: true }, [
+        { name: "__Host-hermes_session_at", value: "access-one", expired: false },
+        { name: "__Host-hermes_session_rt", value: "refresh-one", expired: false },
+        { name: "__Host-hermes_session_provider", value: "basic", expired: false },
+      ]);
+      if (request.url.endsWith("/api/auth/me")) {
+        verifyCookie = request.cookie;
+        return response(200, {
+          user_id: "user-123", email: "", display_name: "Muxy User", org_id: "", provider: "basic", expires_at: Math.floor(Date.now() / 1000) + 3600,
+        });
+      }
+      throw new Error("unexpected request");
+    },
+  };
+  const auth = new DashboardAuthSession({ baseUrl: "https://hermes.example", relay });
+
+  await auth.discover();
+  await auth.login({ provider: "basic", username: "admin", password: "sentinel-password" });
+
+  assert.match(verifyCookie, /__Host-hermes_session_at=access-one/);
+  assert.match(verifyCookie, /__Host-hermes_session_provider=basic/);
+});
+
 test("dashboard auth can restore an in-memory cookie session without ever retaining the password", async () => {
   const relay = {
     async requestSessionJson(request) {
