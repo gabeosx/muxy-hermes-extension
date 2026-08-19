@@ -120,8 +120,8 @@
 | CONN-04 | Phase 1 | Complete |
 | CONN-05 | Phase 1 | Complete |
 | DEPL-01 | Phase 1 | Complete |
-| DEPL-02 | Phase 3 | Deferred fast-path qualification |
-| DEPL-03 | Phase 3 | Partial: live connection passed; faults deferred |
+| DEPL-02 | Phase 3 | Complete |
+| DEPL-03 | Phase 3 | Complete |
 | DEPL-04 | Phase 3 | Complete simulation; real SSH path remains Unverified by contract |
 | DEPL-05 | Phase 3 | Complete simulation; direct remote HTTPS remains Unverified by contract |
 | DEPL-06 | Phase 3 | Complete simulation; real remote Muxy workspace remains Unverified by contract |
@@ -129,7 +129,7 @@
 | SEC-02 | Phase 1 | Complete |
 | SEC-04 | Phase 1 | Complete |
 | SEC-05 | Phase 1 | Complete |
-| EVID-01 | Phase 3 | Partial: strict fixture and simulation receipts exist; fresh host/Docker receipt projection pending |
+| EVID-01 | Phase 3 | Complete |
 | EVID-02 | Phase 1 | Complete |
 | EVID-03 | Phase 1 | Complete |
 | EVID-04 | Phase 1 | Complete |
@@ -159,4 +159,4 @@
 
 ---
 *Requirements defined: 2026-08-16*
-*Last updated: 2026-08-17 after Phase 2 fast-path verification*
+*Last updated: 2026-08-18 after Phase 3 verification*

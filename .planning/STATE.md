@@ -4,10 +4,10 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 03
 status: completed
-stopped_at: Phase 03 Plan 04 native receipt capture pending; implementation commits already exist
+stopped_at: Phase 03 complete; milestone ready for completion audit
 last_updated: "2026-08-19T01:37:25.907Z"
 last_activity: 2026-08-18
-last_activity_desc: Reconciled GSD state to actual execution — Phase 3 is 4/6 with 03-04 next
+last_activity_desc: Phase 03 passed goal-backward verification with 10/10 must-haves
 progress:
   total_phases: 3
   completed_phases: 3
@@ -20,10 +20,10 @@ current_phase_name: open-panel-recovery-proof
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-16)
+See: .planning/PROJECT.md (updated 2026-08-18)
 
 **Core value:** Prove secure, authenticated, streamed Hermes run control across representative Hermes deployment shapes inside a native-feeling Muxy panel before building the surrounding product.
-**Current focus:** Phase 03 — open-panel-recovery-proof
+**Current focus:** Milestone completion audit
 
 ## Current Position
 
@@ -32,7 +32,7 @@ Plan: Not started
 Status: All phases complete
 Last activity: 2026-08-18 — Phase 03 complete
 
-Progress: [█████████░] 91%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -113,7 +113,7 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 3]: The current Muxy webview exposes Promise-based `exec`, not cancellable `execAsync`; interrupted and closed-panel stream ownership must remain bounded and truthful.
-- [Phase 3]: Fresh receipt-backed host-native and Docker native Muxy observations are still required before the canonical recovery evidence and aggregate validator can pass.
+- [Phase 3]: Native host/Docker observations are receipt-backed and complete; SSH, HTTPS, and remote-workspace deployment classes intentionally remain `Unverified` beyond their executable analogues.
 - [Phase 3]: SSH-forward, direct-HTTPS, and remote-workspace analogues executed successfully but deliberately remain `Unverified` for their real deployment classes.
 
 ### Quick Tasks Completed
@@ -131,7 +131,7 @@ None yet.
 
 - Phase 1 completed through the user-approved fast path: one disposable Docker live proof, native UI checks, and no broader deployment support claim.
 - Phase 2 completed through quick task 260817-mzi: one native completed run plus advertised steer and authoritative cancellation against a disposable pinned Docker Gateway.
-- Phase 3 gap closure added receipt provenance and executable remote analogues. Execution resumes at 03-04 for fresh native host/Docker receipts; 03-06 then owns final validation and verification.
+- Phase 3 gap closure added receipt provenance, fresh native host/Docker observations, executable remote analogues, and a passing aggregate validation and verification gate.
 
 ## Deferred Items
 
@@ -144,5 +144,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-08-18T23:00:21.000Z
-Stopped at: Phase 03 Plan 04 native receipt capture pending; implementation commits already exist
-Resume file: 03-04-PLAN.md
+Stopped at: Phase 03 complete; milestone ready for completion audit
+Resume file: None

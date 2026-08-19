@@ -130,7 +130,7 @@ Plans:
 
 - [x] 03-01-PLAN.md — Add bounded same-panel event reattachment and status-only recreated-panel recovery.
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Wave 2** *(complete)*
 
 - [x] 03-02-PLAN.md — Publish the initial safe recovery evidence and run disposable host-native plus Docker/Muxy proofs.
 
@@ -138,7 +138,7 @@ Plans:
 
 - [x] 03-03-PLAN.md — Add verifier-challenged recovery receipts and a strict evidence projector.
 
-**Wave 4** *(active; blocked only on completing fresh native receipt capture)*
+**Wave 4** *(complete)*
 
 - [x] 03-04-PLAN.md — Republish host-native and Docker rows from fresh correlated native Muxy receipts and post-cleanup proof.
 
@@ -146,11 +146,11 @@ Plans:
 
 - [x] 03-05-PLAN.md — Exercise SSH-forward, HTTPS/proxy, and remote-workspace analogues while forcing their verdicts to Unverified.
 
-**Wave 6** *(blocked on 03-04 and 03-05)*
+**Wave 6** *(complete)*
 
 - [x] 03-06-PLAN.md — Run the final fail-closed evidence gate, re-verify Phase 3, and write the completion summary.
 
-**Continuation:** Resume at `03-04-PLAN.md`. Its implementation commits already exist; only the fresh native host/Docker receipt run, safe projection, cleanup proof, and summary remain. Do not repeat Plans 03-01 through 03-03 or 03-05.
+**Completion:** Native host/Docker receipt projection, executable remote analogues, aggregate validation, and goal-backward verification passed on 2026-08-18.
 
 **UI hint:** yes
 
