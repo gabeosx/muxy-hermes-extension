@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -9,6 +11,7 @@ import {
   createDockerQualificationResources,
   normalizeRefusalOutcome,
   startRecoveryProxy,
+  waitForVerifierReceipt,
 } from "../scripts/run-recovery-fixture.mjs";
 
 const digest = (character) => `sha256:${character.repeat(64)}`;
@@ -69,7 +72,10 @@ test("recovery proxy stays loopback and interrupts only the first fixed event st
     assert.equal((await first.text()).includes("terminal"), false);
     const second = await fetch(`${proxy.url}/v1/runs/run_fixture/events`);
     assert.match(await second.text(), /terminal/);
-    assert.deepEqual(proxy.observation(), { interrupted: true, forwardedSubscriptions: 2, buffered: false });
+    const status = await fetch(`${proxy.url}/v1/runs/run_fixture`);
+    assert.equal(status.status, 200);
+    assert.deepEqual(await status.json(), {});
+    assert.deepEqual(proxy.observation(), { interrupted: true, forwardedSubscriptions: 2, buffered: false, statusRequests: 1, statusResponses2xx: 1, statusResponsesOther: 0, statusUpstreamErrors: 0, statusBodyKeys: [], statusValue: null, statusRunIdMatches: null });
   } finally {
     await proxy.close();
     await new Promise((resolve) => upstream.close(resolve));
@@ -83,6 +89,8 @@ test("recovery proxy rejects non-loopback upstreams and non-fixed routes", async
   const upstreamPort = await listen(upstream);
   const proxy = await startRecoveryProxy({ upstream: `http://127.0.0.1:${upstreamPort}`, runId: "run_fixture" });
   try {
+    assert.equal((await fetch(`${proxy.url}/v1/chat/completions`, { method: "POST", body: "{}" })).status, 200);
+    assert.deepEqual(proxy.observation(), { interrupted: false, forwardedSubscriptions: 0, buffered: false, statusRequests: 0, statusResponses2xx: 0, statusResponsesOther: 0, statusUpstreamErrors: 0, statusBodyKeys: [], statusValue: null, statusRunIdMatches: null });
     assert.equal((await fetch(`${proxy.url}/v1/sessions`)).status, 404);
     assert.equal((await fetch(`${proxy.url}/v1/runs/run_fixture?unsafe=1`)).status, 404);
     assert.equal((await fetch(`${proxy.url}/v1/runs/other`)).status, 404);
@@ -103,7 +111,7 @@ test("recovery proxy reports buffering only after delaying the first event chunk
     const startedAt = Date.now();
     await (await fetch(`${proxy.url}/v1/runs/run_fixture/events`)).text();
     assert.ok(Date.now() - startedAt >= 20);
-    assert.deepEqual(proxy.observation(), { interrupted: true, forwardedSubscriptions: 1, buffered: true });
+    assert.deepEqual(proxy.observation(), { interrupted: true, forwardedSubscriptions: 1, buffered: true, statusRequests: 0, statusResponses2xx: 0, statusResponsesOther: 0, statusUpstreamErrors: 0, statusBodyKeys: [], statusValue: null, statusRunIdMatches: null });
   } finally {
     await proxy.close();
     await new Promise((resolve) => upstream.close(resolve));
@@ -133,10 +141,27 @@ test("recovery proxy learns the run ID from the bounded submission response", as
     assert.deepEqual(await submitted.json(), { run_id: "run_learned" });
     const first = await fetch(`${proxy.url}/v1/runs/run_learned/events`);
     assert.equal((await first.text()).includes("terminal"), false);
-    assert.deepEqual(proxy.observation(), { interrupted: true, forwardedSubscriptions: 1, buffered: false });
+    assert.deepEqual(proxy.observation(), { interrupted: true, forwardedSubscriptions: 1, buffered: false, statusRequests: 0, statusResponses2xx: 0, statusResponsesOther: 0, statusUpstreamErrors: 0, statusBodyKeys: [], statusValue: null, statusRunIdMatches: null });
   } finally {
     await proxy.close();
     await new Promise((resolve) => upstream.close(resolve));
+  }
+});
+
+test("verifier receipt polling waits for a stable valid Muxy file write", async () => {
+  const root = await mkdtemp(join(tmpdir(), "recovery-receipt-stability-"));
+  const qualificationRoot = join(root, ".muxy-hermes-qualification/current");
+  const receiptPath = join(qualificationRoot, "recovery-panel-session.json");
+  await mkdir(qualificationRoot, { recursive: true });
+  await writeFile(receiptPath, "{", "utf8");
+  const expected = { version: 1, lifecycle: "same_panel" };
+  const completion = setTimeout(() => { void writeFile(receiptPath, JSON.stringify(expected), "utf8"); }, 200);
+  try {
+    assert.deepEqual(await waitForVerifierReceipt(root, "recovery", 2_000), expected);
+    await assert.rejects(readFile(receiptPath, "utf8"), /ENOENT/);
+  } finally {
+    clearTimeout(completion);
+    await rm(root, { recursive: true, force: true });
   }
 });
 
@@ -146,6 +171,10 @@ test("Docker qualification owns unique resources, reduces curl refusal to a safe
     assert.notEqual(first.projectName, second.projectName);
     assert.notEqual(first.gatewayPort, second.gatewayPort);
     assert.notEqual(first.proxyPort, second.proxyPort);
+    assert.equal(first.composeEnvironment.MODEL_STUB_DELAY_MS, "2500");
+    const config = await readFile(`${first.composeEnvironment.HERMES_SIM_HOME}/config.yaml`, "utf8");
+    assert.match(config, /provider: custom/);
+    assert.match(config, /base_url: http:\/\/model-stub:8000\/v1/);
     assert.equal(normalizeRefusalOutcome({ exitCode: 7, stdout: "never persist this", stderr: "never persist this" }), "refused_or_unreachable");
     assert.equal(normalizeRefusalOutcome({ exitCode: 6 }), "refused_or_unreachable");
     assert.throws(() => normalizeRefusalOutcome({ exitCode: 0 }), /recovery_refusal_unproved/);

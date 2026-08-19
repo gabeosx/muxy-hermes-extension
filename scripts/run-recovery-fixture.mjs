@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createServer, request as requestHttp } from "node:http";
-import { chmod, mkdtemp, mkdir, readFile, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -128,6 +128,17 @@ export async function createDockerQualificationResources() {
     recoveryFailure("ports_not_unique");
   }
   const bearer = randomBytes(32).toString("base64url");
+  const home = join(root, "home");
+  await mkdir(home, { recursive: true, mode: 0o700 });
+  await writeFile(join(home, "config.yaml"), [
+    "_config_version: 37",
+    "model:",
+    "  default: hermes-agent",
+    "  provider: custom",
+    "  base_url: http://model-stub:8000/v1",
+    "  api_key: fixture-local-only",
+    "",
+  ].join("\n"), { encoding: "utf8", mode: 0o600 });
   const panelTokenFile = join(root, "panel-token.txt");
   await writeFile(panelTokenFile, `${bearer}\n`, { encoding: "utf8", mode: 0o600 });
   let cleaned = false;
@@ -137,7 +148,7 @@ export async function createDockerQualificationResources() {
     gatewayPort,
     proxyPort,
     refusedPort,
-    composeEnvironment: Object.freeze({ HERMES_SIM_PORT: String(gatewayPort), HERMES_SIM_HOME: join(root, "home"), HERMES_SIM_TOKEN: bearer }),
+    composeEnvironment: Object.freeze({ HERMES_SIM_PORT: String(gatewayPort), HERMES_SIM_HOME: home, HERMES_SIM_TOKEN: bearer, MODEL_STUB_DELAY_MS: "2500" }),
     bearer,
     panelTokenFile,
     cleanup: async () => {
@@ -199,19 +210,33 @@ async function issueDockerRecoveryChallenge(projectRoot) {
   return challenge;
 }
 
-async function waitForVerifierReceipt(projectRoot, kind, timeoutMs = 120_000) {
+export async function waitForVerifierReceipt(projectRoot, kind, timeoutMs = 120_000, signal = null) {
   const filename = kind === "connection" ? CONNECTION_RECEIPT : kind === "recovery" ? RECOVERY_RECEIPT : null;
   if (!filename) recoveryFailure("receipt_kind_invalid");
   const path = verifierPath(projectRoot, filename);
   const deadline = Date.now() + timeoutMs;
+  let stableContent = null;
   while (Date.now() < deadline) {
+    if (signal?.aborted) recoveryFailure("receipt_cancelled");
     try {
-      await stat(path);
-      const value = JSON.parse(await readFile(path, "utf8"));
+      const content = await readFile(path, "utf8");
+      let value;
+      try { value = JSON.parse(content); }
+      catch {
+        stableContent = null;
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
+        continue;
+      }
+      if (content !== stableContent) {
+        stableContent = content;
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
+        continue;
+      }
       await unlink(path);
       return value;
     } catch (error) {
       if (error?.code !== "ENOENT") recoveryFailure("receipt_unreadable");
+      stableContent = null;
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
   }
@@ -252,17 +277,22 @@ async function ensurePortAbsent(port) {
 export async function runDockerRecoveryQualification({ projectRoot = process.cwd(), composeFile = join(process.cwd(), "fixtures/simulations/docker-compose.yml") } = {}) {
   const resources = await createDockerQualificationResources();
   const composeEnv = { PATH: process.env.PATH, ...process.env, ...resources.composeEnvironment };
-  let composeStarted = false;
+  let composeAttempted = false;
   let proxy;
   let connectionReceipt;
   let recoveryChallenge;
   let recoveryReceipt;
   let refusalExercised = false;
   let publicationError;
+  const interrupted = new AbortController();
+  const cancel = () => interrupted.abort();
+  process.once("SIGINT", cancel);
+  process.once("SIGTERM", cancel);
   try {
-    const up = await runSilent("docker", ["compose", "-p", resources.projectName, "-f", composeFile, "up", "--detach", "--wait"], { env: composeEnv });
+    composeAttempted = true;
+    const up = await runSilent("docker", ["compose", "-p", resources.projectName, "-f", composeFile, "up", "--detach", "--wait", "gateway"], { env: composeEnv });
     if (up.exitCode !== 0) recoveryFailure("compose_start_failed");
-    composeStarted = true;
+    if (interrupted.signal.aborted) recoveryFailure("receipt_cancelled");
     const upstream = `http://127.0.0.1:${resources.gatewayPort}`;
     proxy = await startRecoveryProxy({ upstream, bufferFirstEventsMs: 250, port: resources.proxyPort });
     const refusal = await runSilent("/usr/bin/curl", ["--silent", "--show-error", "--no-buffer", "--config", "-", "--connect-timeout", "1", "--max-time", "2", `http://127.0.0.1:${resources.refusedPort}/v1/capabilities`], { stdin: buildBearerConfig(resources.bearer) });
@@ -270,16 +300,23 @@ export async function runDockerRecoveryQualification({ projectRoot = process.cwd
     await cleanupVerifierFiles(projectRoot);
     await issueDockerConnectionChallenge(projectRoot);
     process.stdout.write(`${JSON.stringify({ status: "awaiting_native_docker_connection", fixture: "docker", gatewayUrl: proxy.url, panelTokenFile: resources.panelTokenFile, safeRequestContract: "one_shot_interrupted_event_stream" })}\n`);
-    connectionReceipt = await waitForVerifierReceipt(projectRoot, "connection");
+    connectionReceipt = await waitForVerifierReceipt(projectRoot, "connection", 120_000, interrupted.signal);
     validateConnectionReceipt(connectionReceipt);
     await unlink(verifierPath(projectRoot, CONNECTION_CHALLENGE)).catch((error) => { if (error?.code !== "ENOENT") throw error; });
     recoveryChallenge = await issueDockerRecoveryChallenge(projectRoot);
     process.stdout.write(`${JSON.stringify({ status: "awaiting_native_docker_recovery", fixture: "docker", gatewayUrl: proxy.url, panelTokenFile: resources.panelTokenFile, recoveryContract: "same_panel_interrupted_restored_status_reconciled" })}\n`);
-    recoveryReceipt = await waitForVerifierReceipt(projectRoot, "recovery");
+    recoveryReceipt = await waitForVerifierReceipt(projectRoot, "recovery", 120_000, interrupted.signal);
     validateRecoveryReceipt(recoveryReceipt, recoveryChallenge);
     const observation = proxy.observation();
     if (!observation.interrupted || observation.forwardedSubscriptions < 2 || !observation.buffered) recoveryFailure("native_observation_unproved");
+  } catch (error) {
+    if (process.env.HERMES_QUALIFICATION_DEBUG === "1" && proxy) {
+      process.stderr.write(`${JSON.stringify({ status: "recovery_debug", observation: proxy.observation() })}\n`);
+    }
+    throw error;
   } finally {
+    process.off("SIGINT", cancel);
+    process.off("SIGTERM", cancel);
     let proxyClosed = false;
     let composeRemoved = false;
     let portsFree = false;
@@ -287,7 +324,7 @@ export async function runDockerRecoveryQualification({ projectRoot = process.cwd
     let verifierFilesRemoved = false;
     try { await proxy?.close(); proxyClosed = true; } catch { /* no positive publication */ }
     try {
-      if (composeStarted) {
+      if (composeAttempted) {
         const down = await runSilent("docker", ["compose", "-p", resources.projectName, "-f", composeFile, "down", "--remove-orphans"], { env: composeEnv });
         composeRemoved = down.exitCode === 0;
       } else composeRemoved = true;
@@ -336,6 +373,7 @@ function closeServer(server, sockets, upstreamRequests, timers) {
 
 function allowedFixtureRoute(method, pathname, learnedRunId) {
   if (pathname === "/v1/capabilities") return method === "GET" || method === "OPTIONS";
+  if (pathname === "/v1/chat/completions") return method === "POST" || method === "OPTIONS";
   if (pathname === "/v1/runs") return method === "POST" || method === "OPTIONS";
   if (!learnedRunId) return false;
   if (pathname === `/v1/runs/${learnedRunId}` || pathname === `/v1/runs/${learnedRunId}/events`) return method === "GET" || method === "OPTIONS";
@@ -351,6 +389,13 @@ export async function startRecoveryProxy({ upstream, runId, bufferFirstEventsMs 
   let interrupted = false;
   let forwardedSubscriptions = 0;
   let buffered = false;
+  let statusRequests = 0;
+  let statusResponses2xx = 0;
+  let statusResponsesOther = 0;
+  let statusUpstreamErrors = 0;
+  let statusBodyKeys = [];
+  let statusValue = null;
+  let statusRunIdMatches = null;
   const sockets = new Set();
   const upstreamRequests = new Set();
   const timers = new Set();
@@ -364,8 +409,10 @@ export async function startRecoveryProxy({ upstream, runId, bufferFirstEventsMs 
     }
     const eventsPath = learnedRunId ? `/v1/runs/${learnedRunId}/events` : null;
     const isEvents = incoming.method === "GET" && pathname === eventsPath;
+    const isStatus = incoming.method === "GET" && learnedRunId !== null && pathname === `/v1/runs/${learnedRunId}`;
     const isRunSubmission = incoming.method === "POST" && pathname === "/v1/runs" && learnedRunId === null;
     if (isEvents) forwardedSubscriptions += 1;
+    if (isStatus) statusRequests += 1;
     const upstreamRequest = requestHttp({
       hostname: target.hostname,
       port: target.port,
@@ -373,7 +420,18 @@ export async function startRecoveryProxy({ upstream, runId, bufferFirstEventsMs 
       path: incoming.url,
       headers: incoming.headers,
     }, (upstreamResponse) => {
-      outgoing.writeHead(upstreamResponse.statusCode ?? 502, upstreamResponse.headers);
+      if (isStatus) {
+        if ((upstreamResponse.statusCode ?? 0) >= 200 && (upstreamResponse.statusCode ?? 0) < 300) statusResponses2xx += 1;
+        else statusResponsesOther += 1;
+      }
+      const responseHeaders = { ...upstreamResponse.headers };
+      if (isEvents || isStatus) {
+        delete responseHeaders["content-length"];
+        delete responseHeaders["transfer-encoding"];
+        delete responseHeaders.connection;
+        responseHeaders.connection = "close";
+      }
+      outgoing.writeHead(upstreamResponse.statusCode ?? 502, responseHeaders);
       if (isRunSubmission) {
         const chunks = [];
         let size = 0;
@@ -385,6 +443,28 @@ export async function startRecoveryProxy({ upstream, runId, bufferFirstEventsMs 
         upstreamResponse.on("end", () => {
           if (size <= 64 * 1024) {
             try { learnedRunId = safeRunId(JSON.parse(Buffer.concat(chunks).toString("utf8")).run_id); } catch { /* fail closed: no interruption target */ }
+          }
+          outgoing.end();
+        });
+        upstreamResponse.on("error", () => { if (!outgoing.writableEnded) outgoing.end(); });
+        return;
+      }
+      if (isStatus) {
+        const chunks = [];
+        let size = 0;
+        upstreamResponse.on("data", (chunk) => {
+          size += chunk.length;
+          if (size <= 64 * 1024) chunks.push(chunk);
+          outgoing.write(chunk);
+        });
+        upstreamResponse.on("end", () => {
+          if (size <= 64 * 1024) {
+            try {
+              const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+              statusBodyKeys = body && typeof body === "object" && !Array.isArray(body) ? Object.keys(body).sort() : [];
+              statusValue = typeof body?.status === "string" ? body.status : null;
+              statusRunIdMatches = typeof body?.run_id === "string" ? body.run_id === learnedRunId : null;
+            } catch { /* safe diagnostic remains empty for non-JSON status bodies */ }
           }
           outgoing.end();
         });
@@ -417,7 +497,11 @@ export async function startRecoveryProxy({ upstream, runId, bufferFirstEventsMs 
     });
     upstreamRequests.add(upstreamRequest);
     upstreamRequest.once("close", () => upstreamRequests.delete(upstreamRequest));
-    upstreamRequest.on("error", () => { if (!outgoing.headersSent) outgoing.writeHead(502); outgoing.end(); });
+    upstreamRequest.on("error", () => {
+      if (isStatus) statusUpstreamErrors += 1;
+      if (!outgoing.headersSent) outgoing.writeHead(502);
+      outgoing.end();
+    });
     incoming.pipe(upstreamRequest);
   });
   server.on("connection", (socket) => {
@@ -431,7 +515,7 @@ export async function startRecoveryProxy({ upstream, runId, bufferFirstEventsMs 
   const boundPort = server.address().port;
   return Object.freeze({
     url: `http://127.0.0.1:${boundPort}`,
-    observation: () => Object.freeze({ interrupted, forwardedSubscriptions, buffered }),
+    observation: () => Object.freeze({ interrupted, forwardedSubscriptions, buffered, statusRequests, statusResponses2xx, statusResponsesOther, statusUpstreamErrors, statusBodyKeys, statusValue, statusRunIdMatches }),
     close: () => closeServer(server, sockets, upstreamRequests, timers),
   });
 }

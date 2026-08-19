@@ -81,9 +81,12 @@ test("loader accepts only the same-origin recovery fixture and rejects secret-be
   await assert.rejects(loadRecoveryEvidence({ fetchImpl: async () => new Response(JSON.stringify({ ...fixture(), endpoint: "http://127.0.0.1" }), { status: 200 }) }), /recovery_evidence_invalid/);
 });
 
-test("committed recovery fixture stays an incomplete receipt-ready template with no content-bearing data", async () => {
+test("committed recovery fixture carries observed host and Docker receipts while remote analogues stay unverified", async () => {
   const parsed = JSON.parse(await readFile(new URL("../public/evidence/recovery-v1.json", import.meta.url), "utf8"));
-  const safe = sanitizeRecoveryEvidence(parsed);
-  assert.equal(safe.conditions.length, 5); assert.equal(safe.conditions[0].verdict, "Unverified"); assert.equal(safe.conditions[1].verdict, "Unverified");
+  const safe = sanitizeRecoveryEvidence(parsed, { requireComplete: true });
+  assert.equal(safe.conditions.length, 5);
+  assert.equal(safe.conditions[0].verdict, "Observed");
+  assert.equal(safe.conditions[1].verdict, "Observed");
+  assert.deepEqual(safe.conditions.slice(2).map((row) => row.verdict), ["Unverified", "Unverified", "Unverified"]);
   assert.match(JSON.stringify(safe), /incomplete|unavailable/);
 });

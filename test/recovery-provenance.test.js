@@ -27,17 +27,23 @@ function challenge(overrides = {}) {
 
 function filesWithChallenge(value = challenge()) {
   const files = new Map([[challengePath, JSON.stringify(value)]]);
+  const reads = [];
   return {
     files,
+    reads,
     bridge: {
       async read(path) {
+        reads.push(path);
         if (!files.has(path)) {
-          const error = new Error("ENOENT");
-          error.code = "ENOENT";
-          throw error;
+          throw new Error("The file could not be read because it is missing.");
         }
         const content = files.get(path);
         return { content, size: content.length };
+      },
+      async list(path) {
+        return [...files.keys()]
+          .filter((filePath) => filePath.startsWith(`${path}/`))
+          .map((filePath) => ({ name: filePath.slice(path.length + 1), path: filePath, isDirectory: false, isIgnored: true }));
       },
       async write(path, content) { files.set(path, content); },
     },
@@ -139,7 +145,7 @@ test("recovery receipts remain inert without a valid verifier challenge and reda
   await writer.observe({ ...safeSnapshot(), runId: "run_abc12345", bearer: "secret", output: "assistant text" });
   assert.equal(missing.files.has(receiptPath), false);
 
-  const { files, bridge } = filesWithChallenge();
+  const { files, reads, bridge } = filesWithChallenge();
   const valid = new RecoveryReceiptWriter({ files: bridge, now: () => "2026-08-18T00:00:00.000Z", panelInstanceId: "panel-a" });
   await valid.observe({ ...safeSnapshot(), endpoint: "https://gateway.example", runId: "run_abc12345", output: "assistant text", headers: { authorization: "Bearer secret" } });
   const receipt = JSON.parse(files.get(receiptPath));
@@ -151,6 +157,7 @@ test("recovery receipts remain inert without a valid verifier challenge and reda
   for (const forbidden of ["secret", "gateway.example", "run_abc12345", "assistant text", "authorization", "output", "header"]) {
     assert.equal(JSON.stringify(receipt).toLowerCase().includes(forbidden), false, forbidden);
   }
+  assert.equal(reads.includes(receiptPath), false, "Muxy recovery collision checks use directory listing, not missing-file error parsing");
   await valid.observe(safeSnapshot());
   assert.equal(files.size, 2, "a one-use challenge cannot overwrite a receipt");
 });
@@ -171,6 +178,8 @@ test("recovery receipts fail closed for expired, malformed, mismatched, and inel
   const writer = new RecoveryReceiptWriter({ files: bridge, now: () => "2026-08-18T00:00:00.000Z", panelInstanceId: "panel-a" });
   await writer.observe(safeSnapshot({ statusReconciled: false }));
   assert.equal(files.has(receiptPath), false);
+  await writer.observe(safeSnapshot({ statusClass: "active" }));
+  assert.equal(files.has(receiptPath), false, "qualification receipts wait for authoritative terminal status");
 });
 
 test("a correlated recovery receipt bundle projects only one safe row and rejects uncorrelated or caller-authored claims", async () => {
@@ -205,7 +214,7 @@ test("a receipt-ready template becomes complete only through isolated host, Dock
   await writeFile(evidence, JSON.stringify(evidenceTemplate()));
   const cases = [
     bundleFor({ condition: "host_native_loopback", lifecycle: "recreated_panel", signatures: ["panel_recreated"] }),
-    bundleFor({ condition: "docker_published_loopback", lifecycle: "same_panel", signatures: ["observer_interrupted", "observer_restored", "buffered_or_delayed"] }),
+    bundleFor({ condition: "docker_published_loopback", lifecycle: "same_panel", signatures: ["observer_interrupted", "observer_restored", "buffered_or_delayed", "refused_or_unreachable"] }),
     bundleFor({ condition: "ssh_local_forward", lifecycle: "same_panel", signatures: ["refused_or_unreachable"] }),
     bundleFor({ condition: "direct_remote_https", lifecycle: "same_panel", signatures: ["certificate_validated", "authentication", "exact_origin_cors", "unbuffered_delivery"] }),
     bundleFor({ condition: "remote_muxy_workspace", lifecycle: "same_panel", signatures: ["workspace_path_absent"] }),
@@ -214,6 +223,8 @@ test("a receipt-ready template becomes complete only through isolated host, Dock
   const complete = sanitizeRecoveryEvidence(JSON.parse(await readFile(evidence, "utf8")), { requireComplete: true });
   assert.equal(complete.conditions[0].verdict, "Observed");
   assert.equal(complete.conditions[1].verdict, "Observed");
+  assert.equal(complete.conditions[1].requestOutcome, "interrupted");
+  assert.ok(complete.conditions[1].signatures.includes("refused_or_unreachable"));
   for (const row of complete.conditions.slice(2)) assert.equal(row.verdict, "Unverified");
   await assert.rejects(projectRecoveryObservation({ root: directory, inputPath: evidence, outputPath: evidence, bundle: cases[1] }), /recovery_observation_invalid/);
 });

@@ -33,52 +33,61 @@
   "conditions": [
     {
       "id": "host_native_loopback",
-      "scenario": "receipt_pending",
-      "observedBehavior": "not_observed",
-      "requestOutcome": "not_run",
+      "scenario": "native_fixture",
+      "observedBehavior": "fresh_panel_status_recovered",
+      "requestOutcome": "authenticated",
       "observerAttempts": 0,
-      "statusOutcome": "not_run",
+      "statusOutcome": "terminal",
       "reattached": false,
-      "panelLifecycle": "not_run",
-      "eventHistoryConfidence": "unavailable",
+      "panelLifecycle": "recreated",
+      "eventHistoryConfidence": "incomplete",
       "approvalDetailConfidence": "unavailable",
-      "cleanup": "not_run",
-      "actual": false,
-      "pinnedRuntime": false,
-      "nativePanel": false,
-      "verdict": "Unverified",
+      "cleanup": "scrubbed_removed",
+      "actual": true,
+      "pinnedRuntime": true,
+      "nativePanel": true,
+      "verdict": "Observed",
       "signatures": [
         "panel_recreated"
       ],
       "provenance": {
-        "proofSource": "simulation_receipt",
-        "bundleDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        "proofSource": "recovery_receipt_bundle",
+        "challengeDigest": "sha256:588c9587739974c817cdfbf6ce3284c996a411d0be9f4e760bc8fe68bc1c3395",
+        "panelDigest": "sha256:2c00c6a5322dbebfc83a768466e483bb25f0cb50c2584cbbe18c77161ae5799b",
+        "fixtureDigest": "sha256:4fd06a7513fa6acff72b11ca41fb75ea7acd07d7d98c84a26d7a540a7e303aa3",
+        "cleanupDigest": "sha256:5a161c6c330d97a4182e583dd538ddf964cdf781eee231eb93d6bed00aa11731",
+        "bundleDigest": "sha256:2aee6bddc16131724f557b2894a9c7560c8e006006d148cc6394cc02740c1335"
       }
     },
     {
       "id": "docker_published_loopback",
-      "scenario": "receipt_pending",
-      "observedBehavior": "not_observed",
-      "requestOutcome": "not_run",
-      "observerAttempts": 0,
-      "statusOutcome": "not_run",
-      "reattached": false,
-      "panelLifecycle": "not_run",
-      "eventHistoryConfidence": "unavailable",
+      "scenario": "native_fixture",
+      "observedBehavior": "interrupted_status_reconciled",
+      "requestOutcome": "interrupted",
+      "observerAttempts": 1,
+      "statusOutcome": "terminal",
+      "reattached": true,
+      "panelLifecycle": "open",
+      "eventHistoryConfidence": "incomplete",
       "approvalDetailConfidence": "unavailable",
-      "cleanup": "not_run",
-      "actual": false,
+      "cleanup": "scrubbed_removed",
+      "actual": true,
       "pinnedRuntime": false,
-      "nativePanel": false,
-      "verdict": "Unverified",
+      "nativePanel": true,
+      "verdict": "Observed",
       "signatures": [
         "buffered_or_delayed",
         "observer_interrupted",
-        "observer_restored"
+        "observer_restored",
+        "refused_or_unreachable"
       ],
       "provenance": {
-        "proofSource": "simulation_receipt",
-        "bundleDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+        "proofSource": "recovery_receipt_bundle",
+        "challengeDigest": "sha256:04a28ab6578316f05c4a0def14cf4b37c2febcd3e01e1ff3562d43772573bc47",
+        "panelDigest": "sha256:1a5c3836efe08d7ddc781c2eed24e00d90cb527866586140cac8b7c2184b27d4",
+        "fixtureDigest": "sha256:c694703eb586c773cd7efb0818012a23193c585702406d00d6759fee5869d3d0",
+        "cleanupDigest": "sha256:10da2e66c65ead2b444e5873afd6810d7a6eaf67a26a4675667026b105d3a99e",
+        "bundleDigest": "sha256:20969b950092c654390969481f02b6f792ab1f07ff94a96052473b4ce6029f01"
       }
     },
     {

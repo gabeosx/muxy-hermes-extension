@@ -84,7 +84,7 @@ function replacement(row, bundle) {
     ...row,
     scenario: real ? "native_fixture" : "local_behavior_simulation",
     observedBehavior: bundle.lifecycle === "recreated_panel" ? "fresh_panel_status_recovered" : "interrupted_status_reconciled",
-    requestOutcome: bundle.signatures.includes("refused_or_unreachable") ? "refused" : bundle.lifecycle === "same_panel" ? "interrupted" : "authenticated",
+    requestOutcome: bundle.signatures.includes("observer_interrupted") ? "interrupted" : bundle.signatures.includes("refused_or_unreachable") ? "refused" : "authenticated",
     observerAttempts: bundle.observerAttempts,
     statusOutcome: terminal ? "terminal" : "active",
     reattached: bundle.signatures.includes("observer_restored"),
