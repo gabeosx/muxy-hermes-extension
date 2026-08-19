@@ -5,9 +5,9 @@ milestone_name: milestone
 current_phase: 03
 status: completed
 stopped_at: Phase 03 complete; milestone ready for completion audit
-last_updated: "2026-08-19T22:32:00.000Z"
+last_updated: "2026-08-19T23:00:50.000Z"
 last_activity: 2026-08-19
-last_activity_desc: "Completed quick task 260819-oji: replace Gateway tokens with the saved Dashboard session and transparent WebSocket tickets"
+last_activity_desc: "Completed quick task 260819-puh: turn the Hermes Agent panel into a compact operations and command surface"
 progress:
   total_phases: 3
   completed_phases: 3
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 03
 Plan: Not started
 Status: All phases complete
-Last activity: 2026-08-19 — Completed quick task 260819-oji: replace Gateway tokens with the saved Dashboard session and transparent WebSocket tickets
+Last activity: 2026-08-19 — Completed quick task 260819-puh: turn the Hermes Agent panel into a compact operations and command surface
 
 Progress: [██████████] 100%
 
@@ -108,6 +108,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Post-Phase 3]: Use the verified Dashboard session as the sole user authentication source; mint a fresh single-use `/api/auth/ws-ticket` credential for every `/api/ws` connection attempt.
 - [Post-Phase 3]: Persist only allowlisted Dashboard cookies in Muxy's isolated extension store; passwords and WebSocket tickets stay transient, and the obsolete Gateway bearer record is removed.
 - [Post-Phase 3]: Keep live JSON-RPC ownership in the open panel, automatically reattach after reconnect, and require user action only when Hermes rejects the primary Dashboard session.
+- [Post-Phase 3]: Make the narrow Hermes panel an at-a-glance operations and command surface: bounded attention signals, exact queue counts/age, scheduled-job state, coarse health, and the agent composer; keep detailed administration in Hermes.
+- [Post-Phase 3]: Refresh authenticated operations only while the panel is open, serialize requests through session-cookie rotation, and discard cron prompts/scripts, diagnostic detail, worker identity, paths, and resource measurements at the request boundary.
 
 ### Pending Todos
 
@@ -131,6 +133,7 @@ None yet.
 | 260818-dr9 | Replace pasted Dashboard session token with provider-aware login, verified session state, and logout | 2026-08-18 | 7c8ecf0 | Passed | [260818-dr9-replace-pasted-dashboard-session-token-w](./quick/260818-dr9-replace-pasted-dashboard-session-token-w/) |
 | 260819-n51 | Authenticate first, then list available Hermes boards in a dropdown before opening one | 2026-08-19 | 0fd985b | Passed | [260819-n51-authenticate-first-then-list-available-h](./quick/260819-n51-authenticate-first-then-list-available-h/) |
 | 260819-oji | Replace Gateway token flow with Dashboard-session WebSocket tickets and transparent reconnect | 2026-08-19 | 9aa563c | Passed | [260819-oji-replace-gateway-token-flow-with-dashboar](./quick/260819-oji-replace-gateway-token-flow-with-dashboar/) |
+| 260819-puh | Turn the Hermes Agent panel into a compact operations and command surface | 2026-08-19 | f7a6a7f | Passed | [260819-puh-polish-the-hermes-agent-panel-with-a-use](./quick/260819-puh-polish-the-hermes-agent-panel-with-a-use/) |
 
 ### Roadmap Evolution
 
