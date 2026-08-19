@@ -5,9 +5,9 @@ milestone_name: milestone
 current_phase: 03
 status: completed
 stopped_at: Phase 03 complete; milestone ready for completion audit
-last_updated: "2026-08-19T01:37:25.907Z"
-last_activity: 2026-08-18
-last_activity_desc: Phase 03 passed goal-backward verification with 10/10 must-haves
+last_updated: "2026-08-19T20:39:39.164Z"
+last_activity: 2026-08-19
+last_activity_desc: "Completed quick task 260819-n51: authenticate first, then list available Hermes boards in a dropdown before opening one"
 progress:
   total_phases: 3
   completed_phases: 3
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 03
 Plan: Not started
 Status: All phases complete
-Last activity: 2026-08-18 — Phase 03 complete
+Last activity: 2026-08-19 — Completed quick task 260819-n51: authenticate first, then list available Hermes boards in a dropdown before opening one
 
 Progress: [██████████] 100%
 
@@ -127,6 +127,7 @@ None yet.
 | 260817-v6x | Add a deterministic Hermes Kanban dashboard fixture and prove the Muxy board UI end to end with Computer Use | 2026-08-17 | 9ad48f9 | Passed | [260817-v6x-add-a-deterministic-hermes-kanban-dashbo](./quick/260817-v6x-add-a-deterministic-hermes-kanban-dashbo/) |
 | 260818-a1t | Prove the Muxy Hermes board against a real disposable Hermes Gateway instance | 2026-08-18 | runtime-only | Passed | [260818-a1t-prove-the-muxy-hermes-board-against-a-re](./quick/260818-a1t-prove-the-muxy-hermes-board-against-a-re/) |
 | 260818-dr9 | Replace pasted Dashboard session token with provider-aware login, verified session state, and logout | 2026-08-18 | 7c8ecf0 | Passed | [260818-dr9-replace-pasted-dashboard-session-token-w](./quick/260818-dr9-replace-pasted-dashboard-session-token-w/) |
+| 260819-n51 | Authenticate first, then list available Hermes boards in a dropdown before opening one | 2026-08-19 | 0fd985b | Passed | [260819-n51-authenticate-first-then-list-available-h](./quick/260819-n51-authenticate-first-then-list-available-h/) |
 
 ### Roadmap Evolution
 
