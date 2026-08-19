@@ -73,3 +73,13 @@ test("the broker rejects malformed credentials and never accepts a failed connec
   assert.equal((await broker.handle({ requestId: "two", action: "gateway.save", data: failed })).ok, false);
   assert.equal((await broker.handle({ requestId: "three", action: "gateway.read" })).data, null);
 });
+
+test("Dashboard sessions may be restored before a board is chosen", async () => {
+  const storage = extensionStorage();
+  const client = new SessionBrokerClient({ storage, randomId: () => "picker" });
+  await client.saveDashboard({ ...dashboard(), board: null });
+  assert.equal((await client.readDashboard()).board, null);
+
+  await client.saveDashboard({ ...dashboard(), board: "Chosen_Board" });
+  assert.equal((await client.readDashboard()).board, "chosen_board");
+});

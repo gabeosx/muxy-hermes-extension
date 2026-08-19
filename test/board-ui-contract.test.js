@@ -10,10 +10,13 @@ test("the project board is a responsive Muxy tab rather than a second chat clien
   ]);
 
   for (const copy of [
-    "Open a Hermes board",
-    "Choose the Dashboard and board you want to work with.",
+    "Connect to Hermes",
+    "Start by choosing the Dashboard you want to sign in to.",
     "Check sign-in",
-    "Sign in and open board",
+    "Sign in and choose a board",
+    "Choose a board",
+    "No boards are available",
+    "Open board",
     "Signed in as",
     "Sign-in expired",
     "Sign in in your browser",
@@ -30,6 +33,10 @@ test("the project board is a responsive Muxy tab rather than a second chat clien
   assert.match(app, /verifySavedSession/);
   assert.match(app, /SESSION_CHECK_INTERVAL_MS/);
   assert.match(app, /authSnapshot\.state === "logged_in"/);
+  assert.match(app, /listBoards/);
+  assert.match(app, /selectBoardSlug/);
+  assert.match(app, /openBoard/);
+  assert.doesNotMatch(app, /id: "board-slug"/);
   assert.doesNotMatch(app, /Dashboard session token|session token|tokenValue|dashboard-token/i);
   assert.doesNotMatch(app, /localStorage|sessionStorage|muxy\.storage|workspace path|session token|dashboard-token/i);
   assert.doesNotMatch(app, /chat|transcript|file browser/i);

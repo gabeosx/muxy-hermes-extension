@@ -83,9 +83,9 @@ function identity(value) {
 
 function dashboardSession(value) {
   const dashboardUrl = baseUrl(value?.baseUrl);
-  const board = boardSlug(value?.board);
+  const board = value?.board == null || value?.board === "" ? null : boardSlug(value?.board);
   const auth = value?.auth;
-  if (!dashboardUrl || !board || !auth || auth.version !== 1 || !Array.isArray(auth.cookies) || !Array.isArray(auth.providers)) return null;
+  if (!dashboardUrl || !auth || auth.version !== 1 || !Array.isArray(auth.cookies) || !Array.isArray(auth.providers)) return null;
   const providers = auth.providers.map(provider).filter(Boolean);
   const user = identity(auth.identity);
   const cookies = [];

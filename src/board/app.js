@@ -1,6 +1,6 @@
 import { clear, h } from "@/lib/dom";
 import { DashboardAuthError, DashboardAuthSession } from "@/dashboard-auth";
-import { KANBAN_STATUSES, KanbanClient, KanbanClientError, normalizeBoardSlug, normalizeHermesDashboardUrl } from "@/kanban-client";
+import { KANBAN_STATUSES, KanbanClient, KanbanClientError, normalizeHermesDashboardUrl, selectBoardSlug } from "@/kanban-client";
 import { SessionBrokerClient } from "@/session-broker";
 
 const STATUS_LABELS = Object.freeze({
@@ -18,7 +18,7 @@ const SESSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 function errorCopy(error) {
   if (error instanceof DashboardAuthError && error.code === "invalid_credentials") return "Hermes rejected those credentials. Check the username and password, then try again.";
   if (error instanceof DashboardAuthError && error.code === "login_rate_limited") return "Hermes temporarily limited sign-in attempts. Wait a moment, then try again.";
-  if (error instanceof DashboardAuthError && error.code === "session_expired") return "Your sign-in expired. Sign in again to open this board.";
+  if (error instanceof DashboardAuthError && error.code === "session_expired") return "Your sign-in expired. Sign in again to choose a board.";
   if (error instanceof DashboardAuthError && error.code === "password_login_not_supported") return "This Dashboard needs a sign-in method this extension cannot open yet.";
   if (error instanceof DashboardAuthError && error.code === "auth_contract_mismatch") return "This Dashboard’s sign-in setup is not supported by this extension.";
   if (error instanceof DashboardAuthError && error.code === "login_response_unreadable") return "Hermes accepted the sign-in, but the extension could not use the returned session. Try again after updating the extension.";
@@ -30,7 +30,7 @@ function errorCopy(error) {
     return "This Dashboard returned an unsupported board response.";
   }
   if (/^(Enter|Use|Board slug|Task title|Invalid)/.test(error?.message ?? "")) return error.message;
-  return "The Hermes board could not be reached. Check the Dashboard address, sign-in, and board name.";
+  return "The Hermes board could not be reached. Check the Dashboard address and sign-in, then try again.";
 }
 
 export class HermesProjectBoard {
@@ -38,7 +38,8 @@ export class HermesProjectBoard {
     this.root = root;
     this.sessionBroker = new SessionBrokerClient();
     this.urlValue = "";
-    this.boardValue = "default";
+    this.boardValue = null;
+    this.catalog = Object.freeze({ boards: Object.freeze([]), current: null });
     this.providerValue = "";
     this.usernameValue = "";
     this.passwordValue = "";
@@ -89,17 +90,17 @@ export class HermesProjectBoard {
     const sessionLabel = this.authSnapshot.state === "logged_in"
       ? `Signed in as ${this.authSnapshot.label}`
       : this.authSnapshot.state === "session_expired" ? "Sign-in expired"
-        : this.state === "restoring" || this.authSnapshot.state === "checking" ? "Opening your board"
+        : this.state === "restoring" || this.authSnapshot.state === "checking" ? "Checking your sign-in"
           : "Not signed in";
     return h("main", { class: "board-app" },
       h("header", { class: "board-topbar" },
         h("div", { class: "board-title-group" },
           h("h1", null, "Hermes Project Board"),
-          h("span", { class: `board-connection board-connection-${this.state}` }, this.state === "ready" ? this.boardValue : this.state.replaceAll("_", " ")),
+          h("span", { class: `board-connection board-connection-${this.state}` }, this.state === "ready" ? this.boardValue : this.state === "board_picker" ? "choose a board" : this.state.replaceAll("_", " ")),
           h("span", { class: `board-session board-session-${this.authSnapshot.state}`, role: "status" }, sessionLabel),
         ),
-        this.state === "ready" ? h("div", { class: "board-topbar-actions" },
-          h("button", { class: "board-button board-button-secondary", type: "button", disabled: this.state === "loading", onclick: () => void this.refresh() }, "Refresh"),
+        ["ready", "board_picker", "opening_board"].includes(this.state) ? h("div", { class: "board-topbar-actions" },
+          this.state === "ready" ? h("button", { class: "board-button board-button-secondary", type: "button", disabled: this.state === "loading", onclick: () => void this.refresh() }, "Refresh") : null,
           h("button", { class: "board-button board-button-secondary", type: "button", onclick: () => void this.logout() }, "Log out"),
         ) : null,
       ),
@@ -110,19 +111,14 @@ export class HermesProjectBoard {
 
   connectionView() {
     if (this.state === "ready") return null;
+    if (["board_picker", "opening_board"].includes(this.state)) return this.boardPickerView();
     const url = h("input", {
       id: "dashboard-url", class: "board-input", type: "url", autocomplete: "off", spellcheck: "false",
       placeholder: "https://hermes.example",
       oninput: (event) => { this.urlValue = event.target.value; this.message = ""; this.syncForms(); },
     });
     url.value = this.urlValue;
-    const board = h("input", {
-      id: "board-slug", class: "board-input", type: "text", autocomplete: "off", spellcheck: "false", maxlength: "64",
-      oninput: (event) => { this.boardValue = event.target.value; this.message = ""; this.syncForms(); },
-    });
-    board.value = this.boardValue;
     this.urlInput = url;
-    this.boardInput = board;
     const discovering = ["discovering", "authenticating", "restoring"].includes(this.state);
     const check = h("button", { class: "board-button board-button-primary", type: "submit" }, discovering ? "Checking…" : "Check sign-in");
     this.checkButton = check;
@@ -145,7 +141,7 @@ export class HermesProjectBoard {
         oninput: (event) => { this.passwordValue = event.target.value; this.message = ""; this.syncForms(); },
       });
       password.value = this.passwordValue;
-      const signIn = h("button", { class: "board-button board-button-primary", type: "submit" }, this.state === "authenticating" ? "Signing in…" : "Sign in and open board");
+      const signIn = h("button", { class: "board-button board-button-primary", type: "submit" }, this.state === "authenticating" ? "Signing in…" : "Sign in and choose a board");
       this.providerInput = provider;
       this.usernameInput = username;
       this.passwordInput = password;
@@ -173,18 +169,53 @@ export class HermesProjectBoard {
     return h("section", { class: "board-connect-shell" },
       h("div", { class: "board-connect-copy" },
         h("p", { class: "board-eyebrow" }, "Hermes board"),
-        h("h2", null, "Open a Hermes board"),
-        h("p", null, "Choose the Dashboard and board you want to work with."),
+        h("h2", null, "Connect to Hermes"),
+        h("p", null, "Start by choosing the Dashboard you want to sign in to."),
       ),
       h("div", { class: "board-auth-stack" },
       h("form", { class: "board-connect-form", onsubmit: (event) => void this.checkAuthentication(event) },
         h("label", { for: "dashboard-url" }, "Dashboard address"), url,
         h("p", { class: "board-help" }, "Use the address your team uses for Hermes."),
-        h("label", { for: "board-slug" }, "Board name"), board,
         check,
       ),
       authForm,
       h("p", { class: "board-message", role: this.message ? "alert" : null, "aria-live": "polite" }, this.message),
+      ),
+    );
+  }
+
+  boardPickerView() {
+    const hasBoards = this.catalog.boards.length > 0;
+    const choices = this.catalog.boards.map((board) => {
+      const count = `${board.total} ${board.total === 1 ? "card" : "cards"}`;
+      const label = board.description ? `${board.name} — ${board.description} (${count})` : `${board.name} (${count})`;
+      return h("option", { value: board.slug, selected: board.slug === this.boardValue }, label);
+    });
+    const select = h("select", {
+      id: "board-picker", class: "board-select", disabled: !hasBoards || this.state === "opening_board",
+      onchange: (event) => {
+        this.boardValue = event.target.value;
+        this.message = "";
+        void this.persistSession();
+        this.syncForms();
+      },
+    }, choices);
+    select.value = this.boardValue ?? "";
+    const open = h("button", { class: "board-button board-button-primary", type: "submit", disabled: !hasBoards || this.state === "opening_board" }, this.state === "opening_board" ? "Opening…" : "Open board");
+    this.boardPickerInput = select;
+    this.openButton = open;
+    return h("section", { class: "board-connect-shell" },
+      h("div", { class: "board-connect-copy" },
+        h("p", { class: "board-eyebrow" }, "Hermes board"),
+        h("h2", null, "Choose a board"),
+        h("p", null, hasBoards ? "Choose a board, then open it when you’re ready." : "No boards are available for this Dashboard."),
+      ),
+      h("div", { class: "board-auth-stack" },
+        h("form", { class: "board-connect-form", onsubmit: (event) => void this.openBoard(event) },
+          h("p", { class: "board-auth-state", role: "status" }, hasBoards ? "Choose a board" : "No boards are available"),
+          hasBoards ? [h("label", { for: "board-picker" }, "Available boards"), select, open] : null,
+        ),
+        h("p", { class: "board-message", role: this.message ? "alert" : null, "aria-live": "polite" }, this.message),
       ),
     );
   }
@@ -249,10 +280,11 @@ export class HermesProjectBoard {
   syncForms() {
     if (this.checkButton) {
       let valid = false;
-      try { normalizeHermesDashboardUrl(this.urlValue); normalizeBoardSlug(this.boardValue); valid = true; } catch { /* rendered on submit */ }
+      try { normalizeHermesDashboardUrl(this.urlValue); valid = true; } catch { /* rendered on submit */ }
       this.checkButton.disabled = ["discovering", "authenticating", "restoring"].includes(this.state) || !valid;
     }
     if (this.signInButton) this.signInButton.disabled = this.state === "authenticating" || !this.usernameValue.trim() || !this.passwordValue;
+    if (this.openButton) this.openButton.disabled = this.state === "opening_board" || !this.boardValue;
     if (this.createButton) this.createButton.disabled = !this.createTitle.trim() || Boolean(this.pendingTaskId);
   }
 
@@ -271,7 +303,6 @@ export class HermesProjectBoard {
       const auth = new DashboardAuthSession({ baseUrl: this.urlValue });
       this.authSnapshot = await auth.discover();
       this.authSession = auth;
-      this.boardValue = normalizeBoardSlug(this.boardValue);
       this.providerValue = this.authSnapshot.providers.find((provider) => provider.supportsPassword)?.name ?? "";
       this.state = this.authSnapshot.state;
       this.message = this.authSnapshot.state === "logged_out" ? "Sign in to continue." : "";
@@ -297,21 +328,21 @@ export class HermesProjectBoard {
     this.passwordValue = "";
     try {
       this.authSnapshot = await this.authSession.login({ provider: this.providerValue, username, password });
-      const client = new KanbanClient({ baseUrl: this.urlValue, session: this.authSession, board: this.boardValue });
-      const board = await client.loadBoard();
+      const client = new KanbanClient({ baseUrl: this.urlValue, session: this.authSession });
       this.client?.release();
       this.client = client;
-      this.board = board;
-      this.state = "ready";
+      await this.loadBoardCatalog();
+      this.board = null;
+      this.state = "board_picker";
       this.message = "";
       await this.persistSession();
-      await window.muxy?.tabs?.setTitle?.(`Hermes Board · ${this.boardValue}`);
+      await window.muxy?.tabs?.setTitle?.("Hermes Board");
     } catch (error) {
       this.client?.release();
       this.client = null;
       this.board = null;
       this.authSnapshot = this.authSession.snapshot;
-      this.state = this.authSnapshot.state === "session_expired" ? "session_expired" : "logged_out";
+      this.state = this.authSnapshot.state === "logged_in" ? "board_picker" : this.authSnapshot.state === "session_expired" ? "session_expired" : "logged_out";
       this.message = errorCopy(error);
     } finally {
       this.usernameValue = "";
@@ -320,10 +351,39 @@ export class HermesProjectBoard {
     this.render();
   }
 
+  async loadBoardCatalog(preferred = null) {
+    if (!this.client) throw new Error("Sign in to the Hermes dashboard first.");
+    this.catalog = await this.client.listBoards();
+    this.boardValue = selectBoardSlug(this.catalog, preferred);
+  }
+
+  async openBoard(event) {
+    event.preventDefault();
+    if (!this.client || !this.boardValue || this.state === "opening_board") return;
+    this.state = "opening_board";
+    this.message = "Opening board…";
+    this.render();
+    try {
+      this.client.setBoard(this.boardValue);
+      this.board = await this.client.loadBoard();
+      this.state = "ready";
+      this.message = "";
+      await this.persistSession();
+      await window.muxy?.tabs?.setTitle?.(`Hermes Board · ${this.boardValue}`);
+    } catch (error) {
+      this.board = null;
+      this.state = this.authSession?.snapshot.state === "session_expired" ? "session_expired" : "board_picker";
+      this.message = errorCopy(error);
+    }
+    this.render();
+  }
+
   async logout() {
     this.client?.release();
     this.client = null;
     this.board = null;
+    this.catalog = Object.freeze({ boards: Object.freeze([]), current: null });
+    this.boardValue = null;
     try {
       if (this.authSession) this.authSnapshot = await this.authSession.logout();
     } catch {
@@ -405,11 +465,14 @@ export class HermesProjectBoard {
   }
 
   handleActionError(error) {
-    if (error instanceof DashboardAuthError && error.code === "session_expired") {
+    if ((error instanceof DashboardAuthError && error.code === "session_expired") ||
+      (error instanceof KanbanClientError && error.code === "dashboard_authentication_failed")) {
       this.client?.release();
       this.client = null;
       this.board = null;
-      this.authSnapshot = this.authSession?.snapshot ?? Object.freeze({ state: "session_expired", providers: [], identity: null, label: "" });
+      this.catalog = Object.freeze({ boards: Object.freeze([]), current: null });
+      this.authSession?.release();
+      this.authSnapshot = Object.freeze({ state: "session_expired", providers: [], identity: null, label: "" });
       this.state = "session_expired";
       void this.sessionBroker.clearDashboard();
       void window.muxy?.tabs?.setTitle?.("");
@@ -431,13 +494,14 @@ export class HermesProjectBoard {
       this.authSnapshot = await auth.verify();
       this.lastSessionCheckAt = Date.now();
       this.providerValue = this.authSnapshot.providers.find((provider) => provider.supportsPassword)?.name ?? "";
-      const client = new KanbanClient({ baseUrl: saved.baseUrl, session: auth, board: saved.board });
-      this.board = await client.loadBoard();
+      const client = new KanbanClient({ baseUrl: saved.baseUrl, session: auth });
       this.client?.release();
       this.client = client;
-      this.state = "ready";
+      await this.loadBoardCatalog(saved.board);
+      this.board = null;
+      this.state = "board_picker";
       await this.persistSession();
-      await window.muxy?.tabs?.setTitle?.(`Hermes Board · ${this.boardValue}`);
+      await window.muxy?.tabs?.setTitle?.("Hermes Board");
     } catch (error) {
       this.client?.release();
       this.client = null;
@@ -452,12 +516,12 @@ export class HermesProjectBoard {
 
   async persistSession() {
     const auth = this.authSession?.exportSession();
-    if (!auth || !this.urlValue || !this.boardValue) return;
+    if (!auth || !this.urlValue) return;
     await this.sessionBroker.saveDashboard({ baseUrl: this.urlValue, board: this.boardValue, auth });
   }
 
   async verifySavedSession() {
-    if (this.state !== "ready" || !this.authSession || this.sessionCheckInFlight || this.pendingTaskId) return;
+    if (!["ready", "board_picker"].includes(this.state) || !this.authSession || this.sessionCheckInFlight || this.pendingTaskId) return;
     this.sessionCheckInFlight = true;
     try {
       this.authSnapshot = await this.authSession.verify();
