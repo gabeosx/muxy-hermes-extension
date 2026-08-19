@@ -5,7 +5,7 @@ milestone_name: milestone
 current_phase: 03
 status: completed
 stopped_at: Phase 03 complete; milestone ready for completion audit
-last_updated: "2026-08-19T22:09:38.000Z"
+last_updated: "2026-08-19T22:32:00.000Z"
 last_activity: 2026-08-19
 last_activity_desc: "Completed quick task 260819-oji: replace Gateway tokens with the saved Dashboard session and transparent WebSocket tickets"
 progress:
@@ -130,7 +130,7 @@ None yet.
 | 260818-a1t | Prove the Muxy Hermes board against a real disposable Hermes Gateway instance | 2026-08-18 | runtime-only | Passed | [260818-a1t-prove-the-muxy-hermes-board-against-a-re](./quick/260818-a1t-prove-the-muxy-hermes-board-against-a-re/) |
 | 260818-dr9 | Replace pasted Dashboard session token with provider-aware login, verified session state, and logout | 2026-08-18 | 7c8ecf0 | Passed | [260818-dr9-replace-pasted-dashboard-session-token-w](./quick/260818-dr9-replace-pasted-dashboard-session-token-w/) |
 | 260819-n51 | Authenticate first, then list available Hermes boards in a dropdown before opening one | 2026-08-19 | 0fd985b | Passed | [260819-n51-authenticate-first-then-list-available-h](./quick/260819-n51-authenticate-first-then-list-available-h/) |
-| 260819-oji | Replace Gateway token flow with Dashboard-session WebSocket tickets and transparent reconnect | 2026-08-19 | d18d894 | Passed | [260819-oji-replace-gateway-token-flow-with-dashboar](./quick/260819-oji-replace-gateway-token-flow-with-dashboar/) |
+| 260819-oji | Replace Gateway token flow with Dashboard-session WebSocket tickets and transparent reconnect | 2026-08-19 | 9aa563c | Passed | [260819-oji-replace-gateway-token-flow-with-dashboar](./quick/260819-oji-replace-gateway-token-flow-with-dashboar/) |
 
 ### Roadmap Evolution
 
