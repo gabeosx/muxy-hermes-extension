@@ -165,3 +165,72 @@ test("ungated dashboards and OAuth-only dashboards never expose a token fallback
     assert.equal(auth.cookieHeaderForTest(), "");
   }
 });
+
+test("dashboard auth mints a bounded WebSocket ticket without publishing or persisting it", async () => {
+  const sentinel = "ticket_abcdefghijklmnopqrstuvwxyz0123456789";
+  const relay = {
+    async requestSessionJson(request) {
+      if (request.url.endsWith("/api/auth/ws-ticket")) {
+        assert.equal(request.method, "POST");
+        assert.match(request.cookie, /hermes_session_at=access-one/);
+        return response(200, { ticket: sentinel, ttl_seconds: 30 }, [
+          { name: "hermes_session_at", value: "access-two", expired: false },
+        ]);
+      }
+      throw new Error("unexpected request");
+    },
+  };
+  const auth = DashboardAuthSession.fromSession({
+    baseUrl: "https://hermes.example",
+    relay,
+    session: {
+      version: 1,
+      providers: [{ name: "basic", displayName: "Password", supportsPassword: true }],
+      identity: { userId: "user-1", email: "", displayName: "Muxy User", organizationId: "", provider: "basic", expiresAt: 1 },
+      cookies: [["hermes_session_at", "access-one"], ["hermes_session_rt", "refresh-one"]],
+    },
+  });
+
+  const ticket = await auth.requestWebSocketTicket();
+
+  assert.deepEqual(ticket, { ticket: sentinel, ttlSeconds: 30 });
+  assert.equal(JSON.stringify(auth.snapshot).includes(sentinel), false);
+  assert.equal(JSON.stringify(auth.exportSession()).includes(sentinel), false);
+  assert.match(auth.cookieHeaderForTest(), /hermes_session_at=access-two/);
+});
+
+test("dashboard auth rejects malformed tickets and clears only on authoritative session rejection", async () => {
+  let mode = "malformed";
+  const relay = {
+    async requestSessionJson() {
+      if (mode === "malformed") return response(200, { ticket: "too-short", ttl_seconds: 30 });
+      if (mode === "unavailable") return response(503, { detail: "offline" });
+      return response(401, { detail: "expired" });
+    },
+  };
+  const create = () => DashboardAuthSession.fromSession({
+    baseUrl: "https://hermes.example",
+    relay,
+    session: {
+      version: 1,
+      providers: [{ name: "basic", displayName: "Password", supportsPassword: true }],
+      identity: { userId: "user-1", email: "", displayName: "Muxy User", organizationId: "", provider: "basic", expiresAt: 1 },
+      cookies: [["hermes_session_at", "access-one"], ["hermes_session_rt", "refresh-one"]],
+    },
+  });
+
+  const malformed = create();
+  await assert.rejects(malformed.requestWebSocketTicket(), (error) => error.code === "auth_contract_mismatch");
+  assert.equal(malformed.snapshot.state, "logged_in");
+
+  mode = "unavailable";
+  const unavailable = create();
+  await assert.rejects(unavailable.requestWebSocketTicket(), (error) => error.code === "websocket_ticket_failed" && error.status === 503);
+  assert.equal(unavailable.snapshot.state, "logged_in");
+
+  mode = "expired";
+  const expired = create();
+  await assert.rejects(expired.requestWebSocketTicket(), (error) => error.code === "session_expired");
+  assert.equal(expired.snapshot.state, "session_expired");
+  assert.equal(expired.cookieHeaderForTest(), "");
+});

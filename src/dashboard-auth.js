@@ -227,7 +227,11 @@ export class DashboardAuthSession {
   }
 
   async requestJson({ url, method = "GET", body = null }) {
-    if (this.snapshot.state !== "logged_in" || !this.snapshot.identity || this.snapshot.identity.expiresAt * 1000 <= this.now()) {
+    // The identity timestamp describes the current access token, but Hermes may
+    // rotate that token from the refresh cookie during this request. Let the
+    // Dashboard make the authoritative decision instead of logging the user out
+    // locally before it has a chance to refresh the session.
+    if (this.snapshot.state !== "logged_in" || !this.snapshot.identity || !this.#cookieHeader()) {
       this.#clear("session_expired");
       throw new DashboardAuthError("session_expired", 401);
     }
@@ -238,6 +242,25 @@ export class DashboardAuthSession {
       throw new DashboardAuthError("session_expired", response.status);
     }
     return response;
+  }
+
+  async requestWebSocketTicket() {
+    const response = await this.requestJson({
+      url: `${this.baseUrl}/api/auth/ws-ticket`,
+      method: "POST",
+    });
+    if (response.status < 200 || response.status >= 300) {
+      throw new DashboardAuthError("websocket_ticket_failed", response.status);
+    }
+    const ticket = safeText(response.body?.ticket, 513);
+    const ttlSeconds = response.body?.ttl_seconds;
+    if (!/^[A-Za-z0-9_-]{16,512}$/.test(ticket)
+      || !Number.isSafeInteger(ttlSeconds)
+      || ttlSeconds < 1
+      || ttlSeconds > 300) {
+      throw new DashboardAuthError("auth_contract_mismatch", response.status);
+    }
+    return Object.freeze({ ticket, ttlSeconds });
   }
 
   async logout() {
