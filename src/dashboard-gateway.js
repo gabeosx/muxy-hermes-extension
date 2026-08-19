@@ -58,7 +58,9 @@ export class DashboardGatewayClient {
     WebSocketImpl = globalThis.WebSocket,
     persistSession = async () => {},
     reconnectDelays = [0, 500, 1_500, 3_000, 5_000],
-    requestTimeoutMs = 15_000,
+    connectTimeoutMs = 15_000,
+    requestTimeoutMs = 120_000,
+    promptTimeoutMs = 30 * 60 * 1000,
     setTimer = globalThis.setTimeout,
     clearTimer = globalThis.clearTimeout,
   } = {}) {
@@ -68,9 +70,13 @@ export class DashboardGatewayClient {
     this.WebSocketImpl = WebSocketImpl;
     this.persistSession = persistSession;
     this.reconnectDelays = reconnectDelays.length ? reconnectDelays.map((value) => Math.max(0, Number(value) || 0)) : [0];
+    this.connectTimeoutMs = connectTimeoutMs;
     this.requestTimeoutMs = requestTimeoutMs;
-    this.setTimer = setTimer;
-    this.clearTimer = clearTimer;
+    this.promptTimeoutMs = promptTimeoutMs;
+    // WebKit's Window timers are host methods. Keep the injected functions
+    // callable without rebinding their receiver to this client instance.
+    this.setTimer = (...args) => setTimer(...args);
+    this.clearTimer = (...args) => clearTimer(...args);
     this.listeners = new Set();
     this.eventListeners = new Set();
     this.pending = new Map();
@@ -99,12 +105,18 @@ export class DashboardGatewayClient {
 
   #publish(state, { retryInMs = null, reason = null } = {}) {
     this.snapshot = Object.freeze({ state, attempt: this.reconnectAttempt, retryInMs, reason });
-    for (const listener of this.listeners) listener(this.snapshot);
+    // A panel render failure must not turn a healthy Gateway connection into a
+    // network failure. Subscribers own their presentation errors.
+    for (const listener of this.listeners) {
+      try { listener(this.snapshot); } catch { /* keep transport ownership here */ }
+    }
     return this.snapshot;
   }
 
   #emit(event) {
-    for (const listener of this.eventListeners) listener(event);
+    for (const listener of this.eventListeners) {
+      try { listener(event); } catch { /* one consumer cannot starve the others */ }
+    }
   }
 
   setActiveSession({ runtimeId, storedId = null } = {}) {
@@ -190,7 +202,10 @@ export class DashboardGatewayClient {
       }
       if (error?.code === "connection_cancelled") return this.snapshot;
       if (!this.manualClose && generation === this.generation && this.failureGeneration !== generation) {
-        this.#scheduleReconnect(generation, "connection_failed");
+        const reason = error instanceof DashboardAuthError || error instanceof DashboardGatewayError
+          ? error.code
+          : "connection_failed";
+        this.#scheduleReconnect(generation, reason);
       }
       throw error instanceof DashboardGatewayError
         ? error
@@ -202,37 +217,53 @@ export class DashboardGatewayClient {
     return new Promise((resolve, reject) => {
       let settled = false;
       let timeout = null;
+      const listen = (type, listener, options) => {
+        if (typeof socket.addEventListener === "function") {
+          socket.addEventListener(type, listener, options);
+          return () => socket.removeEventListener?.(type, listener, options);
+        }
+        const property = `on${type}`;
+        socket[property] = listener;
+        return () => { if (socket[property] === listener) socket[property] = null; };
+      };
+      let removeOpen = () => {};
+      let removeError = () => {};
       const settle = (callback, value) => {
         if (settled) return;
         settled = true;
         if (timeout !== null) this.clearTimer(timeout);
+        removeOpen();
+        removeError();
         callback(value);
       };
-      timeout = this.setTimer(() => {
-        settle(reject, new DashboardGatewayError("connection_timeout", { retryable: true }));
-        if (socket.readyState < (this.WebSocketImpl.CLOSING ?? 2)) {
-          try { socket.close(1000, "connection timed out"); } catch { /* catch path owns cleanup */ }
-        }
-      }, this.requestTimeoutMs);
-      socket.onopen = () => settle(resolve);
-      socket.onmessage = (event) => this.#receive(event?.data);
-      socket.onerror = () => {
+      listen("message", (event) => this.#receive(event?.data));
+      listen("close", (event) => {
+        settle(reject, new DashboardGatewayError("connection_closed", { retryable: true }));
+        this.#handleClose(socket, generation, event?.code);
+      });
+      removeOpen = listen("open", () => settle(resolve), { once: true });
+      removeError = listen("error", () => {
         if (!isSocketOpen(socket, this.WebSocketImpl)) {
           settle(reject, new DashboardGatewayError("connection_failed", { retryable: true }));
         }
-      };
-      socket.onclose = () => {
-        settle(reject, new DashboardGatewayError("connection_closed", { retryable: true }));
-        this.#handleClose(socket, generation);
-      };
+      }, { once: true });
+      timeout = this.setTimer(() => {
+        settle(reject, new DashboardGatewayError("connection_timeout", { retryable: true }));
+      }, this.connectTimeoutMs);
     });
   }
 
-  #handleClose(socket, generation) {
-    if (this.socket === socket) this.socket = null;
+  #handleClose(socket, generation, closeCode = 0) {
+    const ownedSocket = this.socket === socket;
+    if (ownedSocket) this.socket = null;
     this.#rejectPending(new DashboardGatewayError("connection_closed", { retryable: true }));
-    if (this.manualClose || generation !== this.generation || this.snapshot.state === "signed_out") return;
-    this.#scheduleReconnect(generation, "connection_closed");
+    if (!ownedSocket || this.manualClose || generation !== this.generation || this.snapshot.state === "signed_out") return;
+    const reason = closeCode === 4401
+      ? "connection_auth_rejected"
+      : closeCode === 4403
+        ? "connection_not_allowed"
+        : "connection_closed";
+    this.#scheduleReconnect(generation, reason);
   }
 
   #scheduleReconnect(generation, reason) {
@@ -300,10 +331,11 @@ export class DashboardGatewayClient {
     const serialized = JSON.stringify({ jsonrpc: "2.0", id, method, params });
     if (byteLength(serialized) > MAX_REQUEST_BYTES) return Promise.reject(new DashboardGatewayError("rpc_request_too_large"));
     return new Promise((resolve, reject) => {
+      const requestTimeoutMs = method === "prompt.submit" ? this.promptTimeoutMs : this.requestTimeoutMs;
       const timer = this.setTimer(() => {
         this.pending.delete(id);
         reject(new DashboardGatewayError("rpc_timeout", { retryable: true }));
-      }, this.requestTimeoutMs);
+      }, requestTimeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       try {
         this.socket.send(serialized);

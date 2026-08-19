@@ -17,12 +17,32 @@ class FakeWebSocket {
     this.url = url;
     this.readyState = FakeWebSocket.CONNECTING;
     this.sent = [];
+    this.listeners = new Map();
     FakeWebSocket.instances.push(this);
+  }
+
+  addEventListener(type, listener, options = {}) {
+    const listeners = this.listeners.get(type) ?? [];
+    listeners.push({ listener, once: options?.once === true });
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type, listener) {
+    this.listeners.set(type, (this.listeners.get(type) ?? []).filter((entry) => entry.listener !== listener));
+  }
+
+  dispatch(type, event) {
+    const listeners = [...(this.listeners.get(type) ?? [])];
+    for (const entry of listeners) {
+      entry.listener(event);
+      if (entry.once) this.removeEventListener(type, entry.listener);
+    }
+    this[`on${type}`]?.(event);
   }
 
   open() {
     this.readyState = FakeWebSocket.OPEN;
-    this.onopen?.({});
+    this.dispatch("open", {});
   }
 
   send(raw) {
@@ -31,13 +51,13 @@ class FakeWebSocket {
   }
 
   receive(message) {
-    this.onmessage?.({ data: JSON.stringify(message) });
+    this.dispatch("message", { data: JSON.stringify(message) });
   }
 
   close(code = 1000) {
     if (this.readyState === FakeWebSocket.CLOSED) return;
     this.readyState = FakeWebSocket.CLOSED;
-    this.onclose?.({ code });
+    this.dispatch("close", { code });
   }
 }
 
@@ -103,6 +123,18 @@ test("connect coalesces concurrent work, persists rotated session data, and expo
   assert.equal(client.snapshot.state, "connected");
   assert.equal(persisted.length, 1);
   assert.equal(JSON.stringify(states).includes("ticket_"), false);
+});
+
+test("a failing state subscriber cannot tear down a healthy connection", async () => {
+  const client = new DashboardGatewayClient({ authSession: authSession(), WebSocketImpl: FakeWebSocket });
+  client.subscribe((snapshot) => {
+    if (snapshot.state === "connected") throw new Error("render failed");
+  });
+
+  const socket = await openConnection(client);
+
+  assert.equal(client.snapshot.state, "connected");
+  assert.equal(socket.readyState, FakeWebSocket.OPEN);
 });
 
 test("every reconnect mints a fresh ticket and reattaches the active live session", async () => {
@@ -172,6 +204,27 @@ test("RPC requests are correlated and event envelopes are delivered without reta
   await assert.rejects(client.request("unsafe.method", {}), (error) => error.code === "rpc_method_not_allowed");
 });
 
+test("prompt submission uses the Gateway's long-running acknowledgement window", async () => {
+  const scheduled = [];
+  const client = new DashboardGatewayClient({
+    authSession: authSession(),
+    WebSocketImpl: FakeWebSocket,
+    requestTimeoutMs: 120_000,
+    promptTimeoutMs: 30 * 60 * 1000,
+    setTimer(callback, delay) { scheduled.push({ callback, delay }); return scheduled.length; },
+    clearTimer() {},
+  });
+  const connecting = client.connect();
+  await tick();
+  const socket = FakeWebSocket.instances.at(-1);
+  socket.open();
+  await connecting;
+
+  void client.request("prompt.submit", { session_id: "runtime-1", text: "hello" });
+
+  assert.equal(scheduled.at(-1).delay, 30 * 60 * 1000);
+});
+
 test("network failures retry automatically, while primary-session rejection ends in signed out", async () => {
   const auth = authSession({
     tickets: ["ticket_abcdefghijklmnopqrstuvwxyz0123456789"],
@@ -195,7 +248,7 @@ test("a stalled WebSocket upgrade becomes offline and schedules a transparent re
     authSession: authSession(),
     WebSocketImpl: FakeWebSocket,
     reconnectDelays: [500],
-    requestTimeoutMs: 10,
+    connectTimeoutMs: 10,
     setTimer(callback) { const id = ++timerId; timers.set(id, callback); return id; },
     clearTimer(id) { timers.delete(id); },
   });
@@ -207,4 +260,5 @@ test("a stalled WebSocket upgrade becomes offline and schedules a transparent re
   await assert.rejects(pending, (error) => error.code === "connection_timeout");
   assert.equal(client.snapshot.state, "offline");
   assert.equal(client.snapshot.retryInMs, 500);
+  assert.equal(client.snapshot.reason, "connection_timeout");
 });

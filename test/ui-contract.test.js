@@ -53,6 +53,10 @@ test("the panel presents one user-facing Dashboard sign-in and restores it", asy
     "Offline — retrying",
     "Signed out",
     "Trying to reconnect automatically. No action is needed.",
+    "Hermes couldn’t prepare the agent connection. We’ll keep trying automatically.",
+    "Hermes isn’t responding to agent connections yet. We’ll keep trying automatically.",
+    "Hermes rejected the agent connection. We’ll keep trying with a new connection.",
+    "This Hermes server isn’t accepting agent connections from Muxy yet.",
   ]) assert.ok(panel.includes(copy), `panel is missing copy: ${copy}`);
 
   assert.match(panel, /type: "password",\s*autocomplete: "current-password"/);
@@ -60,6 +64,9 @@ test("the panel presents one user-facing Dashboard sign-in and restores it", asy
   assert.match(panel, /DashboardAuthSession/);
   assert.match(panel, /DashboardGatewayClient/);
   assert.match(panel, /restoreSavedSession/);
+  assert.match(panel, /if \(this\.restorePromise\) return this\.restorePromise/);
+  assert.match(panel, /generation !== this\.connectionGeneration/);
+  assert.match(panel, /lifecycle\?\.onBeforeClose/);
   assert.match(panel, /verifyPrimarySession/);
   assert.match(panel, /SESSION_CHECK_INTERVAL_MS/);
   assert.match(panel, /clearCredentials/);

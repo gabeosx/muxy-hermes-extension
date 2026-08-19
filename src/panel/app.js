@@ -56,6 +56,15 @@ function runStatusLabel(status) {
   return "Ready";
 }
 
+function reconnectCopy(snapshot) {
+  if (snapshot.reason === "websocket_ticket_failed") return "Hermes couldn’t prepare the agent connection. We’ll keep trying automatically.";
+  if (snapshot.reason === "connection_timeout") return "Hermes isn’t responding to agent connections yet. We’ll keep trying automatically.";
+  if (snapshot.reason === "connection_auth_rejected") return "Hermes rejected the agent connection. We’ll keep trying with a new connection.";
+  if (snapshot.reason === "connection_not_allowed") return "This Hermes server isn’t accepting agent connections from Muxy yet.";
+  if (snapshot.state === "offline" && snapshot.attempt >= 3) return "Hermes isn’t accepting agent connections yet. We’ll keep trying automatically.";
+  return "Trying to reconnect automatically. No action is needed.";
+}
+
 export class HermesGatewayPanel {
   constructor(root) {
     this.root = root;
@@ -81,6 +90,8 @@ export class HermesGatewayPanel {
     this.sessionCheckInFlight = false;
     this.sessionInvalidating = false;
     this.lastSessionCheckAt = 0;
+    this.restorePromise = null;
+    this.connectionGeneration = 0;
   }
 
   start() {
@@ -96,6 +107,7 @@ export class HermesGatewayPanel {
       if (this.authSnapshot.state !== "logged_in") this.urlInput?.focus();
       else if (!ACTIVE_AGENT_STATES.has(this.agentSnapshot.status)) this.promptInput?.focus();
     });
+    window.muxy?.lifecycle?.onBeforeClose?.(async () => this.release());
     window.addEventListener("pagehide", () => { void this.release(); }, { once: true });
   }
 
@@ -236,9 +248,7 @@ export class HermesGatewayPanel {
 
     return h("section", { class: "gateway-agent" },
       !connected ? h("div", { class: `gateway-connection-note gateway-connection-note-${this.connectionSnapshot.state}`, role: "status", "aria-live": "polite" },
-        this.connectionSnapshot.state === "offline" && this.connectionSnapshot.attempt >= 3
-          ? "Hermes isn’t accepting agent connections yet. We’ll keep trying automatically."
-          : "Trying to reconnect automatically. No action is needed.",
+        reconnectCopy(this.connectionSnapshot),
       ) : null,
       h("section", { class: "gateway-card gateway-run", "aria-labelledby": "agent-title" },
         h("div", { class: "gateway-run-heading" },
@@ -367,8 +377,17 @@ export class HermesGatewayPanel {
     if (this.authSnapshot.state !== "logged_in") this.usernameInput?.focus();
   }
 
-  async restoreSavedSession() {
-    if (["restoring", "discovering", "authenticating"].includes(this.state) && this.authSession) return;
+  restoreSavedSession() {
+    if (this.restorePromise) return this.restorePromise;
+    const operation = this.performSavedSessionRestore();
+    this.restorePromise = operation;
+    void operation.finally(() => {
+      if (this.restorePromise === operation) this.restorePromise = null;
+    });
+    return operation;
+  }
+
+  async performSavedSessionRestore() {
     this.state = "restoring";
     this.render();
     const saved = await this.sessionBroker.readDashboard();
@@ -396,8 +415,9 @@ export class HermesGatewayPanel {
   }
 
   async connectAgent() {
-    await this.releaseConnection();
-    if (this.authSnapshot.state !== "logged_in") return;
+    const generation = ++this.connectionGeneration;
+    await this.releaseConnection({ preserveGeneration: true });
+    if (generation !== this.connectionGeneration || this.authSnapshot.state !== "logged_in") return;
     this.state = "authenticated";
     this.gateway = new DashboardGatewayClient({
       authSession: this.authSession,
@@ -405,11 +425,13 @@ export class HermesGatewayPanel {
     });
     this.agent = new DashboardAgentController({ gateway: this.gateway });
     this.unsubscribeConnection = this.gateway.subscribe((snapshot) => {
+      if (generation !== this.connectionGeneration) return;
       this.connectionSnapshot = snapshot;
       if (snapshot.state === "signed_out") queueMicrotask(() => { void this.invalidateSession(); });
       this.render();
     });
     this.unsubscribeAgent = this.agent.subscribe((snapshot) => {
+      if (generation !== this.connectionGeneration) return;
       this.agentSnapshot = snapshot;
       this.render();
     });
@@ -496,7 +518,8 @@ export class HermesGatewayPanel {
     this.urlInput?.focus();
   }
 
-  async releaseConnection() {
+  async releaseConnection({ preserveGeneration = false } = {}) {
+    if (!preserveGeneration) this.connectionGeneration += 1;
     this.unsubscribeAgent?.();
     this.unsubscribeAgent = null;
     this.unsubscribeConnection?.();
