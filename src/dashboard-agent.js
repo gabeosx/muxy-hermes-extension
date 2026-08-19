@@ -4,6 +4,7 @@ const SESSION_ID = /^[A-Za-z0-9._:-]{1,256}$/;
 const APPROVAL_CHOICES = new Set(["once", "session", "always", "deny"]);
 const MAX_ASSISTANT_CHARS = 128 * 1024;
 const MAX_ACTIVITY = 100;
+const ACTIVE_STATES = new Set(["starting", "running", "waiting_for_approval", "stopping"]);
 
 function safeText(value, max = 512) {
   return typeof value === "string" ? value.slice(0, max) : "";
@@ -48,6 +49,7 @@ export class DashboardAgentController {
     this.snapshot = Object.freeze({
       status: "idle",
       connectionState: gateway.snapshot?.state ?? "disconnected",
+      request: "",
       assistant: "",
       activity: Object.freeze([]),
       pendingApproval: null,
@@ -83,23 +85,25 @@ export class DashboardAgentController {
     const text = typeof input === "string" ? input.trim() : "";
     if (!text || text.length > 64 * 1024) throw new Error("invalid_prompt");
     if (this.gatewaySnapshot.state !== "connected") throw new DashboardGatewayError("not_connected", { retryable: true });
-    if (!this.session) {
-      const created = safeSession(await this.gateway.request("session.create", { close_on_disconnect: false }));
-      this.session = created;
-      this.gateway.setActiveSession(created);
-    }
     this.#publish({
-      status: "running",
+      status: "starting",
+      request: text,
       assistant: "",
       activity: Object.freeze([]),
       pendingApproval: null,
       error: "",
-      actionPending: false,
+      actionPending: true,
     });
     try {
+      if (!this.session) {
+        const created = safeSession(await this.gateway.request("session.create", { close_on_disconnect: false }));
+        this.session = created;
+        this.gateway.setActiveSession(created);
+      }
+      this.#publish({ status: "running", actionPending: false });
       await this.gateway.request("prompt.submit", { session_id: this.session.runtimeId, text });
     } catch (error) {
-      this.#publish({ status: "failed", error: "Hermes could not start this request." });
+      this.#publish({ status: "failed", actionPending: false, error: "Hermes could not start this request." });
       throw error;
     }
   }
@@ -107,7 +111,15 @@ export class DashboardAgentController {
   #handleEvent(event) {
     if (event.type === "gateway.session_lost") {
       this.session = null;
-      this.#publish({ status: "idle", pendingApproval: null, actionPending: false, error: "The previous Hermes session ended. You can start a new request." });
+      this.#publish({
+        status: "idle",
+        request: "",
+        assistant: "",
+        activity: Object.freeze([]),
+        pendingApproval: null,
+        actionPending: false,
+        error: "The previous Hermes session ended. You can start a new request.",
+      });
       return;
     }
     if (event.type === "gateway.reattached") {
@@ -190,6 +202,20 @@ export class DashboardAgentController {
       this.#publish({ status: "running", actionPending: false, error: "Hermes could not stop this request." });
       throw error;
     }
+  }
+
+  reset() {
+    if (ACTIVE_STATES.has(this.snapshot.status)) return false;
+    this.#publish({
+      status: "idle",
+      request: "",
+      assistant: "",
+      activity: Object.freeze([]),
+      pendingApproval: null,
+      error: "",
+      actionPending: false,
+    });
+    return true;
   }
 
   release() {

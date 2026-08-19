@@ -50,12 +50,18 @@ test("agent controller creates a Hermes session, submits a prompt, and projects 
   await secondAgent.start("Return one response");
   secondGateway.emit({ type: "message.complete", sessionId: "runtime-1", payload: { text: "Complete response" } });
   assert.equal(secondAgent.snapshot.assistant, "Complete response", "the terminal message must render even without deltas");
+  assert.equal(secondAgent.snapshot.request, "Return one response");
+  assert.equal(secondAgent.reset(), true);
+  assert.equal(secondAgent.snapshot.status, "idle");
+  assert.equal(secondAgent.snapshot.request, "");
+  assert.equal(secondAgent.snapshot.assistant, "");
 });
 
 test("agent approvals, steering, and stop map to allowlisted Dashboard RPC methods", async () => {
   const gateway = gatewayFixture();
   const agent = new DashboardAgentController({ gateway });
   await agent.start("Run checks");
+  assert.equal(agent.reset(), false, "an active run cannot be hidden");
   gateway.emit({
     type: "approval.request",
     sessionId: "runtime-1",

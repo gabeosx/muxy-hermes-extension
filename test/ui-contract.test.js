@@ -118,6 +118,40 @@ test("the agent exposes run controls without auto-approval", async () => {
   assert.doesNotMatch(production, /auto.?approve/i);
 });
 
+test("the signed-in idle panel is an operational overview rather than an empty chat box", async () => {
+  const [panel, operations, css] = await Promise.all([
+    readFile(new URL("src/panel/app.js", root), "utf8"),
+    readFile(new URL("src/dashboard-operations.js", root), "utf8"),
+    readFile(new URL("src/styles/global.css", root), "utf8"),
+  ]);
+  for (const copy of [
+    "Operations",
+    "Needs attention",
+    "Nothing needs you right now.",
+    "Queue pressure",
+    "Oldest wait",
+    "Scheduled jobs",
+    "Hermes is online",
+    "Ask Hermes to work on something…",
+    "Overview",
+  ]) assert.ok(panel.includes(copy), `panel is missing operational copy: ${copy}`);
+
+  assert.match(panel, /DashboardOperationsClient/);
+  assert.match(panel, /OPERATIONS_REFRESH_INTERVAL_MS/);
+  assert.match(panel, /void this\.refreshOperations\(\)/);
+  assert.match(panel, /selectionStart/);
+  assert.match(operations, /\/api\/cron\/jobs\?profile=all/);
+  assert.match(operations, /\/stats/);
+  assert.match(operations, /\/workers\/active/);
+  assert.match(operations, /\/diagnostics/);
+  for (const className of ["gateway-overview", "gateway-attention-list", "gateway-queue-meter", "gateway-job-list", "gateway-composer"]) {
+    assert.match(css, new RegExp(`\\.${className}`));
+  }
+  for (const forbidden of ["prompt:", "script:", "workdir:", "gateway_rss_mb", "system_available_mb", "worker_pid", "claim_lock"]) {
+    assert.equal(operations.includes(forbidden), false, `operations projection includes forbidden field: ${forbidden}`);
+  }
+});
+
 test("native styles use Muxy tokens, visible interaction states, scale variables, and reduced motion", async () => {
   const css = await readFile(new URL("src/styles/global.css", root), "utf8");
   assert.match(css, /var\(--muxy-background\)/);

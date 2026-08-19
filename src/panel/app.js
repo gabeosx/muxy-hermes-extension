@@ -2,11 +2,24 @@ import { clear, h } from "@/lib/dom";
 import { DashboardAgentController } from "@/dashboard-agent";
 import { DashboardAuthError, DashboardAuthSession } from "@/dashboard-auth";
 import { DashboardGatewayClient } from "@/dashboard-gateway";
+import { DashboardOperationsClient, emptyOperationsSnapshot } from "@/dashboard-operations";
 import { normalizeHermesDashboardUrl } from "@/kanban-client";
+import { icon } from "@/lib/icons";
 import { SessionBrokerClient } from "@/session-broker";
 
 const SESSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
-const ACTIVE_AGENT_STATES = new Set(["running", "waiting_for_approval", "stopping"]);
+const OPERATIONS_REFRESH_INTERVAL_MS = 30 * 1000;
+const ACTIVE_AGENT_STATES = new Set(["starting", "running", "waiting_for_approval", "stopping"]);
+const STARTER_PROMPTS = Object.freeze([
+  Object.freeze({
+    title: "Review my queue",
+    prompt: "Review my Hermes task queue and tell me what needs attention first.",
+  }),
+  Object.freeze({
+    title: "Check scheduled jobs",
+    prompt: "Review my Hermes scheduled jobs and help me investigate anything that is failing.",
+  }),
+]);
 
 function emptyAuthSnapshot() {
   return Object.freeze({ state: "disconnected", providers: Object.freeze([]), identity: null, label: "" });
@@ -16,6 +29,7 @@ function emptyAgentSnapshot() {
   return Object.freeze({
     status: "idle",
     connectionState: "disconnected",
+    request: "",
     assistant: "",
     activity: Object.freeze([]),
     pendingApproval: null,
@@ -48,12 +62,48 @@ function connectionPresentation(snapshot) {
 }
 
 function runStatusLabel(status) {
+  if (status === "starting") return "Starting…";
   if (status === "waiting_for_approval") return "Needs approval";
   if (status === "stopping") return "Stopping…";
   if (status === "completed") return "Complete";
   if (status === "failed") return "Needs attention";
   if (status === "running") return "Working";
   return "Ready";
+}
+
+function countLabel(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function durationLabel(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "";
+  if (seconds < 60) return "under a minute";
+  if (seconds < 60 * 60) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 24 * 60 * 60) return `${Math.floor(seconds / (60 * 60))}h`;
+  return `${Math.floor(seconds / (24 * 60 * 60))}d`;
+}
+
+function relativeRunLabel(value, now = Date.now()) {
+  if (!value) return "No upcoming run";
+  const delta = Date.parse(value) - now;
+  if (!Number.isFinite(delta)) return "Schedule unavailable";
+  if (delta <= 0) return "Due now";
+  const seconds = Math.ceil(delta / 1000);
+  if (seconds < 60) return "In under a minute";
+  if (seconds < 60 * 60) return `In ${Math.ceil(seconds / 60)}m`;
+  if (seconds < 24 * 60 * 60) return `In ${Math.ceil(seconds / (60 * 60))}h`;
+  if (seconds < 7 * 24 * 60 * 60) return `In ${Math.ceil(seconds / (24 * 60 * 60))}d`;
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
+}
+
+function healthLabel(health) {
+  if (!health) return { label: "Status unavailable", state: "unknown" };
+  if (health.gateway === "degraded" || health.memory === "critical" || health.disk === "critical") {
+    return { label: "Hermes needs attention", state: "critical" };
+  }
+  if (health.memory === "elevated" || health.disk === "elevated") return { label: "Hermes is under pressure", state: "elevated" };
+  if (health.gateway === "ok") return { label: "Hermes is online", state: "ok" };
+  return { label: "Status unavailable", state: "unknown" };
 }
 
 function reconnectCopy(snapshot) {
@@ -84,9 +134,13 @@ export class HermesGatewayPanel {
     this.connectionSnapshot = Object.freeze({ state: "disconnected", attempt: 0, retryInMs: null, reason: null });
     this.agent = null;
     this.agentSnapshot = emptyAgentSnapshot();
+    this.operations = null;
+    this.operationsSnapshot = emptyOperationsSnapshot();
+    this.operationsRefreshInFlight = false;
     this.unsubscribeConnection = null;
     this.unsubscribeAgent = null;
     this.sessionCheckTimer = null;
+    this.operationsRefreshTimer = null;
     this.sessionCheckInFlight = false;
     this.sessionInvalidating = false;
     this.lastSessionCheckAt = 0;
@@ -99,10 +153,14 @@ export class HermesGatewayPanel {
     void this.sessionBroker.clearGateway();
     void this.restoreSavedSession();
     this.sessionCheckTimer = globalThis.setInterval(() => { void this.verifyPrimarySession(); }, SESSION_CHECK_INTERVAL_MS);
+    this.operationsRefreshTimer = globalThis.setInterval(() => { void this.refreshOperations(); }, OPERATIONS_REFRESH_INTERVAL_MS);
     window.muxy?.onFocus?.((focused) => {
       if (!focused) return;
       if (!this.authSession) void this.restoreSavedSession();
-      else if (Date.now() - this.lastSessionCheckAt >= SESSION_CHECK_INTERVAL_MS) void this.verifyPrimarySession();
+      else {
+        if (Date.now() - this.lastSessionCheckAt >= SESSION_CHECK_INTERVAL_MS) void this.verifyPrimarySession();
+        void this.syncSavedBoard().then(() => this.refreshOperations());
+      }
       if (["offline", "disconnected"].includes(this.connectionSnapshot.state)) void this.gateway?.reconnectNow().catch(() => {});
       if (this.authSnapshot.state !== "logged_in") this.urlInput?.focus();
       else if (!ACTIVE_AGENT_STATES.has(this.agentSnapshot.status)) this.promptInput?.focus();
@@ -112,9 +170,23 @@ export class HermesGatewayPanel {
   }
 
   render() {
+    const focused = document.activeElement && this.root.contains(document.activeElement)
+      ? {
+        id: document.activeElement.id,
+        start: document.activeElement.selectionStart,
+        end: document.activeElement.selectionEnd,
+      }
+      : null;
     clear(this.root);
     this.root.appendChild(this.view());
     this.syncForms();
+    if (focused?.id) {
+      const replacement = this.root.querySelector(`#${CSS.escape(focused.id)}`);
+      replacement?.focus?.({ preventScroll: true });
+      if (Number.isInteger(focused.start) && Number.isInteger(focused.end)) {
+        replacement?.setSelectionRange?.(focused.start, focused.end);
+      }
+    }
   }
 
   view() {
@@ -232,53 +304,241 @@ export class HermesGatewayPanel {
   agentView() {
     const connected = this.connectionSnapshot.state === "connected";
     const active = ACTIVE_AGENT_STATES.has(this.agentSnapshot.status);
-    const prompt = h("textarea", {
-      id: "agent-prompt",
-      class: "gateway-textarea",
-      rows: "4",
-      maxlength: String(64 * 1024),
-      placeholder: connected ? "Ask Hermes to work on something…" : "Waiting for Hermes to reconnect…",
-      disabled: !connected || active,
-      oninput: (event) => { this.promptValue = event.target.value; this.syncForms(); },
-    });
-    prompt.value = this.promptValue;
-    this.promptInput = prompt;
-    const submit = h("button", { class: "gateway-submit", type: "submit" }, this.agentSnapshot.status === "completed" ? "Start another request" : "Start request");
-    this.promptButton = submit;
+    const hasRun = Boolean(this.agentSnapshot.request
+      || this.agentSnapshot.assistant
+      || this.agentSnapshot.activity.length
+      || this.agentSnapshot.status !== "idle");
 
     return h("section", { class: "gateway-agent" },
       !connected ? h("div", { class: `gateway-connection-note gateway-connection-note-${this.connectionSnapshot.state}`, role: "status", "aria-live": "polite" },
         reconnectCopy(this.connectionSnapshot),
       ) : null,
-      h("section", { class: "gateway-card gateway-run", "aria-labelledby": "agent-title" },
-        h("div", { class: "gateway-run-heading" },
-          h("h2", { id: "agent-title" }, "Agent"),
+      h("div", { class: "gateway-agent-scroll" },
+        hasRun ? this.runView() : this.operationsView(),
+      ),
+      active && this.agentSnapshot.status !== "waiting_for_approval" ? this.activeControls() : null,
+      !active ? this.composerView(connected) : null,
+    );
+  }
+
+  operationsView() {
+    const snapshot = this.operationsSnapshot;
+    const health = healthLabel(snapshot.health);
+    return h("section", { class: "gateway-overview", "aria-labelledby": "operations-title" },
+      h("div", { class: "gateway-overview-heading" },
+        h("div", null,
+          h("h2", { id: "operations-title" }, "Operations"),
+          h("p", { class: `gateway-health-summary gateway-health-${health.state}`, role: "status" },
+            h("span", { class: "gateway-health-dot", "aria-hidden": "true" }),
+            health.label,
+          ),
+        ),
+        h("button", {
+          class: "gateway-icon-button",
+          type: "button",
+          title: "Refresh status",
+          "aria-label": "Refresh Hermes status",
+          disabled: this.operationsRefreshInFlight,
+          onclick: () => void this.refreshOperations(),
+        }, icon("refresh", 14, this.operationsRefreshInFlight ? "gateway-refreshing" : "", 1.5)),
+      ),
+      snapshot.state === "idle" || snapshot.state === "loading"
+        ? h("section", { class: "gateway-card gateway-loading-card", role: "status" },
+          icon("sparkles", 14, "", 1.5),
+          h("span", null, "Loading Hermes status…"),
+        )
+        : [this.attentionView(), this.queueView(), this.scheduleView(), this.healthView()],
+      h("div", { class: "gateway-overview-footer" },
+        h("span", null, snapshot.state === "partial"
+          ? "Some status is unavailable"
+          : snapshot.state === "unavailable" ? "Status could not be loaded" : snapshot.updatedAt ? "Updated just now" : ""),
+      ),
+    );
+  }
+
+  attentionView() {
+    const attention = this.operationsSnapshot.attention;
+    const rows = [
+      attention.failedJobs ? [attention.failedJobs, countLabel(attention.failedJobs, "scheduled job failed", "scheduled jobs failed")] : null,
+      attention.blocked ? [attention.blocked, countLabel(attention.blocked, "blocked task", "blocked tasks")] : null,
+      attention.review ? [attention.review, countLabel(attention.review, "task ready for review", "tasks ready for review")] : null,
+      attention.diagnostics ? [attention.diagnostics, countLabel(attention.diagnostics, "board warning", "board warnings")] : null,
+    ].filter(Boolean);
+    const hasSource = this.operationsSnapshot.available.jobs
+      || this.operationsSnapshot.available.queue
+      || this.operationsSnapshot.available.diagnostics;
+    return h("section", { class: "gateway-card gateway-ops-card", "aria-labelledby": "attention-title" },
+      h("div", { class: "gateway-ops-heading" },
+        h("h3", { id: "attention-title" }, "Needs attention"),
+      ),
+      rows.length
+        ? h("ul", { class: "gateway-attention-list" }, rows.map(([count, label]) => h("li", null,
+          h("span", { class: "gateway-attention-count" }, count),
+          h("span", null, label.replace(/^\d+\s+/, "")),
+        )))
+        : h("p", { class: "gateway-empty-copy" }, hasSource ? "Nothing needs you right now." : "Attention status is unavailable."),
+    );
+  }
+
+  queueView() {
+    const queue = this.operationsSnapshot.queue;
+    if (!queue) {
+      return h("section", { class: "gateway-card gateway-ops-card", "aria-labelledby": "queue-title" },
+        h("div", { class: "gateway-ops-heading" }, h("h3", { id: "queue-title" }, "Queue")),
+        h("p", { class: "gateway-empty-copy" }, "Queue status is unavailable."),
+      );
+    }
+    const total = queue.waiting + queue.running;
+    const runningWidth = total ? Math.round((queue.running / total) * 100) : 0;
+    const waitingWidth = total ? 100 - runningWidth : 0;
+    const oldest = queue.waiting && queue.oldestWaitingSeconds !== null
+      ? `Oldest wait ${durationLabel(queue.oldestWaitingSeconds)}`
+      : queue.waiting ? "Wait age unavailable" : "No work waiting";
+    return h("section", { class: "gateway-card gateway-ops-card", "aria-labelledby": "queue-title" },
+      h("div", { class: "gateway-ops-heading" },
+        h("h3", { id: "queue-title" }, "Queue pressure"),
+        h("strong", { class: queue.waiting ? "gateway-key-number" : "" }, `${queue.waiting} waiting`),
+      ),
+      h("div", {
+        class: `gateway-queue-meter${total ? "" : " gateway-queue-meter-empty"}`,
+        role: "img",
+        "aria-label": `${queue.running} running and ${queue.waiting} waiting`,
+      },
+      total ? [
+        runningWidth ? h("span", { class: "gateway-queue-running", style: `width: ${runningWidth}%` }) : null,
+        waitingWidth ? h("span", { class: "gateway-queue-waiting", style: `width: ${waitingWidth}%` }) : null,
+      ] : h("span")),
+      h("div", { class: "gateway-queue-meta" },
+        h("span", null, `${queue.running} running`),
+        h("span", null, oldest),
+      ),
+      queue.activeWorkers && queue.activeWorkers !== queue.running
+        ? h("p", { class: "gateway-ops-note" }, countLabel(queue.activeWorkers, "active worker"))
+        : null,
+    );
+  }
+
+  scheduleView() {
+    const { jobs, available } = this.operationsSnapshot;
+    return h("section", { class: "gateway-card gateway-ops-card", "aria-labelledby": "schedule-title" },
+      h("div", { class: "gateway-ops-heading" },
+        h("h3", { id: "schedule-title" }, "Scheduled jobs"),
+        available.jobs ? h("span", { class: "gateway-count" }, jobs.length) : null,
+      ),
+      !available.jobs
+        ? h("p", { class: "gateway-empty-copy" }, "Scheduled jobs are unavailable.")
+        : jobs.length
+          ? h("ul", { class: "gateway-job-list" }, jobs.slice(0, 4).map((job) => {
+            const state = job.failed ? "failed" : !job.enabled ? "paused" : job.state === "running" ? "running" : "scheduled";
+            const detail = job.failed ? "Last run failed" : !job.enabled ? "Paused" : relativeRunLabel(job.nextRunAt);
+            return h("li", null,
+              h("span", { class: `gateway-job-dot gateway-job-${state}`, "aria-hidden": "true" }),
+              h("span", { class: "gateway-job-copy" },
+                h("strong", null, job.name),
+                h("span", null, detail),
+              ),
+            );
+          }))
+          : h("p", { class: "gateway-empty-copy" }, "No scheduled jobs."),
+      jobs.length > 4 ? h("p", { class: "gateway-ops-note" }, `${jobs.length - 4} more scheduled`) : null,
+    );
+  }
+
+  healthView() {
+    const health = this.operationsSnapshot.health;
+    if (!health) return null;
+    const items = [
+      ["Gateway", health.gateway],
+      ["Memory", health.memory],
+      ["Disk", health.disk],
+    ].filter(([, state]) => state !== "unknown");
+    return h("section", { class: "gateway-health-strip", "aria-label": "Hermes health" },
+      items.map(([label, state]) => h("span", { class: `gateway-health-chip gateway-health-${state}` },
+        h("span", { class: "gateway-health-dot", "aria-hidden": "true" }),
+        `${label} ${state === "ok" ? "normal" : state}`,
+      )),
+    );
+  }
+
+  composerView(connected) {
+    const prompt = h("textarea", {
+      id: "agent-prompt",
+      class: "gateway-composer-input",
+      rows: "4",
+      maxlength: String(64 * 1024),
+      placeholder: connected ? "Ask Hermes to work on something…" : "Waiting for Hermes to reconnect…",
+      disabled: !connected,
+      oninput: (event) => { this.promptValue = event.target.value; this.syncForms(); },
+      onkeydown: (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") void this.startRequest(event);
+      },
+    });
+    prompt.value = this.promptValue;
+    this.promptInput = prompt;
+    const submit = h("button", { class: "gateway-submit gateway-composer-submit", type: "submit", "aria-label": "Start request" },
+      this.agentSnapshot.status === "completed" ? "Run another" : "Run",
+      h("span", { "aria-hidden": "true" }, "↑"),
+    );
+    this.promptButton = submit;
+
+    return h("form", { class: "gateway-composer", onsubmit: (event) => void this.startRequest(event) },
+      this.agentSnapshot.status === "idle" ? h("div", { class: "gateway-starters", "aria-label": "Request starters" },
+        STARTER_PROMPTS.map((starter) => h("button", {
+          class: "gateway-starter",
+          type: "button",
+          disabled: !connected,
+          onclick: () => this.chooseStarter(starter.prompt),
+        }, starter.title)),
+      ) : null,
+      h("label", { class: "gateway-sr-only", for: "agent-prompt" }, "Request"),
+      prompt,
+      h("div", { class: "gateway-composer-footer" },
+        h("span", { class: "gateway-composer-hint" }, connected ? "⌘↵ to run" : "Waiting for Hermes"),
+        submit,
+      ),
+    );
+  }
+
+  runView() {
+    const working = ["starting", "running", "stopping"].includes(this.agentSnapshot.status);
+    return h("section", { class: "gateway-run", "aria-labelledby": "agent-title" },
+      h("div", { class: "gateway-run-heading" },
+        h("div", null,
+          h("h2", { id: "agent-title" }, "Current request"),
           h("span", { class: `gateway-run-status gateway-run-status-${this.agentSnapshot.status}`, "aria-live": "polite" }, runStatusLabel(this.agentSnapshot.status)),
         ),
-        !active ? h("form", { class: "gateway-form", onsubmit: (event) => void this.startRequest(event) },
-          h("label", { class: "gateway-label", for: "agent-prompt" }, "Request"), prompt, submit,
-        ) : null,
-        this.agentSnapshot.assistant ? h("section", { class: "gateway-run-output", "aria-labelledby": "assistant-title" },
-          h("h3", { id: "assistant-title" }, "Hermes"),
-          h("p", { class: "gateway-assistant", "aria-live": "polite" }, this.agentSnapshot.assistant),
-        ) : null,
-        this.agentSnapshot.activity.length ? h("section", { class: "gateway-run-activity", "aria-labelledby": "activity-title" },
-          h("h3", { id: "activity-title" }, "Activity"),
-          h("ol", { class: "gateway-activity-list" }, this.agentSnapshot.activity.map((item) => h("li", { class: `gateway-activity gateway-activity-${item.kind}` },
-            h("strong", null, item.label), item.detail ? h("span", null, item.detail) : null,
-          ))),
-        ) : null,
-        this.approvalView(),
-        active && this.agentSnapshot.status !== "waiting_for_approval" ? this.activeControls() : null,
-        this.agentSnapshot.error ? h("p", { class: "gateway-inline-error", role: "alert" }, this.agentSnapshot.error) : null,
+        !working && this.agentSnapshot.status !== "waiting_for_approval" ? h("button", {
+          class: "gateway-link-button",
+          type: "button",
+          onclick: () => this.agent?.reset(),
+        }, "Overview") : null,
       ),
+      this.agentSnapshot.request ? h("section", { class: "gateway-message gateway-message-user", "aria-labelledby": "request-title" },
+        h("h3", { id: "request-title", class: "gateway-message-role" }, "You"),
+        h("p", null, this.agentSnapshot.request),
+      ) : null,
+      this.agentSnapshot.assistant ? h("section", { class: "gateway-message gateway-message-hermes", "aria-labelledby": "assistant-title" },
+        h("h3", { id: "assistant-title", class: "gateway-message-role" }, "Hermes"),
+        h("p", { class: "gateway-assistant", "aria-live": "polite" }, this.agentSnapshot.assistant),
+      ) : working ? h("div", { class: "gateway-working", role: "status", "aria-live": "polite" },
+        h("span", { class: "gateway-working-mark", "aria-hidden": "true" }, "✦"),
+        h("span", null, this.agentSnapshot.status === "starting" ? "Preparing your request…" : "Hermes is working…"),
+      ) : null,
+      this.agentSnapshot.activity.length ? h("section", { class: "gateway-card gateway-run-activity", "aria-labelledby": "activity-title" },
+        h("h3", { id: "activity-title" }, "Activity"),
+        h("ol", { class: "gateway-activity-list" }, this.agentSnapshot.activity.map((item) => h("li", { class: `gateway-activity gateway-activity-${item.kind}` },
+          h("strong", null, item.label), item.detail ? h("span", null, item.detail) : null,
+        ))),
+      ) : null,
+      this.approvalView(),
+      this.agentSnapshot.error ? h("p", { class: "gateway-error-card", role: "alert" }, this.agentSnapshot.error) : null,
     );
   }
 
   approvalView() {
     const approval = this.agentSnapshot.pendingApproval;
     if (!approval) return null;
-    return h("section", { class: "gateway-approval", "aria-labelledby": "approval-title" },
+    return h("section", { class: "gateway-card gateway-approval", "aria-labelledby": "approval-title" },
       h("h3", { id: "approval-title" }, "Approval required"),
       h("p", null, approval.tool),
       approval.command ? h("pre", { class: "gateway-command" }, approval.command) : null,
@@ -305,16 +565,25 @@ export class HermesGatewayPanel {
     const steerButton = h("button", { class: "gateway-secondary", type: "submit" }, "Send guidance");
     this.steerInput = steer;
     this.steerButton = steerButton;
-    return h("section", { class: "gateway-run-controls", "aria-labelledby": "controls-title" },
-      h("h3", { id: "controls-title" }, "Controls"),
+    return h("section", { class: "gateway-card gateway-run-controls", "aria-labelledby": "controls-title" },
+      h("div", { class: "gateway-run-controls-heading" },
+        h("h3", { id: "controls-title" }, "Guide this run"),
+        h("button", {
+          class: "gateway-danger",
+          type: "button",
+          disabled: this.agentSnapshot.actionPending || this.connectionSnapshot.state !== "connected",
+          onclick: () => void this.agent?.stop().catch(() => {}),
+        }, this.agentSnapshot.status === "stopping" ? "Stopping…" : "Stop"),
+      ),
       h("form", { class: "gateway-steer-form", onsubmit: (event) => void this.steer(event) }, steer, steerButton),
-      h("button", {
-        class: "gateway-danger",
-        type: "button",
-        disabled: this.agentSnapshot.actionPending || this.connectionSnapshot.state !== "connected",
-        onclick: () => void this.agent?.stop().catch(() => {}),
-      }, this.agentSnapshot.status === "stopping" ? "Stop requested…" : "Stop"),
     );
+  }
+
+  chooseStarter(prompt) {
+    this.promptValue = prompt;
+    this.render();
+    this.promptInput?.focus();
+    this.promptInput?.setSelectionRange?.(this.promptValue.length, this.promptValue.length);
   }
 
   syncForms() {
@@ -423,6 +692,12 @@ export class HermesGatewayPanel {
       authSession: this.authSession,
       persistSession: async () => this.persistDashboardSession(),
     });
+    this.operations = new DashboardOperationsClient({
+      baseUrl: this.authSession.baseUrl,
+      session: this.authSession,
+      board: this.boardValue,
+    });
+    this.operationsSnapshot = Object.freeze({ ...emptyOperationsSnapshot(), state: "loading" });
     this.agent = new DashboardAgentController({ gateway: this.gateway });
     this.unsubscribeConnection = this.gateway.subscribe((snapshot) => {
       if (generation !== this.connectionGeneration) return;
@@ -436,7 +711,34 @@ export class HermesGatewayPanel {
       this.render();
     });
     this.render();
+    void this.refreshOperations();
     await this.gateway.connect().catch(() => {});
+  }
+
+  async refreshOperations() {
+    if (!this.operations || this.authSnapshot.state !== "logged_in" || this.operationsRefreshInFlight) return;
+    this.operationsRefreshInFlight = true;
+    if (!this.operationsSnapshot.updatedAt) {
+      this.operationsSnapshot = Object.freeze({ ...this.operationsSnapshot, state: "loading" });
+    }
+    this.render();
+    try {
+      this.operationsSnapshot = await this.operations.load();
+      await this.persistDashboardSession();
+    } catch (error) {
+      if (error instanceof DashboardAuthError && error.code === "session_expired") {
+        await this.invalidateSession();
+        return;
+      }
+      this.operationsSnapshot = Object.freeze({
+        ...this.operationsSnapshot,
+        state: this.operationsSnapshot.updatedAt ? "partial" : "unavailable",
+        updatedAt: Date.now(),
+      });
+    } finally {
+      this.operationsRefreshInFlight = false;
+    }
+    this.render();
   }
 
   async verifyPrimarySession() {
@@ -474,6 +776,15 @@ export class HermesGatewayPanel {
     const auth = this.authSession?.exportSession();
     if (!auth) return false;
     return this.sessionBroker.saveDashboard({ baseUrl: this.authSession.baseUrl, board: this.boardValue, auth });
+  }
+
+  async syncSavedBoard() {
+    if (!this.authSession) return;
+    const saved = await this.sessionBroker.readDashboard();
+    if (!saved || saved.baseUrl !== this.authSession.baseUrl || saved.board === this.boardValue) return;
+    this.boardValue = saved.board;
+    this.operations?.setBoard(saved.board);
+    this.render();
   }
 
   clearCredentials() {
@@ -520,6 +831,10 @@ export class HermesGatewayPanel {
 
   async releaseConnection({ preserveGeneration = false } = {}) {
     if (!preserveGeneration) this.connectionGeneration += 1;
+    this.operations?.release();
+    this.operations = null;
+    this.operationsRefreshInFlight = false;
+    this.operationsSnapshot = emptyOperationsSnapshot();
     this.unsubscribeAgent?.();
     this.unsubscribeAgent = null;
     this.unsubscribeConnection?.();
@@ -535,6 +850,8 @@ export class HermesGatewayPanel {
   async release() {
     if (this.sessionCheckTimer) globalThis.clearInterval(this.sessionCheckTimer);
     this.sessionCheckTimer = null;
+    if (this.operationsRefreshTimer) globalThis.clearInterval(this.operationsRefreshTimer);
+    this.operationsRefreshTimer = null;
     this.clearCredentials();
     await this.releaseConnection();
   }
