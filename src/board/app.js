@@ -344,6 +344,7 @@ export class HermesProjectBoard {
       this.authSnapshot = this.authSession.snapshot;
       this.state = this.authSnapshot.state === "logged_in" ? "board_picker" : this.authSnapshot.state === "session_expired" ? "session_expired" : "logged_out";
       this.message = errorCopy(error);
+      if (this.state === "session_expired") await this.sessionBroker.clearDashboard();
     } finally {
       this.usernameValue = "";
       this.passwordValue = "";
@@ -372,8 +373,8 @@ export class HermesProjectBoard {
       await window.muxy?.tabs?.setTitle?.(`Hermes Board · ${this.boardValue}`);
     } catch (error) {
       this.board = null;
-      this.state = this.authSession?.snapshot.state === "session_expired" ? "session_expired" : "board_picker";
-      this.message = errorCopy(error);
+      this.handleActionError(error);
+      if (this.state !== "session_expired") this.state = "board_picker";
     }
     this.render();
   }
