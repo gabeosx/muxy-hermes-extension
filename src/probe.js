@@ -217,6 +217,61 @@ export class ConnectionProbe {
     }
   }
 
+  async restore({ url, token, previousResult }) {
+    const release = this.abort();
+    if (release) await release;
+    const attempt = ++this.#attempt;
+    const startedAt = this.#now();
+    let endpoint;
+    try {
+      endpoint = normalizeGatewayUrl(url);
+    } catch {
+      return this.start({ url, token });
+    }
+    const prior = previousResult?.status === ProbeState.SUCCESS && previousResult.endpoint === endpoint ? previousResult : null;
+    const controller = new AbortController();
+    this.#controller = controller;
+    this.#publish(freeze({
+      status: ProbeState.TESTING, startedAt, finishedAt: null, endpoint, endpointTrustClass: endpoint.startsWith("http://") ? "loopback_http" : "https",
+      url: stage("passed"), relayOutcome: stage("not_verified"),
+      authenticationOutcome: stage("not_verified"), capabilityOutcome: stage("not_verified"), streamOutcome: stage("not_verified"),
+      failureClass: null, retryable: false, capabilityNames: [], capabilityVersion: null, streamEventCount: null,
+      previousResult: prior,
+    }));
+    try {
+      const checked = await this.#client.verify(endpoint, token, { signal: controller.signal });
+      let verdict = toSafeVerdict(checked, { endpoint, startedAt, finishedAt: this.#now() });
+      if (attempt !== this.#attempt || controller.signal.aborted) return this.#snapshot;
+      if (
+        prior
+        && verdict.relayOutcome.state === "passed"
+        && verdict.authenticationOutcome.state === "passed"
+        && verdict.capabilityOutcome.state === "passed"
+        && prior.streamOutcome?.state === "passed"
+      ) {
+        verdict = freeze({
+          ...verdict,
+          status: ProbeState.SUCCESS,
+          streamOutcome: stage("passed"),
+          streamEventCount: prior.streamEventCount,
+        });
+      }
+      this.#publish(verdict);
+      return verdict;
+    } catch {
+      if (attempt !== this.#attempt || controller.signal.aborted) return this.#snapshot;
+      const verdict = toSafeVerdict({
+        url: { state: "passed" }, request: { state: "failed" }, relay: { state: "failed" }, authentication: { state: "not_verified" },
+        capabilities: { state: "not_verified" }, stream: { state: "not_verified" },
+      }, { endpoint, startedAt, finishedAt: this.#now() });
+      this.#publish(verdict);
+      return verdict;
+    } finally {
+      if (attempt === this.#attempt && this.#controller === controller) this.#controller = null;
+      token = null;
+    }
+  }
+
   #publish(snapshot) {
     this.#snapshot = freeze(snapshot);
     for (const listener of this.#listeners) listener(this.#snapshot);

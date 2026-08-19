@@ -13,7 +13,7 @@ A development-only Muxy extension that proves a user with an existing Hermes Gat
 - **Scope**: Extension-only development proof — prevents early multi-repository work and isolates the riskiest assumption.
 - **Dependency**: One pinned, user-operated Hermes development Gateway at a time, with representative fixtures across the validation matrix — the extension never starts, stops, updates, or infers the Gateway's deployment.
 - **Deployment contract**: Host-native, Docker, tunnel, and HTTPS endpoints share one protocol path; remote Muxy workspaces are a separate namespace/lifecycle test — topology-specific client behavior is prohibited.
-- **Security**: Bearer token remains in panel memory; use an exact CORS origin; never use `*`; never auto-approve — the Gateway exposes terminal and file tools.
+- **Security**: Bearer and Dashboard session material may persist only in Muxy's isolated per-extension store and transient request memory; use an exact CORS origin; never use `*`; never auto-approve — the Gateway exposes terminal and file tools.
 - **Transport**: Prove direct WebKit streaming before surrounding product work — Muxy's native HTTP bridge cannot serve the local SSE use case.
 - **Lifecycle**: Live status and approvals exist only while the panel is open — durable background ownership is post-v1.
 - **Capability compatibility**: Drive controls from `/v1/capabilities` and captured protocol fixtures — Hermes and Muxy interfaces are evolving.
@@ -57,7 +57,7 @@ A development-only Muxy extension that proves a user with an existing Hermes Gat
 |---------|---------|---------|-------------|
 | `AbortController`, `TextDecoderStream`, `ReadableStream` | Web platform APIs | Cancel and decode fetch-backed SSE | Use directly. A readable `Response.body` lets the panel process bytes as they arrive; abort it when the user stops observing a run or the panel unloads. [MDN Fetch streaming](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch) **HIGH** |
 | Tiny in-repo SSE frame parser | Project code, fixture-tested | Turn decoded event-stream lines into typed Hermes events | Prefer this to a dependency for v1: Hermes event framing is a contract to capture and test, and the parser needs only the standard `event:`, `data:`, `id:`, blank-line framing. Do not use `EventSource`: its constructor exposes only URL and `withCredentials`, not arbitrary request headers, so it cannot send the required bearer `Authorization` header. [MDN EventSource constructor](https://developer.mozilla.org/en-US/docs/Web/API/EventSource/EventSource) **HIGH** |
-| `muxy.storage` | Current Muxy API | Post-v1 non-secret preferences only | Use only after v1 for labels, URLs, mappings, and UI preferences. It is persistent JSON storage, not a keychain or credential vault. Keep bearer material out of it. [Muxy Storage](https://muxy.app/docs/extensions/storage) **MEDIUM** |
+| `muxy.storage` | Current Muxy API | V1 connection and Dashboard session persistence | Muxy isolates storage by extension ID. Store only validated Gateway connection data and allowlisted Dashboard cookies; revalidate on restore/periodically and delete on authentication rejection or explicit logout/forget. [Muxy Storage](https://muxy.app/docs/extensions/storage) **HIGH** |
 
 ## Transport Decision
 
@@ -88,9 +88,9 @@ A development-only Muxy extension that proves a user with an existing Hermes Gat
 | V1 must prove | Explicitly defer |
 |---------------|------------------|
 | A publish-valid Muxy panel built from the current scaffold, with `package.json` copied to `dist/`. | Marketplace delivery, backward compatibility across unpinned Muxy releases, or a framework migration. |
-| One runtime-entered URL/token works with exact observed CORS origin, bearer auth, capabilities, streamed token/tool/approval/terminal events, and advertised stop/steer/approval controls. | Multiple profiles, stored configuration, keychain integration, pairing, or token refresh. |
+| One entered URL/token is saved in the extension-scoped store, revalidated, and works with exact observed CORS origin, bearer auth, capabilities, streamed token/tool/approval/terminal events, and advertised stop/steer/approval controls. | Multiple profiles, import/export, keychain integration, pairing, or server-issued token refresh. |
 | Reproducible results for host-native, Docker, SSH local-forward, and direct HTTPS fixtures, plus remote-Muxy-workspace lifecycle/namespace behavior; each fixture records Muxy version, Hermes version/commit, origin, capabilities, preflight, SSE frames, reconnect, and error outcome. | A promise that untested deployment variants work, or any topology-specific client implementation. |
-| Close/reopen behavior: token re-entry, status reconciliation, and documented replay window while the panel remains the owner. | Durable background run ownership, closed-panel approvals, notifications, or background SSE. |
+| Close/reopen behavior: saved-session verification, status reconciliation, and documented replay limits while the panel remains the run owner. | Durable background run ownership, closed-panel approvals, notifications, or background SSE. |
 | A negative direct-transport result ends with a minimal Muxy streaming-bridge contract. | Implementing a sidecar, `curl` helper, Node service, Muxy core patch, Hermes plugin, or provider registration during v1. |
 
 ## Alternatives Considered
@@ -102,7 +102,7 @@ A development-only Muxy extension that proves a user with an existing Hermes Gat
 | Streaming owner | Open panel | `background.js` | Background has no `muxy.http.fetch` and must use an authorized subprocess; it is not a supported native SSE owner. |
 | Runtime helper | No helper in v1 | `curl`, Node, Python, Docker companion | Adds subprocess consent, OS-specific lifecycle/IPC, duplicate TLS/auth parsing, and a persistent secret boundary before proving the simpler architecture. |
 | Deployment detection | One Gateway URL contract | Detect Docker/SSH/remote workspace | URL topology does not establish tool filesystem semantics and leads to unsafe host assumptions. |
-| Credentials | In-memory per panel | `muxy.storage`, manifest settings, browser storage | Persistent extension storage is not a secret store; raw bearer tokens grant full tool access. |
+| Credentials | Extension-scoped `muxy.storage` plus transient request memory | Browser `localStorage`, workspace files, manifest settings | Muxy explicitly isolates each extension namespace; the client verifies restored sessions and keeps credentials out of user-visible or workspace artifacts. |
 | CORS | Exact observed extension origin | `*`, `null`, origin reflection | The browser Authorization flow needs server-approved CORS. A wildcard/null/reflection policy turns the Gateway into an ambient authority. |
 
 ## Installation

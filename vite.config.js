@@ -15,6 +15,10 @@ export default defineConfig({
       input: {
         panel: resolve(__dirname, "panel/index.html"),
         board: resolve(__dirname, "board/index.html"),
+        background: resolve(__dirname, "src/background.js"),
+      },
+      output: {
+        entryFileNames: (chunk) => chunk.name === "background" ? "background.js" : "assets/[name]-[hash].js",
       },
     },
   },

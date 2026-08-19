@@ -2,6 +2,7 @@ import { CurlRelay } from "./curl-relay.js";
 import { normalizeHermesDashboardUrl } from "./kanban-client.js";
 
 const SESSION_COOKIE = /^(?:__Secure-)?hermes_session_(?:at|rt)$/;
+const SESSION_COOKIE_VALUE = /^[A-Za-z0-9._~+/%=-]{1,4096}$/;
 
 export class DashboardAuthError extends Error {
   constructor(code, status = null) {
@@ -53,6 +54,34 @@ function loginLabel(identity) {
   return identity.displayName || identity.email || (identity.userId.length > 18 ? `${identity.userId.slice(0, 18)}…` : identity.userId);
 }
 
+function normalizeRestoredSession(value) {
+  if (!value || value.version !== 1 || !Array.isArray(value.providers) || !Array.isArray(value.cookies)) {
+    throw new DashboardAuthError("auth_contract_mismatch");
+  }
+  const providers = normalizeProviders({ providers: value.providers.map((provider) => ({
+    name: provider?.name,
+    display_name: provider?.displayName,
+    supports_password: provider?.supportsPassword,
+  })) });
+  const restoredIdentity = normalizeIdentity({
+    user_id: value.identity?.userId,
+    email: value.identity?.email,
+    display_name: value.identity?.displayName,
+    org_id: value.identity?.organizationId,
+    provider: value.identity?.provider,
+    expires_at: value.identity?.expiresAt,
+  });
+  const cookies = new Map();
+  for (const entry of value.cookies) {
+    if (!Array.isArray(entry) || entry.length !== 2 || !SESSION_COOKIE.test(entry[0]) || !SESSION_COOKIE_VALUE.test(entry[1])) {
+      throw new DashboardAuthError("auth_contract_mismatch");
+    }
+    cookies.set(entry[0], entry[1]);
+  }
+  if (![...cookies.keys()].some((name) => name.endsWith("hermes_session_at"))) throw new DashboardAuthError("auth_contract_mismatch");
+  return { providers, identity: restoredIdentity, cookies };
+}
+
 export class DashboardAuthSession {
   constructor({ baseUrl, relay = new CurlRelay(), now = () => Date.now() } = {}) {
     this.baseUrl = normalizeHermesDashboardUrl(baseUrl);
@@ -90,8 +119,31 @@ export class DashboardAuthSession {
     return [...this.cookies.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join("; ");
   }
 
+  static fromSession({ baseUrl, session, relay, now } = {}) {
+    const auth = new DashboardAuthSession({ baseUrl, relay, now });
+    auth.restore(session);
+    return auth;
+  }
+
   cookieHeaderForTest() {
     return this.#cookieHeader();
+  }
+
+  exportSession() {
+    if (this.snapshot.state !== "logged_in" || !this.snapshot.identity || !this.cookies.size) return null;
+    return Object.freeze({
+      version: 1,
+      providers: Object.freeze(this.providers.map((provider) => Object.freeze({ ...provider }))),
+      identity: Object.freeze({ ...this.snapshot.identity }),
+      cookies: Object.freeze([...this.cookies.entries()].sort(([a], [b]) => a.localeCompare(b)).map((entry) => Object.freeze([...entry]))),
+    });
+  }
+
+  restore(session) {
+    const restored = normalizeRestoredSession(session);
+    this.providers = restored.providers;
+    this.cookies = restored.cookies;
+    return this.#publish("logged_in", restored.identity);
   }
 
   async discover() {

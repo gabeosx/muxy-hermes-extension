@@ -77,3 +77,32 @@ test("retest keeps an immutable Previous result and ignores a stale aborted comp
   assert.equal(JSON.stringify(snapshots).includes("never-render-me"), false);
   assert.equal(JSON.stringify(oldResult).includes("new-secret"), false);
 });
+
+test("a saved connection is restored only after a lightweight authentication check", async () => {
+  const calls = [];
+  const client = {
+    async verify(url, token) {
+      calls.push({ url, token });
+      return {
+        ...passedResult,
+        capabilities: { state: "passed", names: ["run_status", "run_submission"], version: "fixture-v2" },
+        stream: { state: "not_verified", reason: "saved_connection_check" },
+      };
+    },
+  };
+  const prior = toSafeVerdict(passedResult, {
+    endpoint: "https://gateway.example",
+    startedAt: "2026-08-17T00:00:00.000Z",
+    finishedAt: "2026-08-17T00:00:01.000Z",
+  });
+  const probe = new ConnectionProbe({ client, now: () => "2026-08-17T00:05:00.000Z" });
+
+  const restored = await probe.restore({ url: "https://gateway.example", token: "saved-secret", previousResult: prior });
+
+  assert.deepEqual(calls, [{ url: "https://gateway.example", token: "saved-secret" }]);
+  assert.equal(restored.status, "success");
+  assert.equal(restored.authenticationOutcome.state, "passed");
+  assert.equal(restored.streamOutcome.state, "passed", "the lightweight check retains the previously qualified stream result");
+  assert.deepEqual(restored.capabilityNames, ["run_status", "run_submission"]);
+  assert.equal(JSON.stringify(probe.snapshot).includes("saved-secret"), false);
+});

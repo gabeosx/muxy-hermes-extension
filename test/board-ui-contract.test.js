@@ -10,26 +10,28 @@ test("the project board is a responsive Muxy tab rather than a second chat clien
   ]);
 
   for (const copy of [
-    "Explicit project mapping",
-    "Map this Muxy project to a Hermes board",
-    "no workspace path is sent or compared",
-    "Runs Gateway API alone does not provide boards",
+    "Open a Hermes board",
+    "Choose the Dashboard and board you want to work with.",
     "Check sign-in",
     "Sign in and open board",
-    "Logged in as",
-    "Session expired",
-    "Logged out",
-    "browser sign-in",
+    "Signed in as",
+    "Sign-in expired",
+    "Sign in in your browser",
+    "You’ll stay signed in on this Mac until you log out.",
     "Add card",
-    "Gateway status and board state remain separate authorities",
   ]) assert.match(app, new RegExp(copy.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
   assert.match(app, /type: "password", autocomplete: "current-password"/);
   assert.match(app, /this\.passwordValue = ""/);
   assert.match(app, /DashboardAuthSession/);
+  assert.match(app, /SessionBrokerClient/);
+  assert.match(app, /restoreSavedSession/);
+  assert.match(app, /persistSession/);
+  assert.match(app, /verifySavedSession/);
+  assert.match(app, /SESSION_CHECK_INTERVAL_MS/);
   assert.match(app, /authSnapshot\.state === "logged_in"/);
   assert.doesNotMatch(app, /Dashboard session token|session token|tokenValue|dashboard-token/i);
-  assert.doesNotMatch(app, /localStorage|sessionStorage|muxy\.storage|workspace_path/);
+  assert.doesNotMatch(app, /localStorage|sessionStorage|muxy\.storage|workspace path|session token|dashboard-token/i);
   assert.doesNotMatch(app, /chat|transcript|file browser/i);
   assert.match(html, /src="\/src\/board-main\.js"/);
 

@@ -17,8 +17,8 @@ const evidenceDir = join(root, "public", "evidence");
 const canonicalConditions = ["host_native_loopback", "docker_published_loopback", "ssh_local_forward", "direct_remote_https", "remote_muxy_workspace"];
 const simulatedConditions = new Set(canonicalConditions.slice(2));
 const forbiddenSourcePatterns = [
-  /muxy\.http\b/, /EventSource\b/, /muxy\.storage\b/, /muxy\.git\b/, /muxy\.execAsync\b/,
-  /rejectUnauthorized\b/, /NODE_TLS_REJECT_UNAUTHORIZED\b/, /background\.js\b/,
+  /muxy\.http\b/, /EventSource\b/, /muxy\.git\b/, /muxy\.execAsync\b/,
+  /rejectUnauthorized\b/, /NODE_TLS_REJECT_UNAUTHORIZED\b/,
 ];
 const forbiddenPanelPatterns = [/workspace path/i, /certificate bypass/i, /auto.?approve/i, /install bridge|register.*agent|provider registration/i];
 const indexRowKeys = new Set(["id", "verdict", "reasonCode", "latest", "latestPair", "lastVerifiedPair", "carriedForward", "history"]);
@@ -102,6 +102,8 @@ async function validateBoundary() {
     join(root, "src", "recovery-evidence.js"),
     join(root, "src", "kanban-client.js"),
     join(root, "src", "board", "app.js"),
+    join(root, "src", "session-broker.js"),
+    join(root, "src", "background.js"),
   ];
   for (const file of productionSources) {
     const source = await readFile(file, "utf8");
@@ -112,6 +114,12 @@ async function validateBoundary() {
   for (const requiredGate of ["supportsCoreRun", "RUN_FEATURES.approval", "RUN_FEATURES.stop", "RUN_FEATURES.steer"]) {
     assert.match(panel, new RegExp(requiredGate.replace(".", "\\.")), `panel is missing advertised capability gate ${requiredGate}`);
   }
+  const background = await readFile(join(root, "src", "background.js"), "utf8");
+  assert.match(background, /installSessionBroker\(\)/, "background must install the persistent session broker");
+  assert.doesNotMatch(background, /(?:muxy\.(?:exec|files|http|git)|localStorage|sessionStorage)/, "background must not gain process, file, or browser-storage authority");
+  const broker = await readFile(join(root, "src", "session-broker.js"), "utf8");
+  assert.match(broker, /globalThis\.muxy\?\.storage/, "session broker must use Muxy's extension-scoped store");
+  assert.doesNotMatch(broker, /(?:localStorage|sessionStorage)/, "session broker must not use browser storage");
 }
 
 const REQUIRED_RENDERED_SIGNATURES = Object.freeze([

@@ -41,17 +41,18 @@
 
 - [x] **RECV-01**: User sees bounded reconnect attempts with backoff when an active event stream is interrupted while the panel remains open.
 - [x] **RECV-02**: User receives a reconciled Gateway status after a stream interruption, regardless of whether event-stream reattachment succeeds.
-- [x] **RECV-03**: User can close and reopen the panel during an active run and is guided through token re-entry and the reattachment behavior supported by the pinned Gateway.
+- [x] **RECV-03**: User can close and reopen the panel or Muxy, restore a saved extension-scoped connection after authentication verification, and use the reattachment behavior supported by the pinned Gateway.
 - [x] **RECV-04**: User can distinguish tunnel loss, Gateway loss, proxy buffering, and panel recreation in the validation evidence without the extension claiming to detect deployment topology.
 - [x] **RECV-05**: User is clearly warned when event history cannot be recovered; the extension never promises lossless replay without fixture evidence.
 
 ### Security Boundaries
 
-- [x] **SEC-01**: User's bearer token exists only in transient panel/exec-stdin memory and is absent from argv, URLs, environment, journal files, source, bundles, persisted settings, fixtures, audit summaries, and diagnostics.
+- [x] **SEC-01**: User's bearer token exists only in Muxy's isolated per-extension store and transient request memory, and is absent from argv, URLs, environment, journal files, source, bundles, fixtures, audit summaries, and diagnostics.
 - [x] **SEC-02**: User explicitly authorizes the argv-form curl executable boundary; the UI discloses that a remembered argv grant covers the executable rather than only one Hermes host.
 - [x] **SEC-03**: User must explicitly decide every Hermes approval; the extension never auto-approves an action.
 - [x] **SEC-04**: User is never asked to grant Docker, SSH-tunnel, Gateway-lifecycle, terminal, Git-write, or Muxy-source authority; v1 requests only the documented curl-exec and extension-owned journal read/scrub/remove permissions required by the relay.
 - [x] **SEC-05**: User grants only the minimum Muxy extension permissions demonstrated to be necessary by the v1 implementation.
+- [x] **SEC-06**: Saved Gateway and Dashboard sessions are verified on restore and periodically while their UI is open, and are deleted on authentication rejection or explicit logout/forget.
 
 ### Native UX
 
@@ -102,7 +103,7 @@
 | Deployment-type detection | A URL does not reliably reveal topology; diagnostics report observed transport facts instead. |
 | Hermes repository or API changes in v1 | Workspace execution and validated per-run `cwd` are separate post-v1 work. |
 | Workspace path translation or tool-capable active-worktree execution | Container and remote namespaces require explicit mappings plus Gateway-side path validation. |
-| Persisted bearer tokens | Current Muxy extension storage is not an approved secret store. |
+| Keychain-backed credential storage | Muxy's isolated extension store is the approved v1 persistence mechanism; a future Keychain-backed API would be optional defense in depth. |
 | Durable background status or detailed approvals | The current background surface cannot read the extension's workspace journal or recover Hermes events after subscriber disconnect. |
 | Lossless replay guarantee | Hermes replay behavior must be measured; status reconciliation is the authoritative fallback. |
 | Marketplace publication | V1 is a development proof against pinned versions, not a production release. |

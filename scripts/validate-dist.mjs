@@ -9,7 +9,7 @@ const root = resolve(import.meta.dirname, "..");
 const dist = resolve(root, "dist");
 const publicDir = resolve(root, "public");
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const allowedManifestKeys = new Set(["$schema", "description", "commands", "events", "panels", "permissions", "tabTypes"]);
+const allowedManifestKeys = new Set(["$schema", "background", "description", "commands", "events", "panels", "permissions", "tabTypes"]);
 const allowedPanelKeys = new Set(["entry", "icon", "id", "mode", "position", "title"]);
 const allowedTabTypeKeys = new Set(["entry", "id", "title"]);
 const allowedCommandKeys = new Set(["id", "title", "action"]);
@@ -73,13 +73,14 @@ function assertManifestShape(manifest, label) {
     { id: "toggle-hermes-gateway", title: "Hermes: Toggle Gateway Panel", action: { kind: "togglePanel", panel: panel.id } },
     { id: "open-hermes-project-board", title: "Hermes: Open Project Board", action: { kind: "openTab", tabType: tabType.id } },
   ], `${label} commands must open only the declared Hermes surfaces`);
+  assert.equal(manifest.muxy.background, "background.js", `${label} must use the session-only background entry`);
   assert.deepEqual(manifest.muxy.events, ["file.changed"], `${label} must subscribe only to journal changes`);
   assert.deepEqual(
     manifest.muxy.permissions,
-    ["commands:exec", "files:read", "files:write", "panels:write", "tabs:write"],
-    `${label} must request only the approved relay, journal, panel, and board-tab permissions`,
+    ["commands:exec", "files:read", "files:write", "panels:write", "storage:read", "storage:write", "tabs:write"],
+    `${label} must request only the approved relay, journal, panel, extension-storage, and board-tab permissions`,
   );
-  return [panel.entry, tabType.entry];
+  return [panel.entry, tabType.entry, manifest.muxy.background];
 }
 
 function assetReferences(html) {
@@ -94,11 +95,32 @@ async function validateCurrentBuild() {
   assert.deepEqual(published.muxy, source.muxy, "source and dist manifests must match structurally");
   assert.deepEqual(distEntries, sourceEntries, "source and dist must configure the same surface entries");
 
-  const declared = new Set(["package.json", ...distEntries]);
+  const declared = new Set(["package.json"]);
+  const visitedModules = new Set();
+  const collectModule = async (modulePath) => {
+    const relativePath = relative(dist, modulePath);
+    if (visitedModules.has(relativePath)) return;
+    visitedModules.add(relativePath);
+    declared.add(relativePath);
+    const source = await readFile(modulePath, "utf8");
+    const references = [...source.matchAll(/\bimport(?:[\s\S]*?\bfrom\s*)?["']([^"']+)["']/g)].map((match) => match[1]);
+    for (const asset of references) {
+      if (!asset.startsWith(".")) continue;
+      const assetPath = resolve(modulePath, "..", asset);
+      assert.ok(insideDist(assetPath), `background module asset escapes dist: ${asset}`);
+      assert.ok((await stat(assetPath)).isFile(), `background module asset is missing: ${asset}`);
+      await collectModule(assetPath);
+    }
+  };
   for (const entry of distEntries) {
     const entryPath = resolve(dist, entry);
     assert.ok(insideDist(entryPath), "surface entry must resolve within dist");
     assert.ok((await stat(entryPath)).isFile(), `configured surface entry is missing: ${entry}`);
+    declared.add(entry);
+    if (!entry.endsWith(".html")) {
+      await collectModule(entryPath);
+      continue;
+    }
     const entryHtml = await readFile(entryPath, "utf8");
     for (const asset of assetReferences(entryHtml)) {
       assert.ok(!asset.startsWith("/") && !asset.includes("://"), `surface entry contains an external or absolute asset: ${asset}`);

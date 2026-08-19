@@ -85,12 +85,13 @@ test("the aggregate validator is non-watch and Phase 2 controls remain inside th
   assert.doesNotMatch(compose, /privileged:\s*true|network_mode:\s*host|0\.0\.0\.0:/i);
 });
 
-test("the board auth boundary has no pasted token, persistent secret store, or Gateway-key confusion", async () => {
-  const [board, auth, kanban, relay, manifest] = await Promise.all([
+test("the board auth boundary has no pasted token or Gateway-key confusion and persists only through extension-scoped storage", async () => {
+  const [board, auth, kanban, relay, broker, manifest] = await Promise.all([
     readFile(new URL("src/board/app.js", root), "utf8"),
     readFile(new URL("src/dashboard-auth.js", root), "utf8"),
     readFile(new URL("src/kanban-client.js", root), "utf8"),
     readFile(new URL("src/curl-relay.js", root), "utf8"),
+    readFile(new URL("src/session-broker.js", root), "utf8"),
     readFile(new URL("package.json", root), "utf8"),
   ]);
   const production = `${board}\n${auth}\n${kanban}`;
@@ -100,7 +101,11 @@ test("the board auth boundary has no pasted token, persistent secret store, or G
   assert.match(auth, /\/api\/auth\/me/);
   assert.match(auth, /\/auth\/logout/);
   assert.match(relay, /buildSessionConfig/);
-  assert.doesNotMatch(manifest, /background|storage:/i);
+  assert.match(broker, /globalThis\.muxy\?\.storage/);
+  assert.doesNotMatch(broker, /localStorage|sessionStorage/i);
+  assert.match(manifest, /"background"\s*:\s*"background\.js"/);
+  assert.match(manifest, /"storage:read"/);
+  assert.match(manifest, /"storage:write"/);
 });
 
 test("aggregate recovery proof fails closed for provenance, signatures, cleanup, native, simulation, and redaction mutations", () => {

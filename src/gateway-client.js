@@ -127,6 +127,39 @@ export class GatewayClient {
     }
   }
 
+  async verify(rawUrl, bearer, { signal = null } = {}) {
+    if (this.#inFlight) throw new Error("A connection check is already in progress.");
+    if (!bearer) throw new Error("Enter a bearer token.");
+    const baseUrl = normalizeGatewayUrl(rawUrl);
+    this.#inFlight = true;
+    const generation = ++this.#generation;
+    try {
+      await this.prepare();
+      const capabilitiesResponse = await this.#relay.requestJson({
+        url: endpoint(baseUrl, "/v1/capabilities"),
+        bearer,
+      });
+      if (generation !== this.#generation || signal?.aborted) return this.#failed("aborted");
+      if (capabilitiesResponse.status === 401 || capabilitiesResponse.status === 403) return this.#authenticationFailed();
+      if (capabilitiesResponse.status < 200 || capabilitiesResponse.status >= 300) return this.#capabilitiesFailed();
+      const capabilities = normalizeCapabilities(capabilitiesResponse.body);
+      return {
+        url: stage("passed"),
+        request: stage("passed"),
+        authentication: stage("passed"),
+        relay: stage("passed"),
+        capabilities: { state: "passed", names: capabilities.names, version: capabilities.version },
+        stream: stage("not_verified", { reason: "saved_connection_check" }),
+      };
+    } catch (error) {
+      if (signal?.aborted || generation !== this.#generation) return this.#failed("aborted");
+      return this.#failed(relayFailureReason(error));
+    } finally {
+      bearer = null;
+      this.#inFlight = false;
+    }
+  }
+
   #failed(reason) {
     return {
       url: stage("passed"),

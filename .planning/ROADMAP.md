@@ -119,7 +119,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. When an active event stream interrupts while the panel remains open, user receives reconciled Gateway status and bounded best-effort reattach attempts, with a clear warning that lossless or exactly-once reattachment cannot be promised.
-  2. User can close and reopen the panel during an active run, re-enter the token, and recover current status/final output without a promise of missed-event or approval-detail replay.
+  2. User can close and reopen the panel during an active run, restore and verify the extension-scoped saved connection, and recover current status/final output without a promise of missed-event or approval-detail replay.
   3. User can inspect validation evidence that distinguishes tunnel loss, Gateway loss, proxy buffering, and panel recreation by observed behavior without the extension claiming to identify deployment topology.
   4. User is clearly told when event history cannot be recovered; the panel never promises lossless replay without fixture evidence.
 

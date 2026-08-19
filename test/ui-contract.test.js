@@ -48,9 +48,10 @@ test("the manifest exposes the compact panel and full board tab with least requi
     },
   ]);
   assert.deepEqual(manifest.muxy.tabTypes, [{ id: "hermes-project-board", title: "Hermes Project Board", entry: "board/index.html" }]);
-  assert.deepEqual(manifest.muxy.permissions, ["commands:exec", "files:read", "files:write", "panels:write", "tabs:write"]);
+  assert.equal(manifest.muxy.background, "background.js");
+  assert.deepEqual(manifest.muxy.permissions, ["commands:exec", "files:read", "files:write", "panels:write", "storage:read", "storage:write", "tabs:write"]);
   assert.deepEqual(manifest.muxy.events, ["file.changed"]);
-  for (const forbiddenSurface of ["background", "topbarItems", "statusbarItems", "scripts"]) {
+  for (const forbiddenSurface of ["topbarItems", "statusbarItems", "scripts"]) {
     assert.equal(Object.hasOwn(manifest.muxy, forbiddenSurface), false, `manifest must not declare ${forbiddenSurface}`);
   }
 });
@@ -59,19 +60,19 @@ test("the panel keeps capability and evidence output safe while deriving run ava
   const panel = await readFile(new URL("../src/panel/app.js", import.meta.url), "utf8");
 
   for (const text of [
-    "No capabilities advertised",
-    "This Gateway did not advertise any controls for this client.",
-    "Controls below are derived only from this advertised capability set.",
+    "No controls available",
+    "This Gateway does not offer controls for this panel.",
+    "Only controls confirmed by this Gateway are shown.",
     "Validation evidence",
     "No versioned fixture result has been recorded for this deployment condition.",
-    "Muxy will ask before running curl and before scrubbing a temporary journal in this worktree.",
-    "A remembered curl grant covers that executable, not only this Gateway.",
+    "Your connection is saved on this Mac.",
+    "Your access token is stored only for this extension.",
     "Gateway unreachable",
     "Gateway timed out",
   ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
   assert.doesNotMatch(panel, /exact-origin access|confirm its exact Muxy origin/i);
-  assert.match(panel, /Cleaning previous relay journal/);
+  assert.match(panel, /Preparing connection/);
   assert.match(panel, /this\.probe\.prepare\(\)/);
   assert.match(panel, /const panelInstanceId = globalThis\.crypto\.randomUUID\(\);/);
   assert.match(panel, /new RecoveryReceiptWriter\(\{ panelInstanceId \}\)/);
@@ -93,6 +94,13 @@ test("the panel keeps capability and evidence output safe while deriving run ava
   assert.match(panel, /type: "password", autocomplete: "off"/);
   assert.match(panel, /this\.tokenValue = ""/);
   assert.match(panel, /this\.disconnectRun\(\)/);
+  assert.match(panel, /SessionBrokerClient/);
+  assert.match(panel, /restoreGatewaySession/);
+  assert.match(panel, /verifySavedGateway/);
+  assert.match(panel, /SESSION_CHECK_INTERVAL_MS/);
+  assert.match(panel, /saveGateway/);
+  assert.match(panel, /Forget connection/);
+  assert.doesNotMatch(panel, /Panel-only credentials|scrubbing a temporary journal|filesystem path/i);
 });
 
 test("the panel preserves the five-row evidence boundary alongside capability-gated run controls", async () => {
@@ -147,7 +155,7 @@ test("the panel leads with the board and keeps proof and recovery internals behi
   assert.match(panel, /Run recovery details/);
 });
 
-test("the panel requires fresh credentials and a manual run ID for truthful recovery", async () => {
+test("the panel restores the persistent Gateway connection while keeping manual run recovery explicit", async () => {
   const [panel, css] = await Promise.all([
     readFile(new URL("../src/panel/app.js", import.meta.url), "utf8"),
     readFile(new URL("../src/styles/global.css", import.meta.url), "utf8"),
@@ -168,7 +176,8 @@ test("the panel requires fresh credentials and a manual run ID for truthful reco
   ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")));
 
   assert.match(panel, /this\.tokenValue = ""/);
-  assert.doesNotMatch(panel, /localStorage|sessionStorage|muxy\.storage|background\.js|deployment selector|certificate bypass/i);
+  assert.match(panel, /sessionBroker\.readGateway/);
+  assert.doesNotMatch(panel, /localStorage|sessionStorage|muxy\.storage|deployment selector|certificate bypass/i);
   assert.match(css, /gateway-recovery/);
   assert.match(css, /gateway-run-id/);
 });

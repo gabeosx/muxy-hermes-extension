@@ -105,6 +105,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: Clear the bearer input immediately after connection and clear the controller's private bearer on panel release.
 - [Phase ?]: Same-panel SSE recovery makes two reattach attempts only after authoritative status reconciliation.
 - [Phase ?]: Panel recreation requires a fresh bearer and manual Run ID for status-only recovery.
+- [Post-Phase 3]: Persist validated Gateway and Dashboard sessions in Muxy's per-extension store; verify on restore and periodically while open, and clear on authentication rejection or explicit logout/forget.
 
 ### Pending Todos
 
@@ -138,7 +139,7 @@ None yet.
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Muxy integration | Agent/provider registration and any source change | Deferred — requires separate authorization | v1 initialization |
-| Durable operation | Token persistence, background run ownership, and notifications | Deferred — needs a distinct trust model | v1 initialization |
+| Durable operation | Background run ownership and notifications | Deferred — needs a distinct transport owner | v1 initialization |
 | Workspace execution | `cwd` and workspace path mapping | Deferred — needs Gateway-side validation | v1 initialization |
 
 ## Session Continuity

@@ -7,8 +7,10 @@ import { RunController } from "@/run-controller";
 import { buildBridgeContract, copyRedactedReport, evaluateStopGate, loadEvidenceIndex, renderDeploymentMatrix } from "@/stop-gate";
 import { loadRecoveryEvidence, renderRecoveryEvidence } from "@/recovery-evidence";
 import { RecoveryReceiptWriter } from "@/recovery-receipt";
+import { SessionBrokerClient } from "@/session-broker";
 
-const STAGE_LABEL = Object.freeze({ passed: "Observed", failed: "Failed", not_verified: "Not verified" });
+const STAGE_LABEL = Object.freeze({ passed: "Ready", failed: "Couldn’t verify", not_verified: "Not checked" });
+const SESSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const DEPLOYMENT_CONDITION_NAMES = Object.freeze({
   host_native_loopback: "Host-native loopback",
   docker_published_loopback: "Docker published loopback",
@@ -18,25 +20,26 @@ const DEPLOYMENT_CONDITION_NAMES = Object.freeze({
 });
 
 function resultCopy(result) {
-  if (result.status === ProbeState.SUCCESS) return ["Connection verified", "The consented relay, authentication, capabilities, and live stream all succeeded."];
-  if (result.failureClass === FailureClass.STREAMING) return ["The Gateway connected, but live streaming was not verified.", "Review the redacted failure report before claiming this deployment is supported."];
-  if (result.failureClass === FailureClass.AUTHENTICATION) return ["Connection not verified", "The Gateway rejected this bearer token. Check the token, then test the connection again."];
+  if (result.status === ProbeState.SUCCESS) return ["Hermes is ready", "You can start and monitor a run from this panel."];
+  if (result.failureClass === FailureClass.STREAMING) return ["The Gateway responded, but live updates could not be confirmed.", "Try the connection again before starting a run."];
+  if (result.failureClass === FailureClass.AUTHENTICATION) return ["Connection not verified", "The Gateway rejected this access token. Check the token, then try again."];
   if (result.failureClass === FailureClass.URL) return ["Connection not verified", "Correct the Gateway URL, then test the connection again."];
   if (result.failureClass === FailureClass.GATEWAY_DNS) return ["Gateway name not found", "Check the Gateway hostname and network name resolution, then test the connection again."];
   if (result.failureClass === FailureClass.GATEWAY_TLS) return ["Gateway TLS check failed", "Check the Gateway certificate and trusted HTTPS address, then test the connection again."];
   if (result.failureClass === FailureClass.GATEWAY_REFUSED) return ["Gateway refused the connection", "Check that the Gateway is listening on the entered address and port, then retry."];
-  if (result.failureClass === FailureClass.GATEWAY_UNREACHABLE) return ["Gateway unreachable", "The relay ran, but could not reach this Gateway. Check that it is running and that the URL and port are reachable, then retry."];
-  if (result.failureClass === FailureClass.GATEWAY_TIMEOUT) return ["Gateway timed out", "The relay ran, but the Gateway did not respond before the timeout. Check reachability and retry."];
-  if (result.failureClass === FailureClass.JOURNAL_LIMIT) return ["Streaming journal limit reached", "The relay stopped before retaining too much stream data. Retry with a smaller response."];
+  if (result.failureClass === FailureClass.GATEWAY_UNREACHABLE) return ["Gateway unreachable", "Muxy could not reach this Gateway. Check that it is running and that the address is reachable, then retry."];
+  if (result.failureClass === FailureClass.GATEWAY_TIMEOUT) return ["Gateway timed out", "The Gateway did not respond in time. Check that it is reachable, then retry."];
+  if (result.failureClass === FailureClass.JOURNAL_LIMIT) return ["Connection test could not finish", "The response was too large to check safely. Try again with a smaller response."];
   if (result.failureClass === FailureClass.PROTOCOL) return ["Gateway response was not accepted", "Check the Gateway authentication and response status, then test the connection again."];
-  if (result.failureClass === FailureClass.RELAY) return ["Relay not available", "Allow Muxy to run the displayed curl command, or review the relay details before retrying."];
-  return ["Connection not verified", "Check the Gateway URL and token, then test the consented relay again."];
+  if (result.failureClass === FailureClass.RELAY) return ["Muxy could not connect", "Allow Muxy to make the connection, then try again."];
+  return ["Connection not verified", "Check the Gateway address and access token, then try again."];
 }
 
 export class HermesGatewayPanel {
   constructor(root) {
     this.root = root;
     const panelInstanceId = globalThis.crypto.randomUUID();
+    this.sessionBroker = new SessionBrokerClient();
     this.recoveryReceiptWriter = new RecoveryReceiptWriter({ panelInstanceId });
     this.probe = new ConnectionProbe({ files: window.muxy?.files ?? null, randomId: () => panelInstanceId });
     this.snapshot = this.probe.snapshot;
@@ -61,6 +64,9 @@ export class HermesGatewayPanel {
     this.steerValue = "";
     this.recoverRunId = "";
     this.runValidationMessage = "";
+    this.sessionCheckInFlight = false;
+    this.lastSessionCheckAt = 0;
+    this.sessionCheckTimer = null;
   }
 
   start() {
@@ -75,16 +81,19 @@ export class HermesGatewayPanel {
     this.render();
     void this.loadEvidence();
     void this.loadRecoveryEvidence();
-    this.probe.prepare().then(() => {
+    this.probe.prepare().then(async () => {
       this.preparing = false;
+      await this.restoreGatewaySession();
       this.render();
     }, () => {
       this.preparing = false;
       this.cleanupFailed = true;
-      this.validationMessage = "A previous relay journal could not be safely cleared. Reload the extension and review its worktree files before connecting.";
+      this.validationMessage = "This connection could not be prepared safely. Reload the extension and try again.";
       this.render();
     });
-    window.muxy?.onFocus?.(() => {
+    this.sessionCheckTimer = globalThis.setInterval(() => { void this.verifySavedGateway(); }, SESSION_CHECK_INTERVAL_MS);
+    window.muxy?.onFocus?.((focused) => {
+      if (focused !== false && Date.now() - this.lastSessionCheckAt >= SESSION_CHECK_INTERVAL_MS) void this.verifySavedGateway();
       if (this.snapshot.status !== ProbeState.TESTING) this.urlInput?.focus();
     });
     window.muxy?.lifecycle?.onBeforeClose?.(async () => this.release());
@@ -96,6 +105,8 @@ export class HermesGatewayPanel {
       this.releasePromise = (async () => {
         await this.disconnectRun();
         await this.probe.abort();
+        if (this.sessionCheckTimer) globalThis.clearInterval(this.sessionCheckTimer);
+        this.sessionCheckTimer = null;
         this.tokenValue = "";
         if (this.tokenInput) this.tokenInput.value = "";
         this.unsubscribe?.();
@@ -129,9 +140,9 @@ export class HermesGatewayPanel {
       oninput: (event) => { this.tokenValue = event.target.value; this.validationMessage = ""; this.syncForm(); },
     });
     token.value = this.tokenValue;
-    const statusCopy = this.preparing ? "Cleaning previous relay journal…" : testing ? "Testing connection…" : runActive ? "One run owns the live stream." : "";
+    const statusCopy = this.preparing ? "Preparing connection…" : testing ? "Testing connection…" : runActive ? "A run is in progress." : "";
     const status = h("p", { class: "gateway-live", "aria-live": "polite" }, statusCopy);
-    const submit = h("button", { class: "gateway-submit", type: "submit" }, this.preparing ? "Preparing relay…" : testing ? "Testing connection…" : runActive ? "Run active" : "Test connection");
+    const submit = h("button", { class: "gateway-submit", type: "submit" }, this.preparing ? "Preparing connection…" : testing ? "Testing connection…" : runActive ? "Run active" : "Test connection");
     this.urlInput = url;
     this.tokenInput = token;
     this.submitButton = submit;
@@ -140,27 +151,27 @@ export class HermesGatewayPanel {
       "main", { class: "gateway-panel" },
       h("header", { class: "gateway-header" },
         h("h1", { class: "gateway-title" }, "Hermes Gateway"),
-        h("p", { class: "gateway-purpose" }, "A compact control surface for an authenticated Hermes Gateway."),
-        h("p", { class: "gateway-footnote" }, "Panel-only credentials — your bearer token is cleared when the panel closes."),
+        h("p", { class: "gateway-purpose" }, "Start and monitor work through your Hermes Gateway."),
+        h("p", { class: "gateway-footnote" }, "Your connection is saved on this Mac."),
       ),
       h("section", { class: "gateway-card gateway-board-launcher", "aria-labelledby": "project-board-title" },
         h("div", null,
           h("h2", { id: "project-board-title" }, "Project board"),
-          h("p", null, "Open the full Hermes Kanban board for this Muxy project. The board mapping is explicit and never inferred from a filesystem path."),
+          h("p", null, "Open the Hermes board for this project."),
         ),
         h("button", { class: "gateway-secondary", type: "button", onclick: () => void this.openProjectBoard() }, "Open board"),
       ),
       h("form", { class: "gateway-card gateway-form", onsubmit: (event) => this.submit(event) },
         h("label", { for: "gateway-url", class: "gateway-label" }, "Gateway URL"), url,
         h("p", { id: "gateway-url-error", class: "gateway-inline-error", "aria-live": "polite" }, this.validationMessage),
-        h("label", { for: "bearer-token", class: "gateway-label" }, "Bearer token"), token,
+        h("label", { for: "bearer-token", class: "gateway-label" }, "Access token"), token,
         h("p", { id: "gateway-token-error", class: "gateway-inline-error", "aria-live": "polite" }),
         submit, status,
-        h("p", { class: "gateway-note" }, "Muxy will ask before running curl and before scrubbing a temporary journal in this worktree. A remembered curl grant covers that executable, not only this Gateway."),
-        testing ? h("p", { class: "gateway-capability-loading", "aria-live": "polite" }, "Discovering capabilities…") : null,
+        h("p", { class: "gateway-note" }, "Muxy may ask for permission before it connects. Your access token is stored only for this extension."),
+        testing ? h("p", { class: "gateway-capability-loading", "aria-live": "polite" }, "Checking available controls…") : null,
       ),
       this.snapshot.status === ProbeState.IDLE
-        ? h("section", { class: "gateway-card gateway-empty" }, h("h2", null, "Connect a Hermes Gateway"), h("p", null, "Enter the Gateway URL and bearer token for this panel session. Your token is cleared when the panel closes."))
+        ? h("section", { class: "gateway-card gateway-empty" }, h("h2", null, "Connect Hermes"), h("p", null, "Enter the Gateway address and access token provided by your Hermes administrator."))
         : this.verdictSection(),
       this.runSection(),
       h("details", { class: "gateway-card gateway-advanced" },
@@ -199,7 +210,7 @@ export class HermesGatewayPanel {
       return;
     }
     if (!this.tokenValue) {
-      this.validationMessage = "Enter a bearer token.";
+      this.validationMessage = "Enter an access token.";
       this.render();
       this.tokenInput?.focus();
       return;
@@ -217,22 +228,68 @@ export class HermesGatewayPanel {
     if (result.status === ProbeState.SUCCESS) {
       this.connectedResult = result;
       if (supportsCoreRun(result.capabilityNames)) {
-        this.runController = new RunController({
-          baseUrl: result.endpoint,
-          bearer,
-          capabilities: result.capabilityNames,
-        });
-        this.runSnapshot = this.runController.snapshot;
-        this.runUnsubscribe = this.runController.subscribe((snapshot) => {
-          this.runSnapshot = snapshot;
-          this.render();
-          void this.recoveryReceiptWriter.observe(snapshot);
-        });
+        this.attachRunController({ baseUrl: result.endpoint, bearer, capabilities: result.capabilityNames });
       }
+      await this.sessionBroker.saveGateway({ url: this.urlValue, bearer, result });
+      this.lastSessionCheckAt = Date.now();
       this.tokenValue = "";
       if (this.tokenInput) this.tokenInput.value = "";
       this.render();
     }
+  }
+
+  async restoreGatewaySession({ refresh = false } = {}) {
+    if (this.sessionCheckInFlight || this.preparing || this.runController?.isActive()) return;
+    this.sessionCheckInFlight = true;
+    try {
+      const saved = await this.sessionBroker.readGateway();
+      if (!saved || (!refresh && this.connectedResult) || saved.result?.status !== ProbeState.SUCCESS) return;
+      if (refresh) await this.disconnectRun();
+      this.urlValue = saved.url;
+      const result = await this.probe.restore({ url: saved.url, token: saved.bearer, previousResult: saved.result });
+      this.lastSessionCheckAt = Date.now();
+      this.connectedResult = null;
+      if (result.status === ProbeState.SUCCESS) {
+        this.connectedResult = result;
+        if (supportsCoreRun(result.capabilityNames)) {
+          this.attachRunController({ baseUrl: result.endpoint, bearer: saved.bearer, capabilities: result.capabilityNames });
+        }
+        await this.sessionBroker.saveGateway({ url: saved.url, bearer: saved.bearer, result });
+      } else if (result.failureClass === FailureClass.AUTHENTICATION) {
+        await this.sessionBroker.clearGateway();
+      }
+    } finally {
+      this.sessionCheckInFlight = false;
+    }
+  }
+
+  async verifySavedGateway() {
+    if (this.preparing || this.sessionCheckInFlight || this.snapshot.status === ProbeState.TESTING || this.runController?.isActive()) return;
+    await this.restoreGatewaySession({ refresh: true });
+    this.render();
+  }
+
+  attachRunController({ baseUrl, bearer, capabilities }) {
+    this.runController = new RunController({ baseUrl, bearer, capabilities });
+    this.runSnapshot = this.runController.snapshot;
+    this.runUnsubscribe = this.runController.subscribe((snapshot) => {
+      this.runSnapshot = snapshot;
+      this.render();
+      void this.recoveryReceiptWriter.observe(snapshot);
+    });
+  }
+
+  async forgetGateway() {
+    if (this.runController?.isActive()) return;
+    await this.disconnectRun();
+    await this.probe.abort();
+    await this.sessionBroker.clearGateway();
+    this.connectedResult = null;
+    this.snapshot = Object.freeze({ status: ProbeState.IDLE, previousResult: null });
+    this.tokenValue = "";
+    this.validationMessage = "Connection removed.";
+    this.render();
+    this.tokenInput?.focus();
   }
 
   verdictSection() {
@@ -249,12 +306,13 @@ export class HermesGatewayPanel {
       h("h2", { class: failure ? "gateway-error" : "gateway-success" }, title),
       h("p", null, explanation),
       h("dl", { class: "gateway-details" },
-        h("dt", null, "Endpoint"), h("dd", { class: "gateway-safe-endpoint" }, result.endpoint ?? "Not recorded"),
-        h("dt", null, "Relay"), h("dd", null, STAGE_LABEL[result.relayOutcome.state]),
-        h("dt", null, "Authentication"), h("dd", null, STAGE_LABEL[result.authenticationOutcome.state]),
-        h("dt", null, "Capabilities"), h("dd", null, STAGE_LABEL[result.capabilityOutcome.state]),
-        h("dt", null, "Streaming"), h("dd", null, STAGE_LABEL[result.streamOutcome.state]),
+        h("dt", null, "Gateway address"), h("dd", { class: "gateway-safe-endpoint" }, result.endpoint ?? "Not recorded"),
+        h("dt", null, "Connection"), h("dd", null, STAGE_LABEL[result.relayOutcome.state]),
+        h("dt", null, "Sign-in"), h("dd", null, STAGE_LABEL[result.authenticationOutcome.state]),
+        h("dt", null, "Controls"), h("dd", null, STAGE_LABEL[result.capabilityOutcome.state]),
+        h("dt", null, "Live updates"), h("dd", null, STAGE_LABEL[result.streamOutcome.state]),
       ),
+      !failure ? h("button", { class: "gateway-secondary", type: "button", disabled: this.runController?.isActive() ?? false, onclick: () => void this.forgetGateway() }, "Forget connection") : null,
       detailButton,
       this.detailsOpen ? h("p", { class: "gateway-diagnostic" }, result.failureClass ? `Observed result: ${result.failureClass.replace("_", " ")}. Raw request and response details are redacted.` : "No additional redacted diagnostics were recorded.") : null,
       failure ? h("button", { class: "gateway-retry", type: "button", onclick: () => this.urlInput?.focus() }, "Test connection again") : null,
@@ -265,9 +323,9 @@ export class HermesGatewayPanel {
   capabilitySummary(result) {
     if (result.capabilityOutcome.state !== "passed") {
       return h("section", { class: "gateway-capability-summary", "aria-labelledby": "capability-summary-title" },
-        h("h3", { id: "capability-summary-title", class: "gateway-capability-title" }, "Capability summary"),
-        h("p", null, "Capability discovery is Not verified."),
-        h("p", { class: "gateway-footnote" }, "Run controls require successful capability discovery."),
+        h("h3", { id: "capability-summary-title", class: "gateway-capability-title" }, "Available controls"),
+        h("p", null, "Available controls could not be checked."),
+        h("p", { class: "gateway-footnote" }, "Run controls appear after the Gateway confirms what it supports."),
       );
     }
 
@@ -275,15 +333,14 @@ export class HermesGatewayPanel {
       version: result.capabilityVersion,
       features: Object.fromEntries((result.capabilityNames ?? []).map((name) => [name, true])),
     });
-    const summaryState = summary.state === "empty" ? "No capabilities advertised" : summary.state === "partial" ? "Partially verified" : "Advertised capabilities";
+    const summaryState = summary.state === "empty" ? "No controls available" : summary.state === "partial" ? "Some controls available" : "Available controls";
     return h("section", { class: "gateway-capability-summary", "aria-labelledby": "capability-summary-title" },
-      h("h3", { id: "capability-summary-title", class: "gateway-capability-title" }, "Capability summary"),
+      h("h3", { id: "capability-summary-title", class: "gateway-capability-title" }, "Available controls"),
       h("p", { class: "gateway-capability-state" }, summaryState),
       summary.state === "empty"
-        ? h("p", null, "This Gateway did not advertise any controls for this client.")
-        : h("ul", { class: "gateway-capabilities", "aria-label": "Advertised capabilities" }, summary.names.map((name) => h("li", null, name))),
-      h("p", { class: "gateway-capability-version" }, summary.version ? `Protocol or fixture version: ${summary.version}` : "Protocol or fixture version: Not recorded"),
-      h("p", { class: "gateway-footnote" }, "Controls below are derived only from this advertised capability set."),
+        ? h("p", null, "This Gateway does not offer controls for this panel.")
+        : h("ul", { class: "gateway-capabilities", "aria-label": "Available controls" }, summary.names.map((name) => h("li", null, name))),
+      h("p", { class: "gateway-footnote" }, "Only controls confirmed by this Gateway are shown."),
     );
   }
 
@@ -294,8 +351,8 @@ export class HermesGatewayPanel {
         .filter((name) => !this.connectedResult.capabilityNames.includes(name));
       return h("section", { class: "gateway-card gateway-run", "aria-labelledby": "run-title" },
         h("h2", { id: "run-title" }, "Run control unavailable"),
-        h("p", null, "This Gateway did not advertise the complete run submission, status, and event-stream contract."),
-        h("p", { class: "gateway-footnote" }, `Missing: ${missing.join(", ")}`),
+        h("p", null, "This Gateway does not provide everything needed to start and monitor a run."),
+        h("p", { class: "gateway-footnote" }, `It needs: ${missing.join(", ")}.`),
       );
     }
     const run = this.runSnapshot;
@@ -357,7 +414,7 @@ export class HermesGatewayPanel {
     this.recoverInput = runId;
     return h("form", { class: "gateway-recovery", onsubmit: (event) => void this.recoverRun(event) },
       h("h3", null, "Recover a run"),
-      h("p", { class: "gateway-note" }, "Enter the Run ID after reconnecting with a fresh bearer token. Recovery fetches current Gateway status only; it does not replay earlier live events or approval detail."),
+      h("p", { class: "gateway-note" }, "Enter the run ID to check its current status. Earlier activity and approval requests are not shown again."),
       h("label", { for: "recover-run-id", class: "gateway-label" }, "Run ID"), runId,
       h("button", { class: "gateway-secondary", type: "submit" }, "Recover status"),
       this.runValidationMessage ? h("p", { class: "gateway-inline-error", role: "alert" }, this.runValidationMessage) : null,
