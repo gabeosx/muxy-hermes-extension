@@ -11,6 +11,7 @@ export const KANBAN_STATUSES = Object.freeze([
 
 const MAX_COLUMNS = 12;
 const MAX_TASKS_PER_COLUMN = 2_000;
+const MAX_BOARDS = 500;
 
 export function normalizeHermesDashboardUrl(value) {
   let parsed;
@@ -43,6 +44,10 @@ function safeString(value, max = 500) {
 
 function safeInteger(value) {
   return Number.isSafeInteger(value) ? value : 0;
+}
+
+function nonNegativeInteger(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
 function normalizeTask(value, fallbackStatus) {
@@ -88,6 +93,56 @@ export function normalizeBoard(payload) {
   });
 }
 
+/**
+ * Reduces Hermes's board catalog to the fields the picker needs. The server
+ * also returns implementation details (database and workspace paths), which
+ * must never leave this request boundary.
+ */
+export function normalizeBoardCatalog(payload) {
+  if (!payload || typeof payload !== "object" || !Array.isArray(payload.boards)) {
+    throw new Error("kanban_contract_mismatch");
+  }
+  const boards = [];
+  const seen = new Set();
+  for (const candidate of payload.boards.slice(0, MAX_BOARDS)) {
+    let slug;
+    try { slug = normalizeBoardSlug(candidate?.slug); } catch { continue; }
+    if (seen.has(slug)) continue;
+    const name = safeString(candidate?.name, 128)?.trim();
+    if (!name) continue;
+    seen.add(slug);
+    boards.push(Object.freeze({
+      slug,
+      name,
+      description: safeString(candidate?.description, 500)?.trim() || null,
+      total: nonNegativeInteger(candidate?.total),
+      isCurrent: candidate?.is_current === true,
+    }));
+  }
+
+  let current = null;
+  try { current = normalizeBoardSlug(payload.current); } catch { /* an untrusted current is ignored */ }
+  if (!boards.some((board) => board.slug === current)) {
+    current = boards.find((board) => board.isCurrent)?.slug ?? null;
+  }
+  if (!boards.some((board) => board.slug === current)) current = null;
+  const normalized = boards.map((board) => Object.freeze({ ...board, isCurrent: board.slug === current }));
+  return Object.freeze({ boards: Object.freeze(normalized), current });
+}
+
+/** Select without guessing a slug: saved selection, server current, then first catalog entry. */
+export function selectBoardSlug(catalog, preferred = null) {
+  const boards = Array.isArray(catalog?.boards) ? catalog.boards : [];
+  const allowed = new Set(boards.map((board) => board?.slug));
+  for (const candidate of [preferred, catalog?.current, boards[0]?.slug]) {
+    try {
+      const slug = normalizeBoardSlug(candidate);
+      if (allowed.has(slug)) return slug;
+    } catch { /* invalid preference is ignored */ }
+  }
+  return null;
+}
+
 export class KanbanClientError extends Error {
   constructor(code, status = null) {
     super(code);
@@ -110,15 +165,28 @@ function taskPath(taskId) {
 }
 
 export class KanbanClient {
-  constructor({ baseUrl, session, board }) {
+  constructor({ baseUrl, session, board = null }) {
     this.baseUrl = normalizeHermesDashboardUrl(baseUrl);
     if (!session || typeof session.requestJson !== "function") throw new Error("Sign in to the Hermes dashboard first.");
     this.session = session;
-    this.board = normalizeBoardSlug(board);
+    this.board = board == null || board === "" ? null : normalizeBoardSlug(board);
   }
 
   endpoint(path) {
+    if (!this.board) throw new Error("Choose a board first.");
     return `${this.baseUrl}/api/plugins/kanban${path}${path.includes("?") ? "&" : "?"}board=${encodeURIComponent(this.board)}`;
+  }
+
+  setBoard(board) {
+    this.board = normalizeBoardSlug(board);
+    return this.board;
+  }
+
+  async listBoards() {
+    const response = await this.session.requestJson({
+      url: `${this.baseUrl}/api/plugins/kanban/boards`,
+    });
+    return normalizeBoardCatalog(classifyResponse(response));
   }
 
   async loadBoard() {

@@ -6,8 +6,10 @@ import {
   KanbanClient,
   KanbanClientError,
   normalizeBoard,
+  normalizeBoardCatalog,
   normalizeBoardSlug,
   normalizeHermesDashboardUrl,
+  selectBoardSlug,
 } from "../src/kanban-client.js";
 
 test("dashboard URLs support secure remote and loopback tunnel shapes without paths", () => {
@@ -68,6 +70,55 @@ test("board normalization keeps UI fields and drops paths, bodies, tokens, and u
   assert.equal(normalized.columns.length, 1);
 });
 
+test("board catalog keeps only safe picker fields and selects deterministically", () => {
+  const catalog = normalizeBoardCatalog({
+    current: "beta",
+    boards: [
+      { slug: "alpha", name: "Alpha", description: "First board", total: 3, db_path: "/private/a", project_id: "secret-a" },
+      { slug: "beta", name: "Beta", description: "Current board", total: 1, is_current: true, default_workdir: "/private/b" },
+      { slug: "beta", name: "Duplicate", total: 99 },
+      { slug: "../unsafe", name: "Unsafe", total: 7 },
+      { slug: "missing-name", total: 2 },
+    ],
+  });
+  assert.deepEqual(catalog, {
+    current: "beta",
+    boards: [
+      { slug: "alpha", name: "Alpha", description: "First board", total: 3, isCurrent: false },
+      { slug: "beta", name: "Beta", description: "Current board", total: 1, isCurrent: true },
+    ],
+  });
+  assert.equal(JSON.stringify(catalog).includes("/private"), false);
+  assert.equal(JSON.stringify(catalog).includes("secret-a"), false);
+  assert.equal(selectBoardSlug(catalog, "alpha"), "alpha");
+  assert.equal(selectBoardSlug(catalog, "not-in-catalog"), "beta");
+  assert.equal(selectBoardSlug({ boards: catalog.boards, current: null }), "alpha");
+  assert.equal(selectBoardSlug({ boards: [], current: "invented" }), null);
+});
+
+test("catalog uses an authenticated unscoped endpoint before a board is selected", async () => {
+  const calls = [];
+  const client = new KanbanClient({
+    baseUrl: "https://hermes.example",
+    session: {
+      async requestJson(request) {
+        calls.push(request);
+        return request.url.endsWith("/boards")
+          ? { status: 200, body: { boards: [{ slug: "alpha", name: "Alpha", total: 0 }], current: "alpha" } }
+          : { status: 200, body: { columns: KANBAN_STATUSES.map((name) => ({ name, tasks: [] })) } };
+      },
+    },
+  });
+  const catalog = await client.listBoards();
+  assert.equal(calls[0].url, "https://hermes.example/api/plugins/kanban/boards");
+  assert.equal(calls[0].url.includes("?board="), false);
+  assert.equal(catalog.current, "alpha");
+  await assert.rejects(client.loadBoard(), /Choose a board first/);
+  client.setBoard("alpha");
+  await client.loadBoard();
+  assert.equal(calls[1].url, "https://hermes.example/api/plugins/kanban/board?board=alpha");
+});
+
 test("Kanban client uses the verified dashboard session and keeps cookies out of URLs and bodies", async () => {
   const calls = [];
   const session = {
@@ -103,4 +154,16 @@ test("Kanban client distinguishes authentication, unavailable plugin, and generi
     });
     await assert.rejects(client.loadBoard(), (error) => error instanceof KanbanClientError && error.code === code && error.status === status);
   }
+});
+
+test("catalog retains board request failure classifications", async () => {
+  for (const [status, code] of [[401, "dashboard_authentication_failed"], [404, "kanban_not_available"], [500, "kanban_request_failed"]]) {
+    const client = new KanbanClient({
+      baseUrl: "https://hermes.example",
+      session: { async requestJson() { return { status, body: null }; } },
+    });
+    await assert.rejects(client.listBoards(), (error) => error instanceof KanbanClientError && error.code === code && error.status === status);
+  }
+  const malformed = new KanbanClient({ baseUrl: "https://hermes.example", session: { async requestJson() { return { status: 200, body: {} }; } } });
+  await assert.rejects(malformed.listBoards(), /kanban_contract_mismatch/);
 });

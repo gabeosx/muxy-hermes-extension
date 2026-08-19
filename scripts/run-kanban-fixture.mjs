@@ -90,6 +90,16 @@ export async function startKanbanFixture({ sessionTtlMs = 60_000 } = {}) {
   if (!Number.isSafeInteger(sessionTtlMs) || sessionTtlMs < 1 || sessionTtlMs > 60 * 60 * 1000) throw new Error("kanban_fixture_invalid_session_ttl");
   const seed = JSON.parse(await readFile(SEED_URL, "utf8"));
   const board = safeClone(seed);
+  const catalog = [{
+    slug: KANBAN_FIXTURE_BOARD,
+    name: "Muxy test board",
+    description: "A deterministic board for the extension fixture",
+    is_current: true,
+    total: board.columns.reduce((count, column) => count + column.tasks.length, 0),
+    db_path: "/fixture/private/kanban.sqlite",
+    default_workdir: "/fixture/private/workspace",
+    project_id: "fixture-internal-project",
+  }];
   let sequence = 0;
   const sessions = new Map();
   const observations = { loginAttempts: 0, authenticatedRequests: 0, created: 0, moved: 0, loggedOut: 0 };
@@ -145,6 +155,10 @@ export async function startKanbanFixture({ sessionTtlMs = 60_000 } = {}) {
         observations.loggedOut += 1;
         response.writeHead(302, { Location: "/login", "Cache-Control": "no-store", "Set-Cookie": clearedSessionCookies(), Connection: "close" });
         response.end();
+        return;
+      }
+      if (request.method === "GET" && url.pathname === `${API_ROOT}/boards`) {
+        sendJson(response, 200, { boards: safeClone(catalog), current: KANBAN_FIXTURE_BOARD });
         return;
       }
       if (!validBoardRequest(url)) {

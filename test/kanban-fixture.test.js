@@ -47,6 +47,13 @@ test("Kanban fixture is loopback-only, password-session authenticated, seeded, a
     assert.match(cookie, /hermes_session_rt=/);
     assert.equal((await request(fixture, "/api/auth/me", { cookie })).status, 200);
 
+    const catalogResponse = await request(fixture, "/api/plugins/kanban/boards", { cookie });
+    assert.equal(catalogResponse.status, 200);
+    const catalog = await catalogResponse.json();
+    assert.equal(catalog.current, KANBAN_FIXTURE_BOARD);
+    assert.equal(catalog.boards[0].slug, KANBAN_FIXTURE_BOARD);
+    assert.equal(catalog.boards[0].is_current, true);
+
     const initial = await request(fixture, boardPath, { cookie });
     assert.equal(initial.status, 200);
     const initialBoard = await initial.json();
@@ -73,7 +80,7 @@ test("Kanban fixture is loopback-only, password-session authenticated, seeded, a
 
     const finalBoard = await (await request(fixture, boardPath, { cookie })).json();
     assert.equal(finalBoard.columns.find((column) => column.name === "ready").tasks.some((task) => task.id === createdTask.id), true);
-    assert.deepEqual(fixture.observation(), { loginAttempts: 2, authenticatedRequests: 5, created: 1, moved: 1, loggedOut: 0 });
+    assert.deepEqual(fixture.observation(), { loginAttempts: 2, authenticatedRequests: 6, created: 1, moved: 1, loggedOut: 0 });
   } finally {
     await fixture.close();
   }
