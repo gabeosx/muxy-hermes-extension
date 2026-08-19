@@ -51,10 +51,6 @@ function safeVersion(version) {
   return typeof version === "string" && version.length > 0 && version.length <= 128 ? version : null;
 }
 
-function missingFile(error) {
-  return error?.code === "ENOENT" || /(?:ENOENT|not found|does not exist)/i.test(error?.message ?? "");
-}
-
 function sameKeys(value, expected) {
   return value && typeof value === "object" && !Array.isArray(value)
     && Object.keys(value).sort().join("\0") === [...expected].sort().join("\0");
@@ -227,17 +223,17 @@ export class ConnectionProbe {
   }
 
   async #writeReceipt(observation, verdict, sessionOrdinal) {
-    if (!this.#files?.read || !this.#files?.write || !receiptEligible(verdict, observation)) return;
+    if (!this.#files?.read || !this.#files?.list || !this.#files?.write) return;
+    if (!receiptEligible(verdict, observation)) return;
     let challengeFile;
     try { challengeFile = await this.#files.read(CHALLENGE_PATH); } catch { return; }
     const challenge = parseChallenge(challengeFile?.content, this.#now());
     if (!challenge || challenge.expectedOrdinal !== sessionOrdinal || this.#usedNonces.has(challenge.nonce)) return;
+    let entries;
     try {
-      await this.#files.read(RECEIPT_PATH);
-      return;
-    } catch (error) {
-      if (!missingFile(error)) return;
-    }
+      entries = await this.#files.list(QUALIFICATION_ROOT);
+    } catch { return; }
+    if (!Array.isArray(entries) || entries.some((entry) => entry?.path === RECEIPT_PATH)) return;
     const outcomes = {
       relay: verdict.relayOutcome.state,
       authentication: verdict.authenticationOutcome.state,
@@ -253,7 +249,6 @@ export class ConnectionProbe {
     };
     const receipt = {
       version: 1,
-      createdAt: this.#now(),
       sessionOrdinal,
       panelDigest: await sha256(this.#panelInstanceId),
       challengeDigest: await sha256(challenge.nonce),

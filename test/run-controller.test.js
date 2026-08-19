@@ -170,6 +170,40 @@ test("an unavailable status immediately ends automatic recovery and manual refre
   assert.equal(statusCalls, 2);
 });
 
+test("an interrupted observer retries one transient relay handoff before restoring observation", async () => {
+  const stream = deferred();
+  const restored = deferred();
+  const delays = [];
+  let statusCalls = 0;
+  let observeCalls = 0;
+  const client = {
+    async start() { return { runId: "run_abc12345", stream: stream.promise }; },
+    async status() {
+      statusCalls += 1;
+      if (statusCalls === 1) throw new Error("relay_request_failed");
+      return { runId: "run_abc12345", status: "running", output: "" };
+    },
+    observe() { observeCalls += 1; return restored.promise; },
+    async teardown() {},
+  };
+  const controller = new RunController({
+    baseUrl: "http://127.0.0.1:8642", bearer: "secret", capabilities: core, client,
+    recoveryDelays: [11], sleep: async (delay) => { delays.push(delay); },
+  });
+
+  await controller.start("work");
+  stream.resolve({});
+  await flushAsyncWork();
+
+  assert.equal(statusCalls, 2);
+  assert.equal(observeCalls, 1);
+  assert.deepEqual(delays, [250, 11]);
+  assert.equal(controller.snapshot.status, "running");
+  assert.equal(controller.snapshot.streamState, "reconnecting");
+  await controller.release();
+  restored.resolve({});
+});
+
 test("recreated-panel recover is status-only and clears untrusted live detail", async () => {
   const calls = [];
   const client = {

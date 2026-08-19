@@ -3,6 +3,7 @@ import { isSafeRunId } from "./run-events.js";
 
 const MAX_ASSISTANT_CHARS = 128 * 1024;
 const MAX_ACTIVITY_ITEMS = 100;
+const STATUS_RELAY_RETRY_DELAY_MS = 250;
 const ACTIVE = new Set(["starting", "queued", "started", "running", "waiting_for_approval", "stopping", "reconciling", "status_unavailable"]);
 const REPLAY_LIMIT_NOTICE = "Live events may be missing or duplicated after an interruption. Earlier approval detail is unavailable.";
 
@@ -130,7 +131,7 @@ export class RunController {
     });
   }
 
-  async reconcile({ preserveStopping = false, generation = this.#generation, interruption = false, detached = false } = {}) {
+  async reconcile({ preserveStopping = false, generation = this.#generation, interruption = false, detached = false, transportRetry = true } = {}) {
     const runId = this.#snapshot.runId;
     if (!runId || generation !== this.#generation) return "unavailable";
     try {
@@ -146,8 +147,13 @@ export class RunController {
         recovery: interruption ? { ...this.#snapshot.recovery, interruptionSeen: true, lifecycle: detached ? "recreated_panel" : this.#snapshot.recovery.lifecycle, statusReconciled: true, statusClass: terminal ? "terminal" : "active" } : this.#snapshot.recovery,
       });
       return terminal ? "terminal" : "active";
-    } catch {
+    } catch (error) {
       if (generation !== this.#generation) return "unavailable";
+      if (interruption && transportRetry && error?.message === "relay_request_failed") {
+        await this.#sleep(STATUS_RELAY_RETRY_DELAY_MS);
+        if (generation !== this.#generation) return "unavailable";
+        return this.reconcile({ preserveStopping, generation, interruption, detached, transportRetry: false });
+      }
       if (interruption) {
         this.#publish({ status: "status_unavailable", streamState: "disconnected", pendingApproval: null, error: "Gateway status could not be confirmed.", manualRefresh: true, recoveryNotice: this.#snapshot.recoveryNotice || REPLAY_LIMIT_NOTICE, recovery: { ...this.#snapshot.recovery, interruptionSeen: true, statusReconciled: false, statusClass: "unavailable" } });
       } else this.#publish({ error: "The Gateway status could not be reconciled." });

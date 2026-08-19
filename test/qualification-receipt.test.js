@@ -13,17 +13,23 @@ const challenge = {
 
 function filesWithChallenge(value = challenge) {
   const files = new Map([[`${ROOT}/challenge.json`, JSON.stringify(value)]]);
+  const reads = [];
   return {
     files,
+    reads,
     bridge: {
       async read(path) {
+        reads.push(path);
         if (!files.has(path)) {
-          const error = new Error("ENOENT");
-          error.code = "ENOENT";
-          throw error;
+          throw new Error("The file could not be read because it is missing.");
         }
         const content = files.get(path);
         return { content, size: content.length };
+      },
+      async list(path) {
+        return [...files.keys()]
+          .filter((filePath) => filePath.startsWith(`${path}/`))
+          .map((filePath) => ({ name: filePath.slice(path.length + 1), path: filePath, isDirectory: false, isIgnored: true }));
       },
       async write(path, content) { files.set(path, content); },
     },
@@ -56,7 +62,7 @@ function clientFor(result) {
 }
 
 test("a valid verifier challenge yields exactly one redacted receipt after a terminal cleaned relay session", async () => {
-  const { files, bridge } = filesWithChallenge();
+  const { files, reads, bridge } = filesWithChallenge();
   const probe = new ConnectionProbe({
     client: clientFor(passedResult()), files: bridge, randomId: () => "panel-instance-42",
     now: () => "2026-08-17T23:00:00.000Z",
@@ -64,7 +70,7 @@ test("a valid verifier challenge yields exactly one redacted receipt after a ter
 
   await probe.start({ url: "https://gateway.example", token: "bearer-secret-value" });
   const receipt = JSON.parse(files.get(`${ROOT}/panel-session.json`));
-  assert.deepEqual(Object.keys(receipt).sort(), ["challengeDigest", "createdAt", "outcomes", "panelDigest", "sessionOrdinal", "version"]);
+  assert.deepEqual(Object.keys(receipt).sort(), ["challengeDigest", "outcomes", "panelDigest", "sessionOrdinal", "version"]);
   assert.equal(receipt.version, 1);
   assert.equal(receipt.sessionOrdinal, 1);
   assert.equal(receipt.outcomes.relay, "passed");
@@ -80,6 +86,7 @@ test("a valid verifier challenge yields exactly one redacted receipt after a ter
     "bearer-secret-value", "gateway.example", "raw-exec-identity", "stream.sse", "HERMES_STREAM_QUALIFICATION_V1",
     "workspace", "origin", "cors", "docker", "ssh", "Authorization", "prompt", "output", "tool",
   ]) assert.equal(serialized.toLowerCase().includes(forbidden.toLowerCase()), false, forbidden);
+  assert.equal(reads.includes(`${ROOT}/panel-session.json`), false, "Muxy receipt collision checks use directory listing, not missing-file error parsing");
 
   await probe.start({ url: "https://gateway.example", token: "bearer-secret-value" });
   assert.equal(files.size, 2, "a single panel may not emit a second receipt");

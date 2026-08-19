@@ -3,17 +3,13 @@ const CHALLENGE_PATH = `${QUALIFICATION_ROOT}/recovery-challenge.json`;
 const RECEIPT_PATH = `${QUALIFICATION_ROOT}/recovery-panel-session.json`;
 const CONDITIONS = new Set(["host_native_loopback", "docker_published_loopback"]);
 const LIFECYCLES = new Set(["same_panel", "recreated_panel"]);
-const STATUS_CLASSES = new Set(["active", "terminal"]);
+const STATUS_CLASSES = new Set(["terminal"]);
 const SIGNATURES = new Set(["refused_or_unreachable", "observer_interrupted", "observer_restored", "buffered_or_delayed", "panel_recreated"]);
 const CHALLENGE_KEYS = ["expectedCondition", "expectedLifecycle", "expectedSignatures", "expiresAt", "nonce", "version"];
 
 function exact(value, keys) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
     && Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
-}
-
-function missing(error) {
-  return error?.code === "ENOENT" || /(?:ENOENT|not found|does not exist)/i.test(error?.message ?? "");
 }
 
 function signatures(value) {
@@ -71,19 +67,16 @@ export class RecoveryReceiptWriter {
   }
 
   async observe(snapshot) {
-    if (this.#used || !this.#files?.read || !this.#files?.write || typeof this.#panelInstanceId !== "string" || this.#panelInstanceId.length < 1) return false;
+    if (this.#used || !this.#files?.read || !this.#files?.list || !this.#files?.write || typeof this.#panelInstanceId !== "string" || this.#panelInstanceId.length < 1) return false;
     let source;
     try { source = await this.#files.read(CHALLENGE_PATH); } catch { return false; }
     const challenge = parseChallenge(source?.content, this.#now());
     if (!challenge) return false;
     const safe = eligible(snapshot, challenge);
     if (!safe) return false;
-    try {
-      await this.#files.read(RECEIPT_PATH);
-      return false;
-    } catch (error) {
-      if (!missing(error)) return false;
-    }
+    let entries;
+    try { entries = await this.#files.list(QUALIFICATION_ROOT); } catch { return false; }
+    if (!Array.isArray(entries) || entries.some((entry) => entry?.path === RECEIPT_PATH)) return false;
     const challengeDigest = await digest(challenge.nonce);
     const panelDigest = await digest(this.#panelInstanceId);
     const receipt = Object.freeze({
@@ -108,4 +101,3 @@ export class RecoveryReceiptWriter {
     }
   }
 }
-
