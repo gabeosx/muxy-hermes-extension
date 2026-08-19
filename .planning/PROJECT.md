@@ -12,20 +12,19 @@ Prove secure, authenticated, streamed Hermes run control across representative H
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] The same URL/token client contract remains topology-neutral across observed host-native and Docker fixtures plus executable SSH-forward, direct-HTTPS, and remote-workspace analogues. Validated in Phase 3: Open-Panel Recovery Proof.
+- [x] A user can close and reopen the panel, re-enter credentials and a manual Run ID, and recover authoritative status/final output with missed event and approval detail explicitly unavailable. Validated in Phase 3: Open-Panel Recovery Proof.
+- [x] A strict versioned fixture reports observed host/Docker evidence and intentionally Unverified remote analogues using digest-only receipt and cleanup provenance. Validated in Phase 3: Open-Panel Recovery Proof.
 
 ### Active
 
 - [ ] A publish-valid npm/Vite Muxy extension can be built and loaded unpacked.
 - [ ] A user can provide one development Gateway URL and bearer token at panel load without the token being embedded or persisted.
-- [ ] The same URL/token client contract works without topology-specific branches for host-native, Docker-published, SSH-forwarded, and direct HTTPS Gateways; a remote Muxy workspace changes only workspace identity, not transport.
 - [ ] The panel can prove authenticated Hermes connectivity through one explicitly consented argv-form curl relay without placing the bearer in argv, URLs, files, storage, diagnostics, or audit output.
 - [ ] Connection diagnostics distinguish malformed URL, relay denial/unavailability, reachability, DNS, TLS, authentication, timeout, stream interruption, journal limits, and protocol failures using observed facts without claiming to detect or manage a deployment.
 - [ ] The panel discovers `/v1/capabilities` and exposes only run controls advertised by the connected Gateway.
 - [ ] A user can start a run and observe streamed token, tool, approval, and terminal lifecycle events emitted by the pinned Gateway.
 - [ ] A user can answer an approval and can steer or stop the run when those capabilities are advertised.
-- [ ] A user can close and reopen the panel during an active run, re-enter the token, and receive status/final-output reconciliation plus an explicit warning that missed SSE and approval details are not recoverable.
-- [ ] The proof captures versioned Muxy/Hermes protocol fixtures and produces an explicit supported, unsupported, or unverified verdict for host-native, local Docker, SSH local-forward, direct remote HTTPS, and remote-workspace cases.
 - [ ] The panel follows Muxy's native theme, sizing, focus, reduced-motion, and least-privilege conventions.
 
 ### Out of Scope
@@ -67,8 +66,8 @@ The direct authenticated panel-streaming experiment has produced its negative re
 |----------|-----------|---------|
 | Use a consented curl relay after the direct WebKit negative result | Current Muxy cannot deliver the required local authenticated SSE directly; one audited stream plus file events is the feasible extension-only seam | 2026-08-17 |
 | Use one runtime-supplied development connection | Profile management does not reduce transport risk and can wait | — Pending |
-| Validate representative deployment classes in v1 | A deployment-neutral architecture is only credible if loopback, container-published, tunneled, HTTPS, and remote-workspace conditions are exercised | — Pending |
-| Diagnose observed transport facts, never deployment labels | URLs cannot reliably identify topology and the extension does not own Docker, SSH, DNS, certificates, or Gateway lifecycle | — Pending |
+| Validate representative deployment classes in v1 | A deployment-neutral architecture is only credible if loopback, container-published, tunneled, HTTPS, and remote-workspace conditions are exercised | 2026-08-18 — host/Docker observed; remote analogues executed and retained as Unverified |
+| Diagnose observed transport facts, never deployment labels | URLs cannot reliably identify topology and the extension does not own Docker, SSH, DNS, certificates, or Gateway lifecycle | 2026-08-18 — verified through structural signatures and forced-Unverified analogue rows |
 | Keep the bearer token only in transient panel/exec-stdin memory | Muxy has no extension keychain/secret setting; stdin is omitted from Muxy's consent/audit summary while argv is recorded | 2026-08-17 |
 | Limit rich run ownership to the open panel | The background runtime cannot read the workspace journal and panels are recreated across project lifecycle events | 2026-08-17 |
 | Keep rich stream ownership panel-local | Muxy background cannot read the journal; closed-panel rich alerts and replay remain deferred | 2026-08-17 |
@@ -93,4 +92,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-16 after initialization*
+*Last updated: 2026-08-18 after Phase 3 completion*
