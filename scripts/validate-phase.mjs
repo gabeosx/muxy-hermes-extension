@@ -103,7 +103,6 @@ async function validateBoundary() {
     join(root, "src", "kanban-client.js"),
     join(root, "src", "board", "app.js"),
     join(root, "src", "session-broker.js"),
-    join(root, "src", "background.js"),
   ];
   for (const file of productionSources) {
     const source = await readFile(file, "utf8");
@@ -114,11 +113,9 @@ async function validateBoundary() {
   for (const requiredGate of ["supportsCoreRun", "RUN_FEATURES.approval", "RUN_FEATURES.stop", "RUN_FEATURES.steer"]) {
     assert.match(panel, new RegExp(requiredGate.replace(".", "\\.")), `panel is missing advertised capability gate ${requiredGate}`);
   }
-  const background = await readFile(join(root, "src", "background.js"), "utf8");
-  assert.match(background, /installSessionBroker\(\)/, "background must install the persistent session broker");
-  assert.doesNotMatch(background, /(?:muxy\.(?:exec|files|http|git)|localStorage|sessionStorage)/, "background must not gain process, file, or browser-storage authority");
   const broker = await readFile(join(root, "src", "session-broker.js"), "utf8");
   assert.match(broker, /globalThis\.muxy\?\.storage/, "session broker must use Muxy's extension-scoped store");
+  assert.match(broker, /globalThis\.window\?\.muxy\?\.storage/, "session broker must use webview extension storage directly");
   assert.doesNotMatch(broker, /(?:localStorage|sessionStorage)/, "session broker must not use browser storage");
 }
 

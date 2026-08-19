@@ -9,7 +9,7 @@ const root = resolve(import.meta.dirname, "..");
 const dist = resolve(root, "dist");
 const publicDir = resolve(root, "public");
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const allowedManifestKeys = new Set(["$schema", "background", "description", "commands", "events", "panels", "permissions", "tabTypes"]);
+const allowedManifestKeys = new Set(["$schema", "description", "commands", "events", "panels", "permissions", "tabTypes"]);
 const allowedPanelKeys = new Set(["entry", "icon", "id", "mode", "position", "title"]);
 const allowedTabTypeKeys = new Set(["entry", "id", "title"]);
 const allowedCommandKeys = new Set(["id", "title", "action"]);
@@ -73,14 +73,13 @@ function assertManifestShape(manifest, label) {
     { id: "toggle-hermes-gateway", title: "Hermes: Toggle Gateway Panel", action: { kind: "togglePanel", panel: panel.id } },
     { id: "open-hermes-project-board", title: "Hermes: Open Project Board", action: { kind: "openTab", tabType: tabType.id } },
   ], `${label} commands must open only the declared Hermes surfaces`);
-  assert.equal(manifest.muxy.background, "background.js", `${label} must use the session-only background entry`);
   assert.deepEqual(manifest.muxy.events, ["file.changed"], `${label} must subscribe only to journal changes`);
   assert.deepEqual(
     manifest.muxy.permissions,
     ["commands:exec", "files:read", "files:write", "panels:write", "storage:read", "storage:write", "tabs:write"],
     `${label} must request only the approved relay, journal, panel, extension-storage, and board-tab permissions`,
   );
-  return [panel.entry, tabType.entry, manifest.muxy.background];
+  return [panel.entry, tabType.entry];
 }
 
 function assetReferences(html) {
@@ -107,8 +106,8 @@ async function validateCurrentBuild() {
     for (const asset of references) {
       if (!asset.startsWith(".")) continue;
       const assetPath = resolve(modulePath, "..", asset);
-      assert.ok(insideDist(assetPath), `background module asset escapes dist: ${asset}`);
-      assert.ok((await stat(assetPath)).isFile(), `background module asset is missing: ${asset}`);
+      assert.ok(insideDist(assetPath), `module asset escapes dist: ${asset}`);
+      assert.ok((await stat(assetPath)).isFile(), `module asset is missing: ${asset}`);
       await collectModule(assetPath);
     }
   };

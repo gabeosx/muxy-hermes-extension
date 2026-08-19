@@ -103,7 +103,7 @@ test("the board auth boundary has no pasted token or Gateway-key confusion and p
   assert.match(relay, /buildSessionConfig/);
   assert.match(broker, /globalThis\.muxy\?\.storage/);
   assert.doesNotMatch(broker, /localStorage|sessionStorage/i);
-  assert.match(manifest, /"background"\s*:\s*"background\.js"/);
+  assert.doesNotMatch(manifest, /"background"\s*:/);
   assert.match(manifest, /"storage:read"/);
   assert.match(manifest, /"storage:write"/);
 });

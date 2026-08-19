@@ -1,13 +1,9 @@
-const REQUEST_EVENT = "extension.hermes.session.request";
-const RESPONSE_EVENT = "extension.hermes.session.response";
 const GATEWAY_STORAGE_KEY = "session.gateway.v1";
 const DASHBOARD_STORAGE_KEY = "session.dashboard.v1";
 const TOKEN = /^[A-Za-z0-9._~+/=-]{1,4096}$/;
 const COOKIE_NAME = /^(?:__Secure-)?hermes_session_(?:at|rt)$/;
 const COOKIE_VALUE = /^[A-Za-z0-9._~+/%=-]{1,4096}$/;
 const PROVIDER = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-
-export const SESSION_EVENTS = Object.freeze({ request: REQUEST_EVENT, response: RESPONSE_EVENT });
 
 function safeText(value, max = 256) {
   return typeof value === "string" ? value.slice(0, max) : "";
@@ -153,21 +149,9 @@ export class PersistentSessionBroker {
   }
 }
 
-export function installSessionBroker({ events = globalThis.muxy?.events, broker = new PersistentSessionBroker() } = {}) {
-  if (!events?.subscribe || !events?.emit) return null;
-  events.subscribe(REQUEST_EVENT, (request) => {
-    const requestId = typeof request?.requestId === "string" ? request.requestId : "";
-    void Promise.resolve(broker.handle(request))
-      .catch(() => ({ requestId, ok: false, data: null }))
-      .then((response) => events.emit(RESPONSE_EVENT, response));
-  });
-  return broker;
-}
-
 export class SessionBrokerClient {
-  constructor({ events = globalThis.window?.muxy?.events ?? globalThis.muxy?.events, timeoutMs = 1_500, randomId = () => globalThis.crypto.randomUUID() } = {}) {
-    this.events = events;
-    this.timeoutMs = timeoutMs;
+  constructor({ storage = globalThis.window?.muxy?.storage ?? globalThis.muxy?.storage, broker, randomId = () => globalThis.crypto.randomUUID() } = {}) {
+    this.broker = broker ?? new PersistentSessionBroker({ storage });
     this.randomId = randomId;
   }
 
@@ -179,28 +163,9 @@ export class SessionBrokerClient {
   async clearDashboard() { return this.#request("dashboard.clear"); }
 
   #request(action, data = null) {
-    if (!this.events?.subscribe || !this.events?.emit) return Promise.resolve(null);
     const requestId = this.randomId();
-    return new Promise((resolve) => {
-      let settled = false;
-      let unsubscribe = null;
-      const finish = (value) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        try { unsubscribe?.(); } catch { /* Muxy may already have removed the listener. */ }
-        resolve(value);
-      };
-      const timeout = setTimeout(() => finish(null), this.timeoutMs);
-      try {
-        unsubscribe = this.events.subscribe(RESPONSE_EVENT, (response) => {
-          if (response?.requestId !== requestId) return;
-          finish(response.ok === true ? clone(response.data) : null);
-        });
-        Promise.resolve(this.events.emit(REQUEST_EVENT, { requestId, action, data })).catch(() => finish(null));
-      } catch {
-        finish(null);
-      }
-    });
+    return Promise.resolve(this.broker.handle({ requestId, action, data }))
+      .then((response) => response?.requestId === requestId && response.ok === true ? clone(response.data) : null)
+      .catch(() => null);
   }
 }

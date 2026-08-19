@@ -56,36 +56,26 @@ test("session config keeps cookies and credential bodies in stdin and rejects he
   }
 });
 
-test("requestSessionJson returns allowlisted Hermes cookies and scrubs response artifacts", async () => {
+test("requestSessionJson reads headers and JSON from stdout without temporary response files", async () => {
   const calls = [];
-  const operations = [];
-  const files = new Map();
   const relay = new CurlRelay({
     exec: async (argv, options) => {
       calls.push({ argv, options });
-      const headerPath = argv[argv.indexOf("--dump-header") + 1];
-      const bodyPath = argv[argv.indexOf("--output") + 1];
-      files.set(headerPath, [
+      return { stdout: [
         "HTTP/1.1 200 OK",
         "Set-Cookie: hermes_session_at=access.jwt; HttpOnly; SameSite=Lax",
         "Set-Cookie: hermes_session_rt=refresh-token; HttpOnly; SameSite=Lax",
         "Set-Cookie: unrelated=ignored; HttpOnly",
         "",
-        "",
-      ].join("\r\n"));
-      files.set(bodyPath, JSON.stringify({ ok: true }));
-      return { stdout: "\n__MUXY_HERMES_STATUS__:200", stderr: "", exitCode: 0, timedOut: false, truncated: false };
+        JSON.stringify({ ok: true }),
+        "__MUXY_HERMES_STATUS__:200",
+      ].join("\r\n"), stderr: "", exitCode: 0, timedOut: false, truncated: false };
     },
     files: {
-      async read(path) {
-        const content = files.get(path);
-        if (content === undefined) throw new Error("missing");
-        return { path, content, size: new TextEncoder().encode(content).byteLength };
-      },
-      async write(path, content) { operations.push({ type: "write", path, content }); files.set(path, content); },
-      async delete(paths) { operations.push({ type: "delete", paths }); for (const path of [...files.keys()]) if (paths.some((root) => path.startsWith(root))) files.delete(path); },
+      async read() { throw new Error("session relay must not read response files"); },
+      async write() { throw new Error("session relay must not write response files"); },
+      async delete() { throw new Error("session relay must not delete response files"); },
     },
-    randomId: () => "session-fixed-id",
   });
 
   const response = await relay.requestSessionJson({
@@ -102,24 +92,20 @@ test("requestSessionJson returns allowlisted Hermes cookies and scrubs response 
   ]);
   assert.equal(JSON.stringify(calls[0].argv).includes("sentinel-password"), false);
   assert.equal(calls[0].options.stdin.includes("sentinel-password"), true);
-  assert.equal(operations.filter((entry) => entry.type === "write" && entry.content === "").length, 2);
-  assert.equal(operations.at(-1).type, "delete");
+  assert.equal(calls[0].argv.includes("--create-dirs"), false);
+  assert.deepEqual(calls[0].argv.slice(calls[0].argv.indexOf("--dump-header"), calls[0].argv.indexOf("--dump-header") + 4), ["--dump-header", "-", "--output", "-"]);
 });
 
-test("requestSessionJson scrubs artifacts when curl or response parsing fails", async () => {
-  const operations = [];
+test("requestSessionJson rejects malformed response output without touching files", async () => {
   const relay = new CurlRelay({
     exec: async () => ({ stdout: "", stderr: "failed", exitCode: 7, timedOut: false, truncated: false }),
     files: {
       async read() { throw new Error("missing"); },
-      async write(path, content) { operations.push({ type: "write", path, content }); },
-      async delete(paths) { operations.push({ type: "delete", paths }); },
+      async write() { throw new Error("must not clean up files"); },
+      async delete() { throw new Error("must not clean up files"); },
     },
-    randomId: () => "session-failed-id",
   });
   await assert.rejects(relay.requestSessionJson({ url: "https://hermes.example/api/auth/me" }), /relay_protocol_error|relay_request_failed/);
-  assert.equal(operations.filter((entry) => entry.type === "write" && entry.content === "").length, 2);
-  assert.equal(operations.at(-1).type, "delete");
 });
 
 test("streamJournal consumes file.changed through muxy.files without exec polling, then scrubs before removal", async () => {

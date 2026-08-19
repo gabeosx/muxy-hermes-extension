@@ -98,6 +98,49 @@ function parseSessionStatus(result) {
   return Number(match[1]);
 }
 
+function byteLength(value) {
+  return new TextEncoder().encode(String(value ?? "")).byteLength;
+}
+
+/**
+ * Curl writes the final response headers before the response body when both
+ * `--dump-header -` and `--output -` are used. There may be informational
+ * (1xx) header blocks before the final response, so keep consuming blocks
+ * until the actual response header is found.
+ */
+function splitSessionResponse(raw) {
+  let remaining = String(raw ?? "");
+  for (let block = 0; block < 8; block += 1) {
+    const separator = remaining.indexOf("\r\n\r\n") >= 0 ? "\r\n\r\n" : "\n\n";
+    const separatorIndex = remaining.indexOf(separator);
+    if (separatorIndex < 0) throw relayError("relay_protocol_error");
+    const headers = remaining.slice(0, separatorIndex);
+    const status = headers.match(/^HTTP\/\d(?:\.\d)?\s+(\d{3})(?:\s|$)/i);
+    if (!status) throw relayError("relay_protocol_error");
+    remaining = remaining.slice(separatorIndex + separator.length);
+    if (Number(status[1]) >= 200) return { headers, body: remaining };
+  }
+  throw relayError("relay_protocol_error");
+}
+
+function parseSessionOutput(result) {
+  const status = parseSessionStatus(result);
+  const stdout = typeof result.stdout === "string" ? result.stdout : "";
+  const markerIndex = stdout.lastIndexOf(`\n${STATUS_MARKER}`);
+  if (markerIndex < 0) throw relayError("relay_protocol_error");
+  const rawResponse = stdout.slice(0, markerIndex);
+  if (byteLength(rawResponse) > MAX_SESSION_RESPONSE_BYTES) throw relayError("relay_response_too_large");
+  const { headers, body } = splitSessionResponse(rawResponse);
+  if (byteLength(headers) > MAX_SESSION_RESPONSE_BYTES || byteLength(body) > MAX_SESSION_RESPONSE_BYTES) {
+    throw relayError("relay_response_too_large");
+  }
+  let responseBody = null;
+  if (body.trim()) {
+    try { responseBody = JSON.parse(body); } catch { throw relayError("relay_protocol_error"); }
+  }
+  return Object.freeze({ status, body: responseBody, setCookies: parseSessionCookies(headers) });
+}
+
 function parseSessionCookies(rawHeaders) {
   const cookies = [];
   for (const line of String(rawHeaders ?? "").split(/\r?\n/)) {
@@ -210,47 +253,18 @@ export class CurlRelay {
   }
 
   async requestSessionJson({ url, cookie = "", method = "GET", body = null, timeoutMs = 15_000 }) {
-    if (!this.files?.read || !this.files?.write || !this.files?.delete) throw relayError("session_api_unavailable");
-    const requestId = this.randomId();
-    if (!/^[A-Za-z0-9-]{8,64}$/.test(requestId)) throw relayError("session_request_id_invalid");
-    const responseDirectory = `${RUNTIME_ROOT}/${requestId}`;
-    const headerPath = `${responseDirectory}/headers.txt`;
-    const bodyPath = `${responseDirectory}/body.json`;
     const timeoutSeconds = Math.max(1, Math.ceil(timeoutMs / 1000));
     const argv = commonArgv({ url, method, accept: "application/json", timeoutSeconds });
     argv.splice(argv.length - 1, 0,
-      "--create-dirs",
-      "--dump-header", headerPath,
-      "--output", bodyPath,
+      "--dump-header", "-",
+      "--output", "-",
       "--write-out", `\n${STATUS_MARKER}%{http_code}`,
     );
-    let primaryFailure = null;
-    try {
-      const result = await this.exec(argv, {
-        stdin: buildSessionConfig({ cookie, body }),
-        timeoutMs: timeoutMs + 2_000,
-      });
-      const status = parseSessionStatus(result);
-      const [headerFile, bodyFile] = await Promise.all([this.files.read(headerPath), this.files.read(bodyPath)]);
-      if (headerFile.size > MAX_SESSION_RESPONSE_BYTES || bodyFile.size > MAX_SESSION_RESPONSE_BYTES) {
-        throw relayError("relay_response_too_large");
-      }
-      let responseBody = null;
-      if (bodyFile.content.trim()) {
-        try { responseBody = JSON.parse(bodyFile.content); } catch { throw relayError("relay_protocol_error"); }
-      }
-      return Object.freeze({ status, body: responseBody, setCookies: parseSessionCookies(headerFile.content) });
-    } catch (error) {
-      primaryFailure = error;
-      throw error;
-    } finally {
-      let cleanupFailure = null;
-      for (const path of [headerPath, bodyPath]) {
-        try { await this.files.write(path, ""); } catch (error) { cleanupFailure ??= error; }
-      }
-      try { await this.files.delete([responseDirectory]); } catch (error) { cleanupFailure ??= error; }
-      if (!primaryFailure && cleanupFailure) throw relayError("session_cleanup_failed");
-    }
+    const result = await this.exec(argv, {
+      stdin: buildSessionConfig({ cookie, body }),
+      timeoutMs: timeoutMs + 2_000,
+    });
+    return parseSessionOutput(result);
   }
 
   async streamJournal({ url, bearer, method = "GET", body = null, onChunk, timeoutMs = 60_000 }) {

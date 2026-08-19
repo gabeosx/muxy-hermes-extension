@@ -7,7 +7,6 @@
   "muxy" : {
     "$schema" : "https:\/\/raw.githubusercontent.com\/muxy-app\/muxy\/main\/docs\/extensions\/schema\/manifest.schema.json",
     "description" : "Controls an existing Hermes Gateway and its project Kanban boards from Muxy",
-    "background" : "background.js",
     "commands" : [
       {
         "id" : "toggle-hermes-gateway",

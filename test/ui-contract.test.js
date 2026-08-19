@@ -48,7 +48,7 @@ test("the manifest exposes the compact panel and full board tab with least requi
     },
   ]);
   assert.deepEqual(manifest.muxy.tabTypes, [{ id: "hermes-project-board", title: "Hermes Project Board", entry: "board/index.html" }]);
-  assert.equal(manifest.muxy.background, "background.js");
+  assert.equal(Object.hasOwn(manifest.muxy, "background"), false, "webview storage must not require a background script");
   assert.deepEqual(manifest.muxy.permissions, ["commands:exec", "files:read", "files:write", "panels:write", "storage:read", "storage:write", "tabs:write"]);
   assert.deepEqual(manifest.muxy.events, ["file.changed"]);
   for (const forbiddenSurface of ["topbarItems", "statusbarItems", "scripts"]) {

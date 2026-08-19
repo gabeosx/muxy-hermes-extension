@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PersistentSessionBroker, installSessionBroker, SessionBrokerClient } from "../src/session-broker.js";
+import { PersistentSessionBroker, SessionBrokerClient } from "../src/session-broker.js";
 
 function gateway() {
   return {
@@ -29,21 +29,6 @@ function dashboard() {
   };
 }
 
-function eventBus() {
-  const listeners = new Map();
-  return {
-    subscribe(name, handler) {
-      const handlers = listeners.get(name) ?? new Set();
-      handlers.add(handler);
-      listeners.set(name, handlers);
-      return () => handlers.delete(handler);
-    },
-    emit(name, payload) {
-      for (const handler of [...(listeners.get(name) ?? [])]) handler(payload);
-    },
-  };
-}
-
 function extensionStorage() {
   const values = new Map();
   return {
@@ -53,12 +38,10 @@ function extensionStorage() {
   };
 }
 
-test("the background broker persists gateway and Dashboard sessions in extension-scoped storage", async () => {
-  const events = eventBus();
+test("webviews persist gateway and Dashboard sessions directly in extension-scoped storage", async () => {
   const storage = extensionStorage();
-  installSessionBroker({ events, broker: new PersistentSessionBroker({ storage }) });
   let sequence = 0;
-  const client = new SessionBrokerClient({ events, randomId: () => `request-${++sequence}` });
+  const client = new SessionBrokerClient({ storage, randomId: () => `request-${++sequence}` });
 
   await client.saveGateway(gateway());
   await client.saveDashboard(dashboard());
@@ -71,9 +54,7 @@ test("the background broker persists gateway and Dashboard sessions in extension
   restoredGateway.result.capabilityNames.push("changed-by-panel");
   assert.equal((await client.readGateway()).result.capabilityNames.includes("changed-by-panel"), false, "the broker must not share mutable references");
 
-  const restartedEvents = eventBus();
-  installSessionBroker({ events: restartedEvents, broker: new PersistentSessionBroker({ storage }) });
-  const restartedClient = new SessionBrokerClient({ events: restartedEvents, randomId: () => `restart-${++sequence}` });
+  const restartedClient = new SessionBrokerClient({ storage, randomId: () => `restart-${++sequence}` });
   assert.equal((await restartedClient.readGateway()).bearer, "gateway-token", "the connection must survive a Muxy restart");
   assert.equal((await restartedClient.readDashboard()).auth.identity.userId, "user-1", "the Dashboard sign-in must survive a Muxy restart");
 
