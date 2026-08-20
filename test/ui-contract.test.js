@@ -131,6 +131,8 @@ test("the signed-in idle panel is an operational overview rather than an empty c
     "Queue pressure",
     "Oldest wait",
     "Scheduled jobs",
+    "Show all",
+    "Show fewer",
     "Hermes is online",
     "Ask Hermes to work on something…",
     "Overview",
@@ -140,6 +142,9 @@ test("the signed-in idle panel is an operational overview rather than an empty c
   assert.match(panel, /OPERATIONS_REFRESH_INTERVAL_MS/);
   assert.match(panel, /void this\.refreshOperations\(\)/);
   assert.match(panel, /selectionStart/);
+  assert.match(panel, /aria-expanded/);
+  assert.match(panel, /aria-controls/);
+  assert.match(panel, /jobsExpanded/);
   assert.match(operations, /\/api\/cron\/jobs\?profile=all/);
   assert.match(operations, /\/stats/);
   assert.match(operations, /\/workers\/active/);

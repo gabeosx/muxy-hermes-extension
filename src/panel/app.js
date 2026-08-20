@@ -137,6 +137,7 @@ export class HermesGatewayPanel {
     this.agentSnapshot = emptyAgentSnapshot();
     this.operations = null;
     this.operationsSnapshot = emptyOperationsSnapshot();
+    this.jobsExpanded = false;
     this.operationsRefreshInFlight = false;
     this.unsubscribeConnection = null;
     this.unsubscribeAgent = null;
@@ -421,6 +422,8 @@ export class HermesGatewayPanel {
 
   scheduleView() {
     const { jobs, available } = this.operationsSnapshot;
+    const hasMore = jobs.length > 4;
+    const visibleJobs = this.jobsExpanded ? jobs : jobs.slice(0, 4);
     return h("section", { class: "gateway-card gateway-ops-card", "aria-labelledby": "schedule-title" },
       h("div", { class: "gateway-ops-heading" },
         h("h3", { id: "schedule-title" }, "Scheduled jobs"),
@@ -429,19 +432,28 @@ export class HermesGatewayPanel {
       !available.jobs
         ? h("p", { class: "gateway-empty-copy" }, "Scheduled jobs are unavailable.")
         : jobs.length
-          ? h("ul", { class: "gateway-job-list" }, jobs.slice(0, 4).map((job) => {
+          ? h("ul", { id: "scheduled-job-list", class: "gateway-job-list" }, visibleJobs.map((job) => {
             const state = job.failed ? "failed" : !job.enabled ? "paused" : job.state === "running" ? "running" : "scheduled";
-            const detail = job.failed ? "Last run failed" : !job.enabled ? "Paused" : relativeRunLabel(job.nextRunAt);
+            const status = job.failed ? "Last run failed" : !job.enabled ? "Paused" : relativeRunLabel(job.nextRunAt);
             return h("li", null,
               h("span", { class: `gateway-job-dot gateway-job-${state}`, "aria-hidden": "true" }),
               h("span", { class: "gateway-job-copy" },
                 h("strong", null, job.name),
-                h("span", null, detail),
+                h("span", null, `${job.cadence} · ${status}`),
               ),
             );
           }))
           : h("p", { class: "gateway-empty-copy" }, "No scheduled jobs."),
-      jobs.length > 4 ? h("p", { class: "gateway-ops-note" }, `${jobs.length - 4} more scheduled`) : null,
+      hasMore ? h("button", {
+        class: "gateway-link-button gateway-job-toggle",
+        type: "button",
+        "aria-expanded": String(this.jobsExpanded),
+        "aria-controls": "scheduled-job-list",
+        onclick: () => {
+          this.jobsExpanded = !this.jobsExpanded;
+          this.render();
+        },
+      }, this.jobsExpanded ? "Show fewer" : `Show all ${jobs.length}`) : null,
     );
   }
 

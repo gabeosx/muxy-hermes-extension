@@ -486,6 +486,12 @@ button:disabled { cursor: default; color: var(--muxy-foreground-muted); backgrou
 .gateway-job-copy strong { color: var(--muxy-foreground); font-weight: 500; }
 .gateway-job-copy span { color: var(--muxy-foreground-muted); font-size: var(--font-footnote); }
 
+.gateway-job-toggle {
+  margin-top: var(--s2);
+  padding-left: 0;
+  padding-right: var(--s3);
+}
+
 .gateway-health-strip {
   display: flex;
   flex-wrap: wrap;
