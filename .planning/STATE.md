@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 7 of 7 — Marketplace Submission
 Plan: Not started
 Status: Ready — Phase 6 passed the revised `0.1.0` support matrix; Muxy SSH workspaces are explicitly unsupported and tracked for the next release
-Last activity: 2026-08-20 — Descoped Muxy SSH workspaces from `0.1.0`; supported qualification matrix and cleanup passed
+Last activity: 2026-08-20 — Rewrote the marketplace README in plain language and clearly separated Hermes Agent from the Muxy extension
 
 ## Performance Metrics
 
@@ -135,6 +135,7 @@ None yet.
 | 260819-puh | Turn the Hermes Agent panel into a compact operations and command surface | 2026-08-19 | f7a6a7f | Passed | [260819-puh-polish-the-hermes-agent-panel-with-a-use](./quick/260819-puh-polish-the-hermes-agent-panel-with-a-use/) |
 | 260820-fqf | Make scheduled jobs expandable, show cadence, and integration-test the operations panel | 2026-08-20 | eab3fc3 | Passed | [260820-fqf-make-scheduled-jobs-expandable-show-cade](./quick/260820-fqf-make-scheduled-jobs-expandable-show-cade/) |
 | 260820-n3r | Descope Muxy SSH workspaces from 0.1.0 and track restoration as an open issue | 2026-08-20 | this commit | Passed | [260820-n3r-descope-muxy-ssh-workspaces-from-0-1-0-a](./quick/260820-n3r-descope-muxy-ssh-workspaces-from-0-1-0-a/) |
+| 260820-ntb | Rewrite README in clear human language that accurately distinguishes Hermes Agent from the Muxy extension | 2026-08-20 | this commit | Passed | [260820-ntb-rewrite-readme-in-clear-human-language-t](./quick/260820-ntb-rewrite-readme-in-clear-human-language-t/) |
 
 ### Roadmap Evolution
 

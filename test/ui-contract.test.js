@@ -58,9 +58,12 @@ test("OAuth-only providers and password security boundaries are explicit in both
     assert.match(source, /Muxy SSH workspaces are not supported in this beta/);
     assert.match(source, /type: "password"/);
   }
-  for (const heading of ["Beta support contract", "Security warning", "Permissions", "Data and privacy", "Troubleshooting", "Uninstall and rollback"]) {
+  for (const heading of ["What you can do", "Compatibility", "Security", "Permissions", "Privacy", "Troubleshooting", "Uninstalling"]) {
     assert.match(readme, new RegExp(heading));
   }
+  assert.match(readme, /Hermes Agent.*is an open-source AI agent/);
+  assert.match(readme, /This extension connects Muxy to the Hermes Dashboard you already have/);
+  assert.doesNotMatch(readme, /candidate Muxy marketplace beta|support contract/i);
   assert.match(readme, /Muxy 1\.5\.0 \(945\)/);
   assert.match(readme, /Hermes 0\.20\.2/);
   assert.match(readme, /No analytics or telemetry/);
