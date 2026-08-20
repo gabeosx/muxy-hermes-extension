@@ -2,10 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 03
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 03 complete; milestone ready for completion audit
-last_updated: "2026-08-20T15:32:13.000Z"
+last_updated: "2026-08-20T16:53:25.359Z"
 last_activity: 2026-08-20
 last_activity_desc: "Completed quick task 260820-fqf: Make scheduled jobs expandable, show cadence, and integration-test the operations panel"
 progress:
@@ -13,6 +12,7 @@ progress:
   completed_phases: 3
   total_plans: 22
   completed_plans: 22
+current_phase: 03
 current_phase_name: open-panel-recovery-proof
 ---
 
@@ -27,12 +27,10 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 
 ## Current Position
 
-Phase: 03
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-08-20 — Completed quick task 260820-fqf: Make scheduled jobs expandable, show cadence, and integration-test the operations panel
-
-Progress: [██████████] 100%
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-08-20 — Milestone v1.0 completed and archived
 
 ## Performance Metrics
 
@@ -155,3 +153,7 @@ None yet.
 Last session: 2026-08-18T23:00:21.000Z
 Stopped at: Phase 03 complete; milestone ready for completion audit
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

@@ -2,94 +2,66 @@
 
 ## What This Is
 
-A development-only Muxy extension that proves a user with an existing Hermes Gateway can securely connect from a native-feeling Muxy panel, start a run, observe its streamed activity, and use the run controls the Gateway advertises. The same client contract must work across host-native, local Docker, SSH-forwarded, direct HTTPS, and remote-Muxy-workspace deployments. V1 is a transport and control-surface proof, not a polished general-purpose chat client or a multi-repository integration project.
+`hermes-agent` is a Muxy marketplace beta candidate for connecting to one existing Hermes Dashboard. It uses the Dashboard's advertised password provider, verified session cookies, fresh one-use WebSocket tickets, and panel-local JSON-RPC ownership to expose agent activity and controls, operations, schedules, and Kanban in native-feeling Muxy surfaces.
 
 ## Core Value
 
-Prove secure, authenticated, streamed Hermes run control across representative Hermes deployment shapes inside a native-feeling Muxy panel before building the surrounding product.
+Give a user safe, authenticated Hermes control from Muxy across local, Docker, SSH-forwarded, trusted HTTPS, and Muxy SSH-workspace deployments without topology-specific client behavior or hidden credential exposure.
 
-## Requirements
+## Current State
 
-### Validated
+- **v1.0 Development Proof shipped and archived:** 3 phases, 22 plans, 39/39 requirements, and all milestone verification gates passed.
+- **Current implementation:** The post-v1.0 product migrated from the historical bearer/SSE Runs proof to Dashboard session authentication, one-use WebSocket tickets, JSON-RPC agent streaming, operations, schedules, and Kanban.
+- **Current release status:** Not yet marketplace-ready. Marketplace metadata, release documentation, deterministic clean-copy validation, real topology qualification, and upstream submission remain active work.
+- **Recorded tested tuple:** Muxy 1.5.0 (945) and Hermes 0.20.2. This is evidence, not a version lock or universal compatibility claim.
 
-- [x] The same URL/token client contract remains topology-neutral across observed host-native and Docker fixtures plus executable SSH-forward, direct-HTTPS, and remote-workspace analogues. Validated in Phase 3: Open-Panel Recovery Proof.
-- [x] A user can close and reopen the panel or Muxy, restore a saved extension-scoped connection after authentication verification, and recover authoritative status/final output with missed event and approval detail explicitly unavailable. Validated in the post-Phase-3 auth/copy debug closure.
-- [x] A strict versioned fixture reports observed host/Docker evidence and intentionally Unverified remote analogues using digest-only receipt and cleanup provenance. Validated in Phase 3: Open-Panel Recovery Proof.
+## Active Requirements
 
-### Active
+- Publish `hermes-agent@0.1.0` as a broad Muxy marketplace beta with accurate, frozen support claims.
+- Support provider-advertised password login, saved Dashboard sessions and cookie rotation, fresh single-use WebSocket tickets, reconnect, agent streaming and controls, operations, schedules, and Kanban.
+- Show OAuth/OIDC-only providers as unsupported and fail safely on incompatible Dashboard contracts.
+- Remove production-dead bearer, SSE journal, capability-probe, recovery-evidence, and historical validation paths once import reachability proves they are unused.
+- Prove reproducible clean builds, least privilege, secret safety, and deterministic release validation on Node 20 and the current development Node.
+- Qualify local/Docker, real SSH forwarding, short-lived trusted HTTPS, and an actual Muxy SSH workspace with disposable, pinned infrastructure and verified cleanup.
+- Satisfy local and upstream marketplace validation, dry-run packaging, review, security, UI, and Nyquist gates before submission.
 
-- [ ] A publish-valid npm/Vite Muxy extension can be built and loaded unpacked.
-- [x] A user can provide one development Gateway URL and bearer token once, restore it from Muxy's extension-scoped store, and have it revalidated without exposing it in UI, argv, URLs, journals, diagnostics, or audit summaries.
-- [ ] The panel can prove authenticated Hermes connectivity through one explicitly consented argv-form curl relay without placing the bearer in argv, URLs, files, storage, diagnostics, or audit output.
-- [ ] Connection diagnostics distinguish malformed URL, relay denial/unavailability, reachability, DNS, TLS, authentication, timeout, stream interruption, journal limits, and protocol failures using observed facts without claiming to detect or manage a deployment.
-- [ ] The panel discovers `/v1/capabilities` and exposes only run controls advertised by the connected Gateway.
-- [ ] A user can start a run and observe streamed token, tool, approval, and terminal lifecycle events emitted by the pinned Gateway.
-- [ ] A user can answer an approval and can steer or stop the run when those capabilities are advertised.
-- [ ] The panel follows Muxy's native theme, sizing, focus, reduced-motion, and least-privilege conventions.
+## Out of Scope
 
-### Out of Scope
-
-- Multiple connection profiles, profile CRUD, import/export, and persisted settings — defer until the relay proof is complete.
-- Workspace path mapping and active-worktree execution — depend on a later validated per-run `cwd` contract.
-- Hermes repository changes — v1 is extension-only.
-- Any Muxy source-code change, including agent/provider registration — v1 is extension-only; registration is reconsidered only if later native Agent Focused status actually requires it.
-- Durable background run ownership, closed-panel status, and out-of-panel approval notifications — require a transport owner the current Muxy background runtime does not provide.
-- Terminal/TUI launchers — not required to validate embedded Gateway transport.
-- Marketplace publication, production credential storage, and infrastructure lifecycle management — premature for a development proof.
-- A polished general-purpose chat client — v1 validates feasibility and control semantics only.
-
-## Context
-
-Hermes Gateway already exposes the essential backend surfaces: bearer-authenticated capability discovery, run submission and status, SSE run events, approvals, steer, stop, persistent response/session primitives, skills, and toolsets. Muxy's `WKWebView` panel did not deliver a controlled loopback request, while `muxy.http.fetch` blocks loopback/private hosts and buffers response bodies. V1 therefore uses one consented curl process per SSE stream and a bounded workspace journal consumed through `muxy.files`.
-
-The panel may be recreated when projects switch, and Muxy's background runtime cannot read the private stream journal. V1 therefore keeps rich activity and approvals only while the panel is open, while the background broker persists validated Gateway and Dashboard sessions in Muxy's isolated per-extension store. Reopening verifies the saved session before enabling controls; missed SSE detail is still disclosed as unavailable.
-
-The long-term product may later add connection profiles, workspace mappings, validated per-run `cwd`, durable background status, a Hermes lifecycle plugin, Muxy provider registration, secret storage, or a local-service streaming bridge. None of those may expand v1 before the deployment validation verdicts. Deployment variety itself is not deferred: v1 must test the single contract across the supported classes even though profile persistence and infrastructure management remain out of scope.
-
-The direct authenticated panel-streaming experiment has produced its negative result. The approved fallback stays extension-only: a consented curl relay plus a bounded ephemeral workspace journal. If that relay is denied or unavailable, v1 stops with a reproducible report rather than changing Muxy or Hermes.
+- OAuth/OIDC login in the beta; those providers are displayed as unsupported.
+- Password authentication on an unrestricted public endpoint. Direct HTTPS support is limited to trusted networks, VPNs, or operator-controlled access layers.
+- Background run ownership, closed-panel approvals, notifications, or durable WebSocket ownership.
+- Workspace path mapping, remote-workspace filesystem assumptions, or automatically passing a workspace path to Hermes.
+- Universal Muxy/Hermes compatibility, inferred deployment detection, or topology-specific client branches.
+- Telemetry, multiple connection profiles, infrastructure lifecycle management, or automatic Gateway installation/update.
 
 ## Constraints
 
-- **Scope**: Extension-only development proof — prevents early multi-repository work and isolates the riskiest assumption.
-- **Dependency**: One pinned, user-operated Hermes development Gateway at a time, with representative fixtures across the validation matrix — the extension never starts, stops, updates, or infers the Gateway's deployment.
-- **Deployment contract**: Host-native, Docker, tunnel, and HTTPS endpoints share one protocol path; remote Muxy workspaces are a separate namespace/lifecycle test — topology-specific client behavior is prohibited.
-- **Security**: Bearer and Dashboard session material may exist only in Muxy's isolated store and transient request memory; never place it in argv, URLs, environment, workspace files, diagnostics, or audit output; clear it on authentication rejection or explicit logout/forget; never auto-approve.
-- **Transport**: Use one audited argv-form curl process per SSE stream and read its bounded workspace journal with `muxy.files`; repeated exec-based journal polling is prohibited.
-- **Lifecycle**: Live status and approvals exist only while the panel is open — durable background ownership is post-v1.
-- **Capability compatibility**: Drive controls from `/v1/capabilities` and captured protocol fixtures — Hermes and Muxy interfaces are evolving.
-- **UI**: Follow Muxy theme tokens, interface scale, control sizing, keyboard focus, and reduced-motion behavior — the proof must read as a native Muxy surface.
-- **Packaging**: The build must copy `package.json` into `dist/` — Muxy's publishing and validation path ships the build output.
+- **Authentication:** Passwords remain transient. Only allowlisted Dashboard cookies may persist in Muxy's isolated per-extension storage; WebSocket tickets are one-use and transient.
+- **Secrets:** Request secrets cross the curl boundary through stdin, never argv, URLs, workspace files, logs, receipts, diagnostics, screenshots, or bundles.
+- **Transport:** Dashboard request/response calls use the minimum authenticated argv-form curl relay. Agent activity uses the Dashboard's WebSocket JSON-RPC contract with a fresh ticket for every connection attempt.
+- **Lifecycle:** Live agent ownership is panel-local. Reopen/restart restores and verifies the Dashboard session, then mints a new ticket.
+- **Compatibility:** Advertised provider and response contracts drive behavior. Incompatible or malformed contracts fail closed with bounded sanitized diagnostics.
+- **Security:** No automatic approval. Password auth is documented only for trusted LAN/VPN/operator-controlled access. The Cloudflare Quick Tunnel is disposable qualification infrastructure, not deployment guidance.
+- **UI:** Follow Muxy theme tokens, interface scale, control sizing, keyboard focus, accessibility labels, and reduced motion.
+- **Packaging:** The extension ID is `hermes-agent`; the build copies `package.json`, README, icon, and listing screenshots into `dist/`.
+- **Release:** Published versions are immutable. Rollback is disable/uninstall; corrections ship as `0.1.1` or later.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Use a consented curl relay after the direct WebKit negative result | Current Muxy cannot deliver the required local authenticated SSE directly; one audited stream plus file events is the feasible extension-only seam | 2026-08-17 |
-| Use one runtime-supplied development connection | Profile management does not reduce transport risk and can wait | — Pending |
-| Validate representative deployment classes in v1 | A deployment-neutral architecture is only credible if loopback, container-published, tunneled, HTTPS, and remote-workspace conditions are exercised | 2026-08-18 — host/Docker observed; remote analogues executed and retained as Unverified |
-| Diagnose observed transport facts, never deployment labels | URLs cannot reliably identify topology and the extension does not own Docker, SSH, DNS, certificates, or Gateway lifecycle | 2026-08-18 — verified through structural signatures and forced-Unverified analogue rows |
-| Persist validated sessions in Muxy's per-extension store | Muxy guarantees extension-ID namespace isolation; browser-like restore avoids repeated credential entry, while authentication checks and explicit deletion keep UI state truthful | 2026-08-19 |
-| Limit rich run ownership to the open panel | The background runtime cannot read the workspace journal and panels are recreated across project lifecycle events | 2026-08-17 |
-| Keep rich stream ownership panel-local | Muxy background cannot read the journal; closed-panel rich alerts and replay remain deferred | 2026-08-17 |
-| Stop and alert before any Muxy source change | The user authorizes an extension-only v1 and is comfortable considering agent registration only if a later native integration proves it necessary | — Pending |
-| Defer `cwd`, path mapping, plugins, provider registration, and marketplace work | These belong to later milestones after the embedded transport is validated | — Pending |
+| Replace the historical bearer/SSE proof with the shipped Dashboard session/JSON-RPC contract | The current Hermes Dashboard is the supported product surface and provides provider discovery, cookie sessions, and single-use WebSocket tickets | Implemented post-v1.0; marketplace cleanup now removes unreachable legacy paths |
+| Publish under extension ID `hermes-agent` | The marketplace identity should be stable and product-facing | Fresh sign-in required; no cookie transfer from the old development namespace |
+| Support password providers only in 0.1.0 | It closes a useful trusted-network beta without pretending OAuth support exists | OAuth/OIDC-only providers render as unsupported |
+| Record, but do not enforce, Muxy 1.5.0 (945) and Hermes 0.20.2 | Exact evidence is useful; version gates would overstate what the evolving capability contract can guarantee | Incompatible contracts fail safely |
+| Use a Docker-first disposable qualification lab | Reproducible pinned services, real SSH forwarding, and aggressive cleanup provide stronger release evidence than simulations | Quick Tunnel is fixture-only and contains no durable or sensitive data |
+| Keep agent ownership panel-local | The Muxy background runtime is not the established WebSocket owner and closed-panel approvals are unsafe to imply | Reconnect and restart use authoritative session verification and fresh tickets |
+| Request only command execution, panels/tabs, and isolated storage | These are the authorities used by the current product | No file, background, network-bridge, Docker, SSH, or telemetry authority in the marketplace manifest |
 
-## Evolution
+## Milestone History
 
-This document evolves at phase transitions and milestone boundaries.
-
-**After each phase transition** (via `$gsd-transition`):
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-5. "What This Is" still accurate? → Update if drifted
-
-**After each milestone** (via `$gsd-complete-milestone`):
-1. Full review of all sections
-2. Core Value check — still the right priority?
-3. Audit Out of Scope — reasons still valid?
-4. Update Context with current state
+- [v1.0 Development Proof](./milestones/v1.0-ROADMAP.md) — shipped 2026-08-20 with technical debt accepted for the post-phase Dashboard migration.
+- **v1.1 Marketplace Beta Hardening** — active next milestone.
 
 ---
-*Last updated: 2026-08-18 after Phase 3 completion*
+*Last updated: 2026-08-20 at the v1.0 milestone boundary.*
