@@ -167,10 +167,15 @@ test("native styles use Muxy tokens, visible interaction states, scale variables
 });
 
 test("the signed-in panel opens the project board without another sign-in", async () => {
-  const panel = await readFile(new URL("src/panel/app.js", root), "utf8");
+  const [panel, tabs] = await Promise.all([
+    readFile(new URL("src/panel/app.js", root), "utf8"),
+    readFile(new URL("src/muxy-tabs.js", root), "utf8"),
+  ]);
   assert.match(panel, /Open board/);
-  assert.match(panel, /hermes-project-board/);
-  assert.match(panel, /singleton: true/);
+  assert.match(panel, /openProjectBoardTab/);
+  assert.match(tabs, /hermes-project-board/);
+  assert.match(tabs, /kind: "extensionWebView"/);
+  assert.match(tabs, /singleton: true/);
   assert.match(panel, /persistDashboardSession/);
 });
 

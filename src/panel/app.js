@@ -5,6 +5,7 @@ import { DashboardGatewayClient } from "@/dashboard-gateway";
 import { DashboardOperationsClient, emptyOperationsSnapshot } from "@/dashboard-operations";
 import { normalizeHermesDashboardUrl } from "@/kanban-client";
 import { icon } from "@/lib/icons";
+import { openProjectBoardTab } from "@/muxy-tabs";
 import { SessionBrokerClient } from "@/session-broker";
 
 const SESSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -813,7 +814,14 @@ export class HermesGatewayPanel {
   }
 
   async openBoard() {
-    await window.muxy?.tabs?.open?.({ type: "hermes-project-board", singleton: true });
+    try {
+      await openProjectBoardTab(window.muxy);
+    } catch {
+      await window.muxy?.dialog?.alert?.({
+        title: "Couldn’t open board",
+        message: "Reload the Hermes extension, then try again.",
+      });
+    }
   }
 
   async logout() {
