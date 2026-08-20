@@ -5,9 +5,9 @@ milestone_name: milestone
 current_phase: 03
 status: completed
 stopped_at: Phase 03 complete; milestone ready for completion audit
-last_updated: "2026-08-19T23:00:50.000Z"
-last_activity: 2026-08-19
-last_activity_desc: "Completed quick task 260819-puh: turn the Hermes Agent panel into a compact operations and command surface"
+last_updated: "2026-08-20T15:32:13.000Z"
+last_activity: 2026-08-20
+last_activity_desc: "Completed quick task 260820-fqf: Make scheduled jobs expandable, show cadence, and integration-test the operations panel"
 progress:
   total_phases: 3
   completed_phases: 3
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 03
 Plan: Not started
 Status: All phases complete
-Last activity: 2026-08-19 — Completed quick task 260819-puh: turn the Hermes Agent panel into a compact operations and command surface
+Last activity: 2026-08-20 — Completed quick task 260820-fqf: Make scheduled jobs expandable, show cadence, and integration-test the operations panel
 
 Progress: [██████████] 100%
 
@@ -134,6 +134,7 @@ None yet.
 | 260819-n51 | Authenticate first, then list available Hermes boards in a dropdown before opening one | 2026-08-19 | 0fd985b | Passed | [260819-n51-authenticate-first-then-list-available-h](./quick/260819-n51-authenticate-first-then-list-available-h/) |
 | 260819-oji | Replace Gateway token flow with Dashboard-session WebSocket tickets and transparent reconnect | 2026-08-19 | 9aa563c | Passed | [260819-oji-replace-gateway-token-flow-with-dashboar](./quick/260819-oji-replace-gateway-token-flow-with-dashboar/) |
 | 260819-puh | Turn the Hermes Agent panel into a compact operations and command surface | 2026-08-19 | f7a6a7f | Passed | [260819-puh-polish-the-hermes-agent-panel-with-a-use](./quick/260819-puh-polish-the-hermes-agent-panel-with-a-use/) |
+| 260820-fqf | Make scheduled jobs expandable, show cadence, and integration-test the operations panel | 2026-08-20 | eab3fc3 | Passed | [260820-fqf-make-scheduled-jobs-expandable-show-cade](./quick/260820-fqf-make-scheduled-jobs-expandable-show-cade/) |
 
 ### Roadmap Evolution
 
