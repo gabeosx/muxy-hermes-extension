@@ -102,13 +102,45 @@ function fixedField(value, maximum) {
   return number >= 0 && number <= maximum ? number : null;
 }
 
-function weekdayCadence(value) {
-  if (value === "1-5" || value.toLowerCase() === "mon-fri") return "Weekdays";
+function weekdayIndex(value) {
   const aliases = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
   const lower = value.toLowerCase();
-  if (Object.hasOwn(aliases, lower)) return `Every ${WEEKDAYS[aliases[lower]]}`;
+  if (Object.hasOwn(aliases, lower)) return aliases[lower];
   const numeric = fixedField(value, 7);
-  if (numeric !== null) return `Every ${WEEKDAYS[numeric === 7 ? 0 : numeric]}`;
+  return numeric === 7 ? 0 : numeric;
+}
+
+function weekdayCadence(value) {
+  const range = /^([0-7]|sun|mon|tue|wed|thu|fri|sat)-([0-7]|sun|mon|tue|wed|thu|fri|sat)$/i.exec(value);
+  if (range) {
+    const start = weekdayIndex(range[1]);
+    const end = weekdayIndex(range[2]);
+    const numericStart = fixedField(range[1], 7);
+    const numericEnd = fixedField(range[2], 7);
+    const days = new Set();
+    if (numericStart !== null && numericEnd !== null && numericStart <= numericEnd) {
+      for (let day = numericStart; day <= numericEnd; day += 1) days.add(day === 7 ? 0 : day);
+    }
+    if (days.size === 7) return "Daily";
+    if (days.size === 5 && [1, 2, 3, 4, 5].every((day) => days.has(day))) return "Weekdays";
+    if (start !== null && end !== null) return `${WEEKDAYS[start]}–${WEEKDAYS[end]}`;
+  }
+
+  const listed = value.split(",").map(weekdayIndex);
+  if (listed.length > 1 && listed.every((day) => day !== null)) {
+    const days = new Set(listed);
+    if (days.size === 7) return "Daily";
+    if (days.size === 5 && [1, 2, 3, 4, 5].every((day) => days.has(day))) return "Weekdays";
+    if (days.size === 2 && days.has(0) && days.has(6)) return "Weekends";
+    if (days.size === 2) {
+      const [first, second] = [...days];
+      return `Every ${WEEKDAYS[first]} and ${WEEKDAYS[second]}`;
+    }
+    return `${days.size} days a week`;
+  }
+
+  const day = weekdayIndex(value);
+  if (day !== null) return `Every ${WEEKDAYS[day]}`;
   return null;
 }
 
@@ -135,7 +167,7 @@ function cronCadence(expression) {
   }
 
   if (dayOfMonth === "*" && fixedField(minute, 59) !== null && fixedField(hour, 23) !== null) {
-    return weekdayCadence(dayOfWeek) ?? (/^[0-7](?:,[0-7])+$/.test(dayOfWeek) ? "Weekly" : null);
+    return weekdayCadence(dayOfWeek);
   }
 
   if (dayOfWeek === "*" && fixedField(dayOfMonth, 31) !== null

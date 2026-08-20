@@ -95,6 +95,7 @@ test("scheduled-job cadence stays human-readable and timezone-neutral", () => {
   assert.equal(formatScheduleCadence({ kind: "cron", expr: "0 * * * *" }), "Hourly");
   assert.equal(formatScheduleCadence({ kind: "cron", expr: "0 12 * * *" }), "Daily");
   assert.equal(formatScheduleCadence({ kind: "cron", expr: "0 8 * * 1-5" }), "Weekdays");
+  assert.equal(formatScheduleCadence({ kind: "cron", expr: "0 8 * * 1-6" }), "Monday–Saturday");
   assert.equal(formatScheduleCadence({ kind: "cron", expr: "0 8 * * 1" }), "Every Monday");
   assert.equal(formatScheduleCadence({ kind: "interval", minutes: 720 }), "Every 12 hours");
   assert.equal(formatScheduleCadence(null, "every 2m"), "Every 2 minutes");
