@@ -136,8 +136,9 @@ async function validateBuild() {
   assert.deepEqual(published, source, "source and dist package.json must match exactly");
   assert.deepEqual(distEntries, sourceEntries);
 
-  const declared = new Set(["package.json", "README.md"]);
+  const declared = new Set(["package.json", "README.md", "OPEN_ISSUES.md"]);
   assert.equal(await readFile(resolve(dist, "README.md"), "utf8"), await readFile(resolve(root, "README.md"), "utf8"), "dist README differs from source");
+  assert.equal(await readFile(resolve(dist, "OPEN_ISSUES.md"), "utf8"), await readFile(resolve(root, "OPEN_ISSUES.md"), "utf8"), "dist OPEN_ISSUES differs from source");
   await validateListingAssets(root);
   await validateListingAssets(dist, declared);
 

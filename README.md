@@ -1,6 +1,8 @@
 # Hermes Agent for Muxy
 
-Hermes Agent is a Muxy marketplace beta for using an existing [Hermes](https://github.com/NousResearch/hermes-agent) Dashboard from native-feeling Muxy panels. Sign in once, monitor operations, run and guide an agent, handle explicit approvals, manage scheduled work, and open Hermes project boards without turning the extension into an infrastructure manager.
+Hermes Agent is a candidate Muxy marketplace beta for using an existing [Hermes](https://github.com/NousResearch/hermes-agent) Dashboard from native-feeling Muxy panels. Sign in once, monitor operations, run and guide an agent, handle explicit approvals, manage scheduled work, and open Hermes project boards without turning the extension into an infrastructure manager.
+
+> **Beta scope:** Muxy SSH workspaces are not supported in `0.1.0`. The tested Muxy 1.5.0 (945) remote executor cannot launch its internal `/usr/bin/ssh` process. This limitation is tracked in [OPEN_ISSUES.md](./OPEN_ISSUES.md) and does not block release for the explicitly supported local/Docker, operator-owned SSH-forward, and trusted-HTTPS connection shapes.
 
 ## Beta support contract
 
@@ -11,9 +13,9 @@ The beta supports one user-operated Hermes Dashboard at a time through the same 
 | Host-native or Docker on loopback | Beta | Run Hermes Dashboard and make its address reachable from Muxy |
 | SSH local forward | Beta | Own and maintain the `ssh -L` tunnel |
 | Direct HTTPS | Beta on trusted networks only | Use trusted TLS plus a VPN, private network, or operator-controlled access layer |
-| Muxy SSH workspace | Beta | Make the same HTTPS Dashboard URL reachable from host WebKit and remote command execution |
+| Muxy SSH workspace | Unsupported in `0.1.0` | Use a local Muxy workspace with an operator-owned `ssh -L` forward or a trusted HTTPS Dashboard address |
 
-The recorded qualification tuple is **Muxy 1.5.0 (945)** with **Hermes 0.20.2**. The extension does not enforce those versions. It uses advertised providers and validated response contracts, and fails closed when an evolving API is incompatible. Other versions and environments are best-effort, not silently claimed compatible.
+The recorded qualification tuple is **Muxy 1.5.0 (945)** with **Hermes 0.20.2**. Dashboard, actual SSH-forward, trusted-HTTPS, and host-WebKit gates pass, including sign-in, session restore, agent approval, operations, board, restart, and marketplace screenshot capture. The extension does not enforce versions; it uses advertised providers and validated response contracts and fails closed when an evolving API is incompatible. Other versions and environments are best-effort, not silently claimed compatible.
 
 ### Included
 
@@ -29,6 +31,7 @@ The recorded qualification tuple is **Muxy 1.5.0 (945)** with **Hermes 0.20.2**.
 - OAuth or OIDC login; OAuth/OIDC-only providers are shown as unsupported
 - Background run ownership or approvals after the panel closes
 - Workspace path mapping or assumptions that Hermes shares the Muxy workspace filesystem
+- Muxy SSH workspaces; use a local workspace with your own SSH forward or trusted HTTPS endpoint
 - Multiple connection profiles, Gateway installation, deployment detection, or telemetry
 - A promise of universal compatibility across untested Muxy or Hermes versions
 
@@ -76,6 +79,7 @@ The extension requests no workspace-file, shell-script, background-process, Dock
 | OAuth/OIDC not supported | The Dashboard advertises no password-capable provider | Use Hermes directly or wait for a later extension release with OAuth support |
 | Sign-in expired | The saved session was rejected or expired | Sign in again; stale cookies are removed |
 | Permission denied | Muxy did not authorize the curl request or panel/tab action | Review the extension permission prompt and retry only if expected |
+| Muxy SSH workspace unsupported | Muxy attempted to run the extension command through its remote SSH executor | Use a local Muxy workspace with an operator-owned `ssh -L` forward or trusted HTTPS; follow the open issue for future support |
 | Agent connection offline | The WebSocket or tunnel was interrupted | Keep the panel open; it reconnects with a fresh one-use ticket |
 | Sign-in unavailable / incompatible response | Hermes returned a missing or malformed required contract | Confirm Hermes is healthy and record its version; do not weaken authentication or TLS to bypass the check |
 | Some status is unavailable | An optional Hermes operations surface or plugin is absent | Agent and board features remain available when their own contracts pass |
@@ -93,6 +97,9 @@ npm ci
 npm test
 npm run build
 npm run validate
+npm run qualify
 ```
 
 The build copies `package.json`, this README, the icon, and listing screenshots into `dist/`. Release validation checks the current production import graph, least privilege, secret safety, asset dimensions, deterministic output, and clean-copy behavior.
+
+`npm run qualify:native` is an optional reproducer for the unsupported Muxy SSH-workspace issue. Its observations cannot establish release support.

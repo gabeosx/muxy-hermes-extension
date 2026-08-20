@@ -43,6 +43,7 @@ export class DashboardAgentController {
   constructor({ gateway } = {}) {
     if (!gateway?.request || !gateway?.onEvent || !gateway?.subscribe) throw new Error("gateway_required");
     this.gateway = gateway;
+    this.runGeneration = 0;
     this.listeners = new Set();
     this.session = null;
     this.gatewaySnapshot = gateway.snapshot;
@@ -85,6 +86,7 @@ export class DashboardAgentController {
     const text = typeof input === "string" ? input.trim() : "";
     if (!text || text.length > 64 * 1024) throw new Error("invalid_prompt");
     if (this.gatewaySnapshot.state !== "connected") throw new DashboardGatewayError("not_connected", { retryable: true });
+    this.runGeneration += 1;
     this.#publish({
       status: "starting",
       request: text,
@@ -193,11 +195,12 @@ export class DashboardAgentController {
   }
 
   async stop() {
-    if (!this.session) return;
+    if (!this.session) return null;
     this.#publish({ status: "stopping", actionPending: true });
     try {
-      await this.gateway.request("session.interrupt", { session_id: this.session.runtimeId });
+      const result = await this.gateway.request("session.interrupt", { session_id: this.session.runtimeId });
       this.#publish({ actionPending: false });
+      return result;
     } catch (error) {
       this.#publish({ status: "running", actionPending: false, error: "Hermes could not stop this request." });
       throw error;

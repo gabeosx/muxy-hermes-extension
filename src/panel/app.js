@@ -1,12 +1,13 @@
 import { clear, h } from "@/lib/dom";
 import { DashboardAgentController } from "@/dashboard-agent";
 import { DashboardAuthError, DashboardAuthSession } from "@/dashboard-auth";
-import { DashboardGatewayClient } from "@/dashboard-gateway";
+import { DashboardGatewayClient, DashboardGatewayError } from "@/dashboard-gateway";
 import { DashboardOperationsClient, emptyOperationsSnapshot } from "@/dashboard-operations";
 import { normalizeHermesDashboardUrl } from "@/kanban-client";
 import { icon } from "@/lib/icons";
 import { openProjectBoardTab } from "@/muxy-tabs";
 import { SessionBrokerClient } from "@/session-broker";
+import { requestConfirmedStop } from "@/stop-confirmation";
 
 const SESSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const OPERATIONS_REFRESH_INTERVAL_MS = 30 * 1000;
@@ -47,6 +48,30 @@ function authErrorCopy(error) {
   if (error instanceof DashboardAuthError && error.code === "auth_contract_mismatch") return "This Hermes sign-in setup is not supported by this extension.";
   if (error instanceof DashboardAuthError && error.code === "login_response_unreadable") return "Hermes accepted the sign-in, but the returned session could not be used.";
   if (error instanceof DashboardAuthError && error.code === "session_check_failed") return "Hermes could not verify your sign-in. Try again when it is reachable.";
+  if (error instanceof DashboardGatewayError && error.code === "websocket_unavailable") return "This Muxy workspace did not provide the WebSocket support required for live agent work.";
+  if (error instanceof DashboardGatewayError && error.code === "operations_setup_failed") return "Muxy could not prepare Hermes operations in this workspace.";
+  if (error instanceof DashboardGatewayError && error.code === "agent_setup_failed") return "Muxy could not prepare live Hermes agent controls in this workspace.";
+  if (error instanceof DashboardGatewayError && error.code === "panel_subscription_failed") return "Muxy could not attach the Hermes panel to this workspace.";
+  if (error instanceof DashboardGatewayError) return "Muxy could not prepare the live Hermes connection in this workspace.";
+  if (error?.code === "relay_timeout") return "The Hermes request timed out in this workspace.";
+  if (error?.code === "relay_protocol_error") return "Muxy received a Hermes response it could not safely read in this workspace.";
+  if (error?.code === "relay_response_too_large") return "Hermes returned more data than this extension can safely accept.";
+  if (error?.code === "relay_request_failed") return "The approved Hermes request could not run successfully in this workspace.";
+  if (error?.code === "relay_execution_rejected") return "Muxy rejected the approved Hermes command in this workspace.";
+  if (error?.code === "relay_launch_failed") return "Muxy approved the Hermes command but could not launch it in this workspace.";
+  if (error?.code === "relay_launch_stream_failed") return "Muxy could not attach standard input to the approved Hermes command in this workspace.";
+  if (error?.code === "relay_launch_spawn_failed") return "Muxy could not start its SSH process for the approved Hermes command in this workspace.";
+  if (error?.code === "relay_launch_spawn_not_permitted") return "macOS did not permit Muxy to start the SSH process for this extension command.";
+  if (error?.code === "relay_launch_spawn_missing") return "Muxy SSH workspaces are not supported in this beta. Use a local Muxy workspace with your own SSH forward or a trusted HTTPS Dashboard address.";
+  if (error?.code === "relay_launch_spawn_busy") return "Muxy could not start another SSH process right now. Close other work and try again.";
+  if (error?.code === "relay_launch_spawn_too_large") return "Muxy rejected the SSH command because its launch arguments were too large.";
+  if (error?.code === "relay_launch_arguments_invalid") return "Muxy rejected the approved Hermes command before launching it in this workspace.";
+  if (error?.code === "relay_concurrency_limit") return "Muxy’s command limit is busy in this workspace. Close other extension work and try again.";
+  if (error?.code === "relay_permission_denied") return "Muxy denied command permission for this extension in this workspace.";
+  if (error?.code === "relay_cancelled") return "Muxy cancelled the Hermes command in this workspace.";
+  if (error?.code === "relay_result_unavailable") return "Muxy did not return a result for the approved Hermes command in this workspace.";
+  if (error?.code === "relay_output_unavailable") return "Muxy did not return readable output from the approved Hermes command in this workspace.";
+  if (error?.code === "relay_unavailable") return "Muxy command execution is unavailable in this workspace.";
   if (/^(Enter|Use)/.test(error?.message ?? "")) return error.message;
   return "Hermes could not be reached. Check the address and try again.";
 }
@@ -108,7 +133,8 @@ function healthLabel(health) {
 }
 
 function reconnectCopy(snapshot) {
-  if (snapshot.reason === "websocket_ticket_failed") return "Hermes couldn’t prepare the agent connection. We’ll keep trying automatically.";
+  if (snapshot.reason === "websocket_ticket_failed") return "Muxy couldn’t request a fresh Hermes connection ticket in this workspace. We’ll keep trying automatically.";
+  if (snapshot.reason === "connection_failed") return "Muxy reached Hermes, but the live agent connection could not open. We’ll keep trying automatically.";
   if (snapshot.reason === "connection_timeout") return "Hermes isn’t responding to agent connections yet. We’ll keep trying automatically.";
   if (snapshot.reason === "connection_auth_rejected") return "Hermes rejected the agent connection. We’ll keep trying with a new connection.";
   if (snapshot.reason === "connection_not_allowed") return "This Hermes server isn’t accepting agent connections from Muxy yet.";
@@ -312,6 +338,7 @@ export class HermesGatewayPanel {
       || this.agentSnapshot.status !== "idle");
 
     return h("section", { class: "gateway-agent" },
+      this.message ? h("p", { class: "gateway-error-card", role: "alert", "aria-live": "polite" }, this.message) : null,
       !connected ? h("div", { class: `gateway-connection-note gateway-connection-note-${this.connectionSnapshot.state}`, role: "status", "aria-live": "polite" },
         reconnectCopy(this.connectionSnapshot),
       ) : null,
@@ -585,7 +612,7 @@ export class HermesGatewayPanel {
           class: "gateway-danger",
           type: "button",
           disabled: this.agentSnapshot.actionPending || this.connectionSnapshot.state !== "connected",
-          onclick: () => void this.agent?.stop().catch(() => {}),
+          onclick: () => void this.confirmStop(),
         }, this.agentSnapshot.status === "stopping" ? "Stopping…" : "Stop"),
       ),
       h("form", { class: "gateway-steer-form", onsubmit: (event) => void this.steer(event) }, steer, steerButton),
@@ -705,24 +732,36 @@ export class HermesGatewayPanel {
       authSession: this.authSession,
       persistSession: async () => this.persistDashboardSession(),
     });
-    this.operations = new DashboardOperationsClient({
-      baseUrl: this.authSession.baseUrl,
-      session: this.authSession,
-      board: this.boardValue,
-    });
+    try {
+      this.operations = new DashboardOperationsClient({
+        baseUrl: this.authSession.baseUrl,
+        session: this.authSession,
+        board: this.boardValue,
+      });
+    } catch {
+      throw new DashboardGatewayError("operations_setup_failed");
+    }
     this.operationsSnapshot = Object.freeze({ ...emptyOperationsSnapshot(), state: "loading" });
-    this.agent = new DashboardAgentController({ gateway: this.gateway });
-    this.unsubscribeConnection = this.gateway.subscribe((snapshot) => {
-      if (generation !== this.connectionGeneration) return;
-      this.connectionSnapshot = snapshot;
-      if (snapshot.state === "signed_out") queueMicrotask(() => { void this.invalidateSession(); });
-      this.render();
-    });
-    this.unsubscribeAgent = this.agent.subscribe((snapshot) => {
-      if (generation !== this.connectionGeneration) return;
-      this.agentSnapshot = snapshot;
-      this.render();
-    });
+    try {
+      this.agent = new DashboardAgentController({ gateway: this.gateway });
+    } catch {
+      throw new DashboardGatewayError("agent_setup_failed");
+    }
+    try {
+      this.unsubscribeConnection = this.gateway.subscribe((snapshot) => {
+        if (generation !== this.connectionGeneration) return;
+        this.connectionSnapshot = snapshot;
+        if (snapshot.state === "signed_out") queueMicrotask(() => { void this.invalidateSession(); });
+        this.render();
+      });
+      this.unsubscribeAgent = this.agent.subscribe((snapshot) => {
+        if (generation !== this.connectionGeneration) return;
+        this.agentSnapshot = snapshot;
+        this.render();
+      });
+    } catch {
+      throw new DashboardGatewayError("panel_subscription_failed");
+    }
     this.render();
     void this.refreshOperations();
     await this.gateway.connect().catch(() => {});
@@ -823,6 +862,28 @@ export class HermesGatewayPanel {
     this.steerValue = "";
     this.render();
     await this.agent.steer(guidance).catch(() => {});
+  }
+
+  async confirmStop() {
+    if (!this.agent || this.agentSnapshot.actionPending || this.connectionSnapshot.state !== "connected") return;
+    const agent = this.agent;
+    const runGeneration = agent.runGeneration;
+    const confirm = window.muxy?.dialog?.confirm;
+    const result = await requestConfirmedStop({
+      confirm,
+      canStop: () => this.agent === agent
+        && agent.runGeneration === runGeneration
+        && !this.agentSnapshot.actionPending
+        && this.connectionSnapshot.state === "connected"
+        && ["starting", "running"].includes(this.agentSnapshot.status),
+      stop: () => agent.stop(),
+    });
+    if (["confirmation_unavailable", "confirmation_failed"].includes(result)) {
+      this.message = "Muxy could not open the stop confirmation. Reload the extension, then try again.";
+      this.render();
+      return;
+    }
+    if (result === "stale") this.render();
   }
 
   async openBoard() {

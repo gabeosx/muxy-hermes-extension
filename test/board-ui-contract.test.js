@@ -43,10 +43,11 @@ test("the project board is a responsive Muxy tab rather than a second chat clien
   assert.match(html, /src="\/src\/board-main\.js"/);
 
   assert.match(css, /var\(--muxy-topbar-height\)/);
-  assert.match(css, /grid-auto-flow:\s*column/);
+  assert.match(css, /\.board-columns\s*\{[\s\S]*?display:\s*flex/);
+  assert.match(css, /\.board-columns\s*\{[\s\S]*?align-items:\s*stretch/);
   assert.match(css, /overflow:\s*auto/);
   assert.match(css, /@media \(max-width:\s*720px\)/);
-  assert.match(css, /grid-auto-flow:\s*row/);
+  assert.match(css, /@media \(max-width:\s*720px\)\s*\{[\s\S]*?\.board-columns\s*\{[\s\S]*?flex-direction:\s*column/);
   assert.match(css, /overflow-y:\s*auto/);
   assert.match(css, /min-height:\s*0/);
   assert.match(css, /board-session/);

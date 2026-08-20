@@ -149,6 +149,27 @@ test("dashboard auth clears session on invalid credentials, expiry, and unauthor
   assert.equal(auth.cookieHeaderForTest(), "");
 });
 
+test("dashboard auth preserves sanitized relay launch failures during login", async () => {
+  const relay = {
+    async requestSessionJson(request) {
+      if (request.url.endsWith("/api/status")) return response(200, { auth_required: true });
+      if (request.url.endsWith("/api/auth/providers")) return response(200, { providers: [{ name: "basic", display_name: "Password", supports_password: true }] });
+      const error = new Error("sensitive remote command output");
+      error.code = "relay_launch_spawn_missing";
+      throw error;
+    },
+  };
+  const auth = new DashboardAuthSession({ baseUrl: "https://hermes.example", relay });
+  await auth.discover();
+  await assert.rejects(
+    auth.login({ provider: "basic", username: "admin", password: "sentinel-password" }),
+    (error) => error instanceof DashboardAuthError
+      && error.code === "relay_launch_spawn_missing"
+      && !error.message.includes("sensitive"),
+  );
+  assert.equal(auth.snapshot.state, "logged_out");
+});
+
 test("ungated dashboards and OAuth-only dashboards never expose a token fallback", async () => {
   for (const [statusBody, providerBody, expectedState] of [
     [{ auth_required: false }, null, "auth_unavailable"],
@@ -233,6 +254,27 @@ test("dashboard auth rejects malformed tickets and clears only on authoritative 
   await assert.rejects(expired.requestWebSocketTicket(), (error) => error.code === "session_expired");
   assert.equal(expired.snapshot.state, "session_expired");
   assert.equal(expired.cookieHeaderForTest(), "");
+
+  mode = "relay";
+  relay.requestSessionJson = async () => { throw new Error("remote command output with sensitive details"); };
+  const relayFailure = create();
+  await assert.rejects(
+    relayFailure.requestWebSocketTicket(),
+    (error) => error.code === "websocket_ticket_failed" && !error.message.includes("sensitive"),
+  );
+  assert.equal(relayFailure.snapshot.state, "logged_in");
+
+  const classified = create();
+  relay.requestSessionJson = async () => {
+    const error = new Error("sensitive remote command output");
+    error.code = "relay_launch_spawn_missing";
+    throw error;
+  };
+  await assert.rejects(
+    classified.requestWebSocketTicket(),
+    (error) => error.code === "relay_launch_spawn_missing" && !error.message.includes("sensitive"),
+  );
+  assert.equal(classified.snapshot.state, "logged_in");
 });
 
 test("authenticated Dashboard requests serialize through cookie rotation", async () => {

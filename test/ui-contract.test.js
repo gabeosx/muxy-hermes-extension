@@ -36,7 +36,8 @@ test("product source contains only the Dashboard session relay contract", async 
     readFile(new URL("src/lib/icons.js", root), "utf8"),
   ]);
   assert.match(relay, /requestSessionJson/);
-  assert.match(relay, /stdin: buildSessionConfig/);
+  assert.match(relay, /const stdin = buildSessionConfig/);
+  assert.match(relay, /this\.exec\(argv, \{\s*stdin,/);
   assert.doesNotMatch(relay, /bearer|text\/event-stream|streamJournal|journal|Authorization:/i);
   assert.match(auth, /requestWebSocketTicket/);
   assert.match(gateway, /authSession\.requestWebSocketTicket\(\)/);
@@ -54,6 +55,7 @@ test("OAuth-only providers and password security boundaries are explicit in both
     assert.match(source, /OAuth\/OIDC not supported/);
     assert.match(source, /password sign-in only/);
     assert.match(source, /trusted network, VPN, or operator-controlled connection/);
+    assert.match(source, /Muxy SSH workspaces are not supported in this beta/);
     assert.match(source, /type: "password"/);
   }
   for (const heading of ["Beta support contract", "Security warning", "Permissions", "Data and privacy", "Troubleshooting", "Uninstall and rollback"]) {
@@ -75,7 +77,24 @@ test("native styles retain themes, focus, responsive scale, and reduced motion",
     assert.match(css, /:focus-visible/);
     assert.match(css, /prefers-reduced-motion:\s*reduce/);
     assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b/i);
+    assert.doesNotMatch(css, /--muxy-diff-delete/);
   }
   assert.match(boardCss, /@media \(max-width:\s*720px\)/);
   assert.match(panelCss, /overflow-y:\s*auto/);
+});
+
+test("native mutation controls provide compact empty states, global pending state, and stop confirmation", async () => {
+  const [panel, board, boardCss, stopConfirmation] = await Promise.all([
+    readFile(new URL("src/panel/app.js", root), "utf8"),
+    readFile(new URL("src/board/app.js", root), "utf8"),
+    readFile(new URL("src/styles/board.css", root), "utf8"),
+    readFile(new URL("src/stop-confirmation.js", root), "utf8"),
+  ]);
+  assert.match(stopConfirmation, /Stop this Hermes run\?/);
+  assert.match(panel, /agent\.runGeneration === runGeneration/);
+  assert.match(board, /disabled: Boolean\(this\.pendingTaskId\)/);
+  assert.match(board, /"aria-busy": Boolean\(this\.pendingTaskId\)/);
+  assert.match(board, /Add one or move a card here\./);
+  assert.match(boardCss, /\.board-column-empty/);
+  assert.match(boardCss, /scrollbar-gutter:\s*stable/);
 });

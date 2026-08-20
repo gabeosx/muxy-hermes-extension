@@ -29,6 +29,9 @@ function errorCopy(error) {
   if (error?.message === "kanban_contract_mismatch" || error?.code === "kanban_contract_mismatch") {
     return "This Dashboard returned an unsupported board response.";
   }
+  if (error?.code === "relay_launch_spawn_missing") {
+    return "Muxy SSH workspaces are not supported in this beta. Use a local Muxy workspace with your own SSH forward or a trusted HTTPS Dashboard address.";
+  }
   if (/^(Enter|Use|Board slug|Task title|Invalid)/.test(error?.message ?? "")) return error.message;
   return "The Hermes board could not be reached. Check the Dashboard address and sign-in, then try again.";
 }
@@ -240,18 +243,18 @@ export class HermesProjectBoard {
         h("form", { class: "board-create-form", onsubmit: (event) => void this.createCard(event) }, title, triage, submit),
       ),
       h("p", { class: "board-message", role: this.message ? "alert" : null, "aria-live": "polite" }, this.message),
-      h("div", { class: "board-columns", "aria-label": "Hermes Kanban board" }, this.board.columns.map((column) => this.columnView(column))),
+      h("div", { class: "board-columns", "aria-label": "Hermes Kanban board", "aria-busy": Boolean(this.pendingTaskId) }, this.board.columns.map((column) => this.columnView(column))),
     );
   }
 
   columnView(column) {
-    return h("section", { class: `board-column board-column-${column.name}`, "aria-labelledby": `column-${column.name}` },
+    return h("section", { class: `board-column board-column-${column.name}${column.tasks.length ? "" : " board-column-empty"}`, "aria-labelledby": `column-${column.name}` },
       h("header", { class: "board-column-header" },
         h("h2", { id: `column-${column.name}` }, h("span", { class: "board-status-dot" }), STATUS_LABELS[column.name] ?? column.name),
         h("span", { class: "board-count" }, column.tasks.length),
       ),
       h("div", { class: "board-card-list" },
-        column.tasks.length ? column.tasks.map((task) => this.cardView(task)) : h("p", { class: "board-empty" }, "No cards"),
+        column.tasks.length ? column.tasks.map((task) => this.cardView(task)) : h("p", { class: "board-empty" }, `No ${STATUS_LABELS[column.name] ?? column.name} cards. Add one or move a card here.`),
       ),
     );
   }
@@ -259,7 +262,7 @@ export class HermesProjectBoard {
   cardView(task) {
     const status = h("select", {
       class: "board-select board-card-status", "aria-label": `Move ${task.title}`,
-      disabled: this.pendingTaskId === task.id,
+      disabled: Boolean(this.pendingTaskId),
       onchange: (event) => void this.moveCard(task, event.target.value),
     }, KANBAN_STATUSES.map((name) => h("option", { value: name, selected: name === task.status }, STATUS_LABELS[name])));
     const chips = [

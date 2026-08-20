@@ -20,6 +20,11 @@ function safeText(value, max = 256) {
   return typeof value === "string" ? value.slice(0, max) : "";
 }
 
+function relayFailure(error) {
+  const code = typeof error?.code === "string" ? error.code : "";
+  return /^relay_[a-z0-9_]{1,96}$/.test(code) ? new DashboardAuthError(code) : null;
+}
+
 function normalizeProviders(payload) {
   if (!payload || !Array.isArray(payload.providers)) throw new DashboardAuthError("auth_contract_mismatch");
   const providers = payload.providers.map((provider) => {
@@ -196,8 +201,10 @@ export class DashboardAuthSession {
         method: "POST",
         body: { provider: supported.name, username: safeUsername, password },
       });
-    } catch {
+    } catch (error) {
       this.#clear("logged_out");
+      const failure = relayFailure(error);
+      if (failure) throw failure;
       throw new DashboardAuthError("login_response_unreadable");
     }
     if (response.status === 401 || response.status === 403) {
@@ -268,10 +275,18 @@ export class DashboardAuthSession {
   }
 
   async requestWebSocketTicket() {
-    const response = await this.requestJson({
-      url: `${this.baseUrl}/api/auth/ws-ticket`,
-      method: "POST",
-    });
+    let response;
+    try {
+      response = await this.requestJson({
+        url: `${this.baseUrl}/api/auth/ws-ticket`,
+        method: "POST",
+      });
+    } catch (error) {
+      if (error instanceof DashboardAuthError) throw error;
+      const failure = relayFailure(error);
+      if (failure) throw failure;
+      throw new DashboardAuthError("websocket_ticket_failed");
+    }
     if (response.status < 200 || response.status >= 300) {
       throw new DashboardAuthError("websocket_ticket_failed", response.status);
     }

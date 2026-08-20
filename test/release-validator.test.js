@@ -21,6 +21,7 @@ test("production import graph contains only current Dashboard and Muxy modules",
     "src/muxy-tabs.js",
     "src/panel/app.js",
     "src/session-broker.js",
+    "src/stop-confirmation.js",
   ]);
   assert.deepEqual(await validateImportReachability(), graph);
 });
@@ -28,6 +29,7 @@ test("production import graph contains only current Dashboard and Muxy modules",
 test("release secret scanner returns file names only and finds no credential material", async () => {
   const scanned = await scanReleaseSecrets();
   assert.ok(scanned.includes("README.md"));
+  assert.ok(scanned.includes("OPEN_ISSUES.md"));
   assert.ok(scanned.includes("package.json"));
   assert.equal(scanned.some((file) => file.startsWith(".planning/")), false);
 });

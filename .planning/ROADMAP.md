@@ -7,9 +7,9 @@
 
 ## v1.1 Phases
 
-- [ ] **Phase 4: Contract and Attack-Surface Cleanup** — Make the marketplace product match the shipped Dashboard contract and remove unused authority and legacy code.
-- [ ] **Phase 5: Deterministic Release Validation** — Replace phase-era validation with a reproducible current-architecture release gate.
-- [ ] **Phase 6: Docker and Native Qualification** — Qualify every claimed topology and UX state with real mechanisms and verified cleanup.
+- [x] **Phase 4: Contract and Attack-Surface Cleanup** — Make the marketplace product match the shipped Dashboard contract and remove unused authority and legacy code.
+- [x] **Phase 5: Deterministic Release Validation** — Replace phase-era validation with a reproducible current-architecture release gate.
+- [x] **Phase 6: Docker and Native Qualification** — Qualify every supported topology and UX state with real mechanisms and verified cleanup; retain Muxy SSH workspaces as a documented Next-release issue.
 - [ ] **Phase 7: Marketplace Submission** — Complete listing assets, reviews, upstream validation, PR submission, and signed-build smoke verification.
 
 ## Phase Details
@@ -45,7 +45,7 @@
 
 ### Phase 6: Docker and Native Qualification
 
-**Goal:** Real local/Docker, SSH-forward, trusted HTTPS, and Muxy SSH-workspace paths repeatedly satisfy the frozen behavioral and safety claims with no fixture residue.
+**Goal:** Real local/Docker, operator-owned SSH-forward, and trusted HTTPS paths repeatedly satisfy the frozen behavioral and safety claims with no fixture residue, while unsupported Muxy SSH workspaces fail safely.
 
 **Depends on:** Phase 5
 **Requirements:** QUAL-01, QUAL-02, QUAL-03, QUAL-04, QUAL-05, QUAL-06, QUAL-07, QUAL-08, QUAL-09, QUAL-10, QUAL-11
@@ -53,10 +53,10 @@
 **Success Criteria:**
 
 1. A digest-pinned disposable Compose lab uses task-local mode-0700 credentials to serve Hermes, deterministic model behavior, actual SSH, and a short-lived HTTPS/WebSocket tunnel.
-2. Actual `ssh -L`, trusted HTTPS/WebSocket, and a real Muxy SSH workspace each complete two panel sessions and one Muxy restart across authentication, ticketing, reconnect, agent controls, operations, schedules, and board flows.
+2. Actual `ssh -L` and trusted HTTPS/WebSocket each complete two panel sessions and one Muxy restart across authentication, ticketing, reconnect, agent controls, operations, schedules, and board flows.
 3. Negative paths cover invalid password, expired session, permission denial, missing optional plugin, malformed response, interrupted tunnel/WebSocket, approval, stop, and authoritative cancellation.
 4. Native UI passes the required theme, scale, pane, focus, accessibility, and reduced-motion matrix.
-5. Receipts prove remote paths/secrets never cross the Dashboard boundary and teardown leaves no owned infrastructure, process, listener, key, secret, or temporary directory.
+5. Receipts prove workspace paths and qualification secrets never cross the Dashboard boundary; teardown leaves no owned infrastructure, process, listener, key, secret, or temporary directory; Muxy SSH workspaces remain explicitly unsupported.
 
 ### Phase 7: Marketplace Submission
 
@@ -77,9 +77,9 @@
 
 | Phase | Requirements | Status | Completed |
 |-------|--------------|--------|-----------|
-| 4. Contract and Attack-Surface Cleanup | 10 | In progress | — |
-| 5. Deterministic Release Validation | 8 | Pending | — |
-| 6. Docker and Native Qualification | 11 | Pending | — |
+| 4. Contract and Attack-Surface Cleanup | 10 | Complete | 2026-08-20 |
+| 5. Deterministic Release Validation | 8 | Complete | 2026-08-20 |
+| 6. Docker and Native Qualification | 11 | Complete — supported beta matrix passed; SSH workspace tracked for the next release | 2026-08-20 |
 | 7. Marketplace Submission | 8 | Pending | — |
 
 **Execution order:** 4 → 5 → 6 → 7

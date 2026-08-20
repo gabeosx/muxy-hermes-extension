@@ -70,7 +70,7 @@ test("agent approvals, steering, and stop map to allowlisted Dashboard RPC metho
   assert.deepEqual(agent.snapshot.pendingApproval.choices, ["once", "always", "deny"]);
   await agent.approve("once");
   await agent.steer("Also run the build");
-  await agent.stop();
+  assert.deepEqual(await agent.stop(), { status: "accepted" });
 
   assert.deepEqual(gateway.calls.slice(2), [
     { method: "approval.respond", params: { session_id: "runtime-1", choice: "once" } },

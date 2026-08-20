@@ -16,6 +16,30 @@ function relayError(code) {
   return error;
 }
 
+function executionRejection(error) {
+  const message = typeof error?.message === "string" ? error.message.toLowerCase() : "";
+  if (message.includes("too many concurrent commands")) return relayError("relay_concurrency_limit");
+  if (message.includes("user denied consent") || message.includes("permission denied (commands:exec)")) {
+    return relayError("relay_permission_denied");
+  }
+  if (message.includes("failed to launch")) {
+    if (message.includes("configure standard stream")) return relayError("relay_launch_stream_failed");
+    if (message.includes("spawn process")) {
+      if (message.includes("operation not permitted") || message.includes("permission denied")) return relayError("relay_launch_spawn_not_permitted");
+      if (message.includes("no such file or directory")) return relayError("relay_launch_spawn_missing");
+      if (message.includes("resource temporarily unavailable")) return relayError("relay_launch_spawn_busy");
+      if (message.includes("argument list too long")) return relayError("relay_launch_spawn_too_large");
+      return relayError("relay_launch_spawn_failed");
+    }
+    if (message.includes("null bytes") || message.includes("missing executable") || message.includes("allocate process arguments")) {
+      return relayError("relay_launch_arguments_invalid");
+    }
+    return relayError("relay_launch_failed");
+  }
+  if (message.includes("cancelled")) return relayError("relay_cancelled");
+  return relayError("relay_execution_rejected");
+}
+
 function curlConfigQuote(value) {
   return String(value)
     .replaceAll("\\", "\\\\")
@@ -68,7 +92,7 @@ function parseCookies(rawHeaders) {
   for (const line of String(rawHeaders ?? "").split(/\r?\n/)) {
     const match = line.match(/^set-cookie:\s*([^=;\s]+)=([^;\r\n]*)(.*)$/i);
     if (!match || !SESSION_COOKIE.test(match[1])) continue;
-    const quoted = match[2].match(/^"([A-Za-z0-9._~+/%=-]+)"$/);
+    const quoted = match[2].match(/^"([A-Za-z0-9._~+/%=-]*)"$/);
     const value = quoted ? quoted[1] : match[2];
     if (value && !SESSION_COOKIE_VALUE.test(value)) throw relayError("relay_protocol_error");
     cookies.push(Object.freeze({
@@ -81,12 +105,14 @@ function parseCookies(rawHeaders) {
 }
 
 function parseResponse(result) {
-  if (!result || result.timedOut || result.exitCode === 28) throw relayError("relay_timeout");
+  if (!result || typeof result !== "object") throw relayError("relay_result_unavailable");
+  if (result.timedOut || result.exitCode === 28) throw relayError("relay_timeout");
   if (result.truncated) throw relayError("relay_response_too_large");
-  const stdout = typeof result.stdout === "string" ? result.stdout : "";
-  const markerIndex = stdout.lastIndexOf(`\n${STATUS_MARKER}`);
+  if (typeof result.stdout !== "string") throw relayError("relay_output_unavailable");
+  const stdout = result.stdout;
+  const markerIndex = stdout.lastIndexOf(STATUS_MARKER);
   if (markerIndex < 0) throw relayError(result.exitCode === 0 ? "relay_protocol_error" : "relay_request_failed");
-  const statusText = stdout.slice(markerIndex + STATUS_MARKER.length + 1).trim();
+  const statusText = stdout.slice(markerIndex + STATUS_MARKER.length).trim();
   if (!/^\d{3}$/.test(statusText) || (result.exitCode !== 0 && statusText === "000")) {
     throw relayError("relay_request_failed");
   }
@@ -128,20 +154,24 @@ export class CurlRelay {
       String(timeoutSeconds),
       "--request",
       method,
-      "--header",
-      "Accept: application/json",
       "--dump-header",
       "-",
       "--output",
       "-",
       "--write-out",
-      `\n${STATUS_MARKER}%{http_code}`,
+      `${STATUS_MARKER}%{http_code}`,
       url,
     ];
-    const result = await this.exec(argv, {
-      stdin: buildSessionConfig({ cookie, body }),
-      timeoutMs: timeoutMs + 2_000,
-    });
+    const stdin = buildSessionConfig({ cookie, body });
+    let result;
+    try {
+      result = await this.exec(argv, {
+        stdin,
+        timeoutMs: timeoutMs + 2_000,
+      });
+    } catch (error) {
+      throw executionRejection(error);
+    }
     return parseResponse(result);
   }
 }

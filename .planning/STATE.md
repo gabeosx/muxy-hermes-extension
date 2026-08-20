@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Marketplace Beta Hardening
-status: planning
-last_updated: "2026-08-20T16:57:13.361Z"
+status: active
+last_updated: "2026-08-20T19:15:00.000Z"
 last_activity: 2026-08-20
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
+  percent: 75
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-18)
 
 **Core value:** Give a user safe, authenticated Hermes control from Muxy across claimed deployments without topology-specific behavior or secret exposure.
-**Current focus:** Phase 4 — Contract and Attack-Surface Cleanup
+**Current focus:** Phase 7 — Marketplace Submission
 
 ## Current Position
 
-Phase: 4 of 7 — Contract and Attack-Surface Cleanup
-Plan: —
-Status: Ready to execute
-Last activity: 2026-08-20 — Milestone v1.1 roadmap approved from the user-provided implementation plan
+Phase: 7 of 7 — Marketplace Submission
+Plan: Not started
+Status: Ready — Phase 6 passed the revised `0.1.0` support matrix; Muxy SSH workspaces are explicitly unsupported and tracked for the next release
+Last activity: 2026-08-20 — Descoped Muxy SSH workspaces from `0.1.0`; supported qualification matrix and cleanup passed
 
 ## Performance Metrics
 
@@ -73,6 +73,8 @@ Last activity: 2026-08-20 — Milestone v1.1 roadmap approved from the user-prov
 
 Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecting current work:
 
+- [Phase 6]: Muxy SSH workspaces are unsupported in `0.1.0`; this known Muxy 1.5.0 remote-executor failure is tracked as a non-blocking next-release issue, while local/Docker, operator-owned SSH-forward, and trusted HTTPS remain the frozen beta matrix.
+
 - [Phase 1]: Use one deployment-neutral URL/token client contract for host-native, Docker, SSH local-forward, direct HTTPS, and remote Muxy workspace evidence.
 - [Phase 1]: Direct WebKit transport produced a negative result; v1 now uses one consented argv-form curl process per SSE stream and a bounded workspace journal.
 - [Phase 1]: V1 is extension-only; Muxy agent/provider registration and all Muxy source changes remain deferred.
@@ -112,6 +114,8 @@ None yet.
 
 ### Blockers/Concerns
 
+- [Next release]: Muxy 1.5.0 remote extension execution fails `posix_spawn(/usr/bin/ssh)` with `ENOENT`; restore SSH-workspace support only after the full native qualification gate passes.
+
 - [Phase 3]: The current Muxy webview exposes Promise-based `exec`, not cancellable `execAsync`; interrupted and closed-panel stream ownership must remain bounded and truthful.
 - [Phase 3]: Native host/Docker observations are receipt-backed and complete; SSH, HTTPS, and remote-workspace deployment classes intentionally remain `Unverified` beyond their executable analogues.
 - [Phase 3]: SSH-forward, direct-HTTPS, and remote-workspace analogues executed successfully but deliberately remain `Unverified` for their real deployment classes.
@@ -130,6 +134,7 @@ None yet.
 | 260819-oji | Replace Gateway token flow with Dashboard-session WebSocket tickets and transparent reconnect | 2026-08-19 | 9aa563c | Passed | [260819-oji-replace-gateway-token-flow-with-dashboar](./quick/260819-oji-replace-gateway-token-flow-with-dashboar/) |
 | 260819-puh | Turn the Hermes Agent panel into a compact operations and command surface | 2026-08-19 | f7a6a7f | Passed | [260819-puh-polish-the-hermes-agent-panel-with-a-use](./quick/260819-puh-polish-the-hermes-agent-panel-with-a-use/) |
 | 260820-fqf | Make scheduled jobs expandable, show cadence, and integration-test the operations panel | 2026-08-20 | eab3fc3 | Passed | [260820-fqf-make-scheduled-jobs-expandable-show-cade](./quick/260820-fqf-make-scheduled-jobs-expandable-show-cade/) |
+| 260820-n3r | Descope Muxy SSH workspaces from 0.1.0 and track restoration as an open issue | 2026-08-20 | this commit | Passed | [260820-n3r-descope-muxy-ssh-workspaces-from-0-1-0-a](./quick/260820-n3r-descope-muxy-ssh-workspaces-from-0-1-0-a/) |
 
 ### Roadmap Evolution
 
@@ -144,13 +149,14 @@ None yet.
 | Muxy integration | Agent/provider registration and any source change | Deferred — requires separate authorization | v1 initialization |
 | Durable operation | Background run ownership and notifications | Deferred — needs a distinct transport owner | v1 initialization |
 | Workspace execution | `cwd` and workspace path mapping | Deferred — needs Gateway-side validation | v1 initialization |
+| Muxy SSH workspace | Restore support only after a valid Muxy remote executor passes the full native gate | Next release — tracked in OPEN_ISSUES.md | v1.1 Phase 6 scope revision |
 
 ## Session Continuity
 
-Last session: 2026-08-18T23:00:21.000Z
-Stopped at: Phase 03 complete; milestone ready for completion audit
+Last session: 2026-08-20T20:50:00.000Z
+Stopped at: Phase 06 complete under revised beta scope; Phase 07 ready
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Execute Phase 07 marketplace submission after restoring GitHub authentication and configuring the repository remote.

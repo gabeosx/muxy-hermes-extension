@@ -64,6 +64,8 @@ test("Dashboard request uses argv-form curl with all secrets in stdin", async ()
   assert.equal(Object.hasOwn(calls[0].options, "env"), false);
   assert.equal(calls[0].argv.includes("--create-dirs"), false);
   assert.equal(calls[0].argv.includes("--no-buffer"), false);
+  assert.equal(calls[0].argv.includes("Accept: application/json"), false);
+  assert.equal(calls[0].argv.every((argument) => !/\s/.test(argument)), true);
 });
 
 test("Dashboard request preserves only the complete Hermes session cookie family", async () => {
@@ -83,10 +85,14 @@ test("Dashboard request preserves only the complete Hermes session cookie family
   ]);
 });
 
-test("Dashboard request accepts cookie deletion and rejects malformed cookie values", async () => {
-  const deletion = new CurlRelay({ exec: async () => response({ headers: ["Set-Cookie: hermes_session_at=; Max-Age=0"] }) });
+test("Dashboard request accepts quoted or unquoted cookie deletion and rejects malformed cookie values", async () => {
+  const deletion = new CurlRelay({ exec: async () => response({ headers: [
+    "Set-Cookie: hermes_session_at=; Max-Age=0",
+    "Set-Cookie: hermes_session_rt=\"\"; Max-Age=0",
+  ] }) });
   assert.deepEqual((await deletion.requestSessionJson({ url: "http://127.0.0.1:9119/auth/logout" })).setCookies, [
     { name: "hermes_session_at", value: "", expired: true },
+    { name: "hermes_session_rt", value: "", expired: true },
   ]);
 
   const malformed = new CurlRelay({ exec: async () => response({ headers: ["Set-Cookie: hermes_session_at=\"access\\token\"; HttpOnly"] }) });
@@ -106,6 +112,37 @@ test("Dashboard request returns bounded sanitized relay failures", async () => {
       assert.equal(error.message.includes("secret host details"), false);
       return true;
     });
+  }
+});
+
+test("Dashboard request classifies rejected and incomplete Muxy command results", async () => {
+  const rejected = new CurlRelay({ exec: async () => { throw new Error("contains remote URL and credentials"); } });
+  await assert.rejects(
+    rejected.requestSessionJson({ url: "https://hermes.example/api/status" }),
+    (error) => error.code === "relay_execution_rejected" && !error.message.includes("credentials"),
+  );
+
+  const missingResult = new CurlRelay({ exec: async () => null });
+  await assert.rejects(missingResult.requestSessionJson({ url: "https://hermes.example/api/status" }), { code: "relay_result_unavailable" });
+
+  const missingOutput = new CurlRelay({ exec: async () => ({ exitCode: 0 }) });
+  await assert.rejects(missingOutput.requestSessionJson({ url: "https://hermes.example/api/status" }), { code: "relay_output_unavailable" });
+
+  for (const [message, code] of [
+    ["exec failed to launch: private remote detail", "relay_launch_failed"],
+    ["exec failed to launch: configure standard stream: bad file descriptor", "relay_launch_stream_failed"],
+    ["exec failed to launch: spawn process: unknown host failure", "relay_launch_spawn_failed"],
+    ["exec failed to launch: spawn process: operation not permitted", "relay_launch_spawn_not_permitted"],
+    ["exec failed to launch: spawn process: no such file or directory", "relay_launch_spawn_missing"],
+    ["exec failed to launch: spawn process: resource temporarily unavailable", "relay_launch_spawn_busy"],
+    ["exec failed to launch: spawn process: argument list too long", "relay_launch_spawn_too_large"],
+    ["exec failed to launch: arguments and environment cannot contain null bytes", "relay_launch_arguments_invalid"],
+    ["exec: too many concurrent commands (limit 32)", "relay_concurrency_limit"],
+    ["exec: permission denied (commands:exec)", "relay_permission_denied"],
+    ["exec cancelled", "relay_cancelled"],
+  ]) {
+    const classified = new CurlRelay({ exec: async () => { throw new Error(message); } });
+    await assert.rejects(classified.requestSessionJson({ url: "https://hermes.example/api/status" }), (error) => error.code === code && !error.message.includes("private"));
   }
 });
 
