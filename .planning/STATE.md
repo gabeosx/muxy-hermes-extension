@@ -1,19 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: Awaiting next milestone
-stopped_at: Phase 03 complete; milestone ready for completion audit
-last_updated: "2026-08-20T16:53:25.359Z"
+milestone: v1.1
+milestone_name: Marketplace Beta Hardening
+status: planning
+last_updated: "2026-08-20T16:57:13.361Z"
 last_activity: 2026-08-20
-last_activity_desc: "Completed quick task 260820-fqf: Make scheduled jobs expandable, show cadence, and integration-test the operations panel"
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 22
-  completed_plans: 22
-current_phase: 03
-current_phase_name: open-panel-recovery-proof
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -22,15 +19,15 @@ current_phase_name: open-panel-recovery-proof
 
 See: .planning/PROJECT.md (updated 2026-08-18)
 
-**Core value:** Prove secure, authenticated, streamed Hermes run control across representative Hermes deployment shapes inside a native-feeling Muxy panel before building the surrounding product.
-**Current focus:** Milestone completion audit
+**Core value:** Give a user safe, authenticated Hermes control from Muxy across claimed deployments without topology-specific behavior or secret exposure.
+**Current focus:** Phase 4 — Contract and Attack-Surface Cleanup
 
 ## Current Position
 
-Phase: Milestone v1.0 complete
+Phase: 4 of 7 — Contract and Attack-Surface Cleanup
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-08-20 — Milestone v1.0 completed and archived
+Status: Ready to execute
+Last activity: 2026-08-20 — Milestone v1.1 roadmap approved from the user-provided implementation plan
 
 ## Performance Metrics
 

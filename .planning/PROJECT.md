@@ -63,5 +63,32 @@ Give a user safe, authenticated Hermes control from Muxy across local, Docker, S
 - [v1.0 Development Proof](./milestones/v1.0-ROADMAP.md) — shipped 2026-08-20 with technical debt accepted for the post-phase Dashboard migration.
 - **v1.1 Marketplace Beta Hardening** — active next milestone.
 
+## Current Milestone: v1.1 Marketplace Beta Hardening
+
+**Goal:** Publish `hermes-agent@0.1.0` as an accurately scoped marketplace beta after the current Dashboard architecture passes deterministic release, real-topology, security, UI, and packaging gates.
+
+**Target features:**
+
+- A minimal password-authenticated Dashboard session and WebSocket client contract with obsolete bearer/SSE code removed.
+- A reproducible Node 20 release gate and aggressively cleaned disposable Docker qualification lab.
+- Complete marketplace metadata, listing assets, documentation, upstream validation, and submission evidence.
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition:**
+
+1. Move validated requirements to the milestone record.
+2. Record invalidated assumptions and new exclusions.
+3. Log architecture and release decisions.
+4. Recheck that the product description and core value remain accurate.
+
+**After each milestone:**
+
+1. Review every section against shipped behavior.
+2. Recheck the core value and out-of-scope boundaries.
+3. Update current state and archive the milestone artifacts.
+
 ---
-*Last updated: 2026-08-20 at the v1.0 milestone boundary.*
+*Last updated: 2026-08-20 for v1.1 Marketplace Beta Hardening.*
