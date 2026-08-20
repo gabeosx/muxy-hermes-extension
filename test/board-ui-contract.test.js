@@ -19,8 +19,8 @@ test("the project board is a responsive Muxy tab rather than a second chat clien
     "Open board",
     "Signed in as",
     "Sign-in expired",
-    "Sign in in your browser",
-    "You’ll stay signed in on this Mac until you log out.",
+    "OAuth/OIDC not supported",
+    "You’ll stay signed in on this Mac until you log out. Use password sign-in only on a trusted network, VPN, or operator-controlled connection.",
     "Add card",
   ]) assert.match(app, new RegExp(copy.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 

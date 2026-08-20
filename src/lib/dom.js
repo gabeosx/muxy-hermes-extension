@@ -13,7 +13,6 @@ export function setAttrs(node, attrs) {
   for (const [key, value] of Object.entries(attrs)) {
     if (value === null || value === undefined || value === false) continue;
     if (key === "class") node.className = String(value);
-    else if (key === "html") node.innerHTML = String(value);
     else if (key === "disabled" && value === true) node.setAttribute("disabled", "");
     else if (key.startsWith("on") && typeof value === "function") {
       node.addEventListener(key.slice(2).toLowerCase(), value);

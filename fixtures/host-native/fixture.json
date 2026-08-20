@@ -1,8 +1,0 @@
-{
-  "schemaVersion": 1,
-  "fixture": "host_native_loopback",
-  "bindHost": "127.0.0.1",
-  "requiredStages": ["url", "request", "authentication", "origin", "capabilities", "stream"],
-  "streamContract": "two_delayed_deltas_no_tools",
-  "isolation": { "temporaryHome": true, "emptyWorkspace": true, "userProfiles": false, "mcp": false, "memory": false }
-}

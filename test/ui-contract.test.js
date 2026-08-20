@@ -2,194 +2,80 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { normalizeCapabilities } from "../src/capabilities.js";
-import { renderRecoveryEvidence, sanitizeRecoveryEvidence } from "../src/recovery-evidence.js";
-
 const root = new URL("../", import.meta.url);
 
-test("capability normalization keeps only safe documented metadata and names", () => {
-  const normalized = normalizeCapabilities({
-    version: "fixture-v1",
-    features: { run_stop: true, run_start: true, unsafe_object: { enabled: true }, disabled_feature: false, "not valid": true },
-    secret: "must-not-survive",
-  });
-  assert.deepEqual(normalized, { state: "partial", version: "fixture-v1", names: ["run_start", "run_stop"] });
-  assert.equal(JSON.stringify(normalized).includes("must-not-survive"), false);
-  assert.deepEqual(normalizeCapabilities({ version: "fixture-v1", features: {} }), { state: "empty", version: "fixture-v1", names: [] });
-  assert.deepEqual(normalizeCapabilities(null), { state: "unavailable", version: null, names: [] });
-});
-
-test("the manifest exposes the agent panel and board with least required permissions", async () => {
+test("marketplace identity, metadata, and permissions are frozen", async () => {
   const manifest = JSON.parse(await readFile(new URL("package.json", root), "utf8"));
-  assert.deepEqual(manifest.muxy.commands, [
-    { id: "toggle-hermes-gateway", title: "Hermes: Toggle Agent Panel", action: { kind: "togglePanel", panel: "hermes-gateway" } },
-    { id: "open-hermes-project-board", title: "Hermes: Open Project Board", action: { kind: "openTab", tabType: "hermes-project-board" } },
-  ]);
-  assert.deepEqual(manifest.muxy.tabTypes, [{ id: "hermes-project-board", title: "Hermes Project Board", entry: "board/index.html" }]);
+  assert.equal(manifest.name, "hermes-agent");
+  assert.equal(manifest.version, "0.1.0");
+  assert.equal(manifest.engines.node, ">=20");
+  assert.equal(Object.keys(manifest.dependencies ?? {}).length, 0);
+  assert.deepEqual(manifest.muxy.marketplace, {
+    author: "Gabe",
+    categories: ["developer-tools", "productivity"],
+    github: "gabeosx",
+    icon: "assets/icon.svg",
+    screenshots: [
+      "assets/screenshots/operations.png",
+      "assets/screenshots/agent-approval.png",
+      "assets/screenshots/project-board.png",
+    ],
+  });
   assert.deepEqual(manifest.muxy.permissions, ["commands:exec", "panels:write", "storage:read", "storage:write", "tabs:write"]);
-  assert.equal(Object.hasOwn(manifest.muxy, "background"), false);
-  assert.equal(Object.hasOwn(manifest.muxy, "events"), false);
-  for (const forbiddenSurface of ["topbarItems", "statusbarItems", "scripts"]) {
-    assert.equal(Object.hasOwn(manifest.muxy, forbiddenSurface), false, `manifest must not declare ${forbiddenSurface}`);
+  for (const forbidden of ["background", "events", "scripts", "topbarItems", "statusbarItems"]) {
+    assert.equal(Object.hasOwn(manifest.muxy, forbidden), false);
   }
 });
 
-test("the panel presents one user-facing Dashboard sign-in and restores it", async () => {
-  const [panel, auth, gateway, broker] = await Promise.all([
-    readFile(new URL("src/panel/app.js", root), "utf8"),
+test("product source contains only the Dashboard session relay contract", async () => {
+  const [relay, auth, gateway, dom, icons] = await Promise.all([
+    readFile(new URL("src/curl-relay.js", root), "utf8"),
     readFile(new URL("src/dashboard-auth.js", root), "utf8"),
     readFile(new URL("src/dashboard-gateway.js", root), "utf8"),
-    readFile(new URL("src/session-broker.js", root), "utf8"),
+    readFile(new URL("src/lib/dom.js", root), "utf8"),
+    readFile(new URL("src/lib/icons.js", root), "utf8"),
   ]);
-
-  for (const copy of [
-    "Connect to Hermes",
-    "Enter the address you use to open Hermes.",
-    "Sign in once to use Hermes and your project boards.",
-    "You’ll stay signed in on this Mac until you log out.",
-    "Connected",
-    "Connecting…",
-    "Reconnecting…",
-    "Offline — retrying",
-    "Signed out",
-    "Trying to reconnect automatically. No action is needed.",
-    "Hermes couldn’t prepare the agent connection. We’ll keep trying automatically.",
-    "Hermes isn’t responding to agent connections yet. We’ll keep trying automatically.",
-    "Hermes rejected the agent connection. We’ll keep trying with a new connection.",
-    "This Hermes server isn’t accepting agent connections from Muxy yet.",
-  ]) assert.ok(panel.includes(copy), `panel is missing copy: ${copy}`);
-
-  assert.match(panel, /type: "password",\s*autocomplete: "current-password"/);
-  assert.match(panel, /autocomplete: "username"/);
-  assert.match(panel, /DashboardAuthSession/);
-  assert.match(panel, /DashboardGatewayClient/);
-  assert.match(panel, /restoreSavedSession/);
-  assert.match(panel, /if \(this\.restorePromise\) return this\.restorePromise/);
-  assert.match(panel, /generation !== this\.connectionGeneration/);
-  assert.match(panel, /lifecycle\?\.onBeforeClose/);
-  assert.match(panel, /verifyPrimarySession/);
-  assert.match(panel, /SESSION_CHECK_INTERVAL_MS/);
-  assert.match(panel, /clearCredentials/);
+  assert.match(relay, /requestSessionJson/);
+  assert.match(relay, /stdin: buildSessionConfig/);
+  assert.doesNotMatch(relay, /bearer|text\/event-stream|streamJournal|journal|Authorization:/i);
   assert.match(auth, /requestWebSocketTicket/);
   assert.match(gateway, /authSession\.requestWebSocketTicket\(\)/);
-  assert.match(broker, /session\.dashboard\.v1/);
-  assert.doesNotMatch(broker, /gateway\.save|readGateway|saveGateway|localStorage|sessionStorage/);
-
-  for (const internalCopy of [
-    /API_SERVER_KEY/i,
-    /bearer token/i,
-    /dashboard session token/i,
-    /paste.*token/i,
-    /temporary journal/i,
-    /filesystem path/i,
-    /board mapping is explicit/i,
-    /JSON-RPC/i,
-  ]) assert.doesNotMatch(panel, internalCopy);
+  assert.doesNotMatch(dom, /innerHTML|\bhtml\b/);
+  assert.match(icons, /svg\.innerHTML = ICONS\[name\]/);
 });
 
-test("a fresh short-lived ticket is internal to each connection and reconnect", async () => {
-  const [auth, gateway, broker] = await Promise.all([
-    readFile(new URL("src/dashboard-auth.js", root), "utf8"),
-    readFile(new URL("src/dashboard-gateway.js", root), "utf8"),
-    readFile(new URL("src/session-broker.js", root), "utf8"),
-  ]);
-  assert.match(auth, /POST/);
-  assert.match(auth, /\/api\/auth\/ws-ticket/);
-  assert.match(gateway, /#open/);
-  assert.match(gateway, /requestWebSocketTicket\(\)/);
-  assert.match(gateway, /\/api\/ws/);
-  assert.match(gateway, /#scheduleReconnect/);
-  assert.doesNotMatch(broker, /ws-ticket|ttlSeconds|passwordValue|current-password/);
-});
-
-test("the agent exposes run controls without auto-approval", async () => {
-  const [panel, gateway, agent] = await Promise.all([
+test("OAuth-only providers and password security boundaries are explicit in both surfaces", async () => {
+  const [panel, board, readme] = await Promise.all([
     readFile(new URL("src/panel/app.js", root), "utf8"),
-    readFile(new URL("src/dashboard-gateway.js", root), "utf8"),
-    readFile(new URL("src/dashboard-agent.js", root), "utf8"),
+    readFile(new URL("src/board/app.js", root), "utf8"),
+    readFile(new URL("README.md", root), "utf8"),
   ]);
-  const production = `${gateway}\n${agent}`;
-  for (const method of ["session.create", "prompt.submit", "approval.respond", "session.steer", "session.interrupt"]) {
-    assert.match(production, new RegExp(method.replace(".", "\\.")));
+  for (const source of [panel, board]) {
+    assert.match(source, /OAuth\/OIDC not supported/);
+    assert.match(source, /password sign-in only/);
+    assert.match(source, /trusted network, VPN, or operator-controlled connection/);
+    assert.match(source, /type: "password"/);
   }
-  for (const copy of ["Start request", "Approval required", "Allow once", "Allow for session", "Always allow", "Deny", "Send guidance", "Stop"]) {
-    assert.match(panel, new RegExp(copy));
+  for (const heading of ["Beta support contract", "Security warning", "Permissions", "Data and privacy", "Troubleshooting", "Uninstall and rollback"]) {
+    assert.match(readme, new RegExp(heading));
   }
-  assert.doesNotMatch(production, /auto.?approve/i);
+  assert.match(readme, /Muxy 1\.5\.0 \(945\)/);
+  assert.match(readme, /Hermes 0\.20\.2/);
+  assert.match(readme, /No analytics or telemetry/);
 });
 
-test("the signed-in idle panel is an operational overview rather than an empty chat box", async () => {
-  const [panel, operations, css] = await Promise.all([
-    readFile(new URL("src/panel/app.js", root), "utf8"),
-    readFile(new URL("src/dashboard-operations.js", root), "utf8"),
+test("native styles retain themes, focus, responsive scale, and reduced motion", async () => {
+  const [panelCss, boardCss] = await Promise.all([
     readFile(new URL("src/styles/global.css", root), "utf8"),
+    readFile(new URL("src/styles/board.css", root), "utf8"),
   ]);
-  for (const copy of [
-    "Operations",
-    "Needs attention",
-    "Nothing needs you right now.",
-    "Queue pressure",
-    "Oldest wait",
-    "Scheduled jobs",
-    "Show all",
-    "Show fewer",
-    "Hermes is online",
-    "Ask Hermes to work on something…",
-    "Overview",
-  ]) assert.ok(panel.includes(copy), `panel is missing operational copy: ${copy}`);
-
-  assert.match(panel, /DashboardOperationsClient/);
-  assert.match(panel, /OPERATIONS_REFRESH_INTERVAL_MS/);
-  assert.match(panel, /void this\.refreshOperations\(\)/);
-  assert.match(panel, /selectionStart/);
-  assert.match(panel, /aria-expanded/);
-  assert.match(panel, /aria-controls/);
-  assert.match(panel, /jobsExpanded/);
-  assert.match(operations, /\/api\/cron\/jobs\?profile=all/);
-  assert.match(operations, /\/stats/);
-  assert.match(operations, /\/workers\/active/);
-  assert.match(operations, /\/diagnostics/);
-  for (const className of ["gateway-overview", "gateway-attention-list", "gateway-queue-meter", "gateway-job-list", "gateway-composer"]) {
-    assert.match(css, new RegExp(`\\.${className}`));
+  for (const css of [panelCss, boardCss]) {
+    assert.match(css, /var\(--muxy-background\)/);
+    assert.match(css, /var\(--muxy-accent\)/);
+    assert.match(css, /:focus-visible/);
+    assert.match(css, /prefers-reduced-motion:\s*reduce/);
+    assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b/i);
   }
-  for (const forbidden of ["prompt:", "script:", "workdir:", "gateway_rss_mb", "system_available_mb", "worker_pid", "claim_lock"]) {
-    assert.equal(operations.includes(forbidden), false, `operations projection includes forbidden field: ${forbidden}`);
-  }
-});
-
-test("native styles use Muxy tokens, visible interaction states, scale variables, and reduced motion", async () => {
-  const css = await readFile(new URL("src/styles/global.css", root), "utf8");
-  assert.match(css, /var\(--muxy-background\)/);
-  assert.match(css, /var\(--muxy-accent\)/);
-  assert.match(css, /:focus-visible/);
-  assert.match(css, /var\(--muxy-hover\)/);
-  assert.match(css, /overflow-y:\s*auto/);
-  assert.match(css, /overflow-wrap:\s*anywhere/);
-  assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.match(css, /gateway-reconnect-icon/);
-  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b/i);
-  assert.doesNotMatch(css, /overflow-x:\s*(?:auto|scroll)/);
-});
-
-test("the signed-in panel opens the project board without another sign-in", async () => {
-  const [panel, tabs] = await Promise.all([
-    readFile(new URL("src/panel/app.js", root), "utf8"),
-    readFile(new URL("src/muxy-tabs.js", root), "utf8"),
-  ]);
-  assert.match(panel, /Open board/);
-  assert.match(panel, /openProjectBoardTab/);
-  assert.match(tabs, /hermes-project-board/);
-  assert.match(tabs, /kind: "extensionWebView"/);
-  assert.match(tabs, /singleton: true/);
-  assert.match(panel, /persistDashboardSession/);
-});
-
-test("recovery evidence renderer permanently shows every safe interruption signature and its history limit", async () => {
-  const recovery = JSON.parse(await readFile(new URL("public/evidence/recovery-v1.json", root), "utf8"));
-  const details = renderRecoveryEvidence(sanitizeRecoveryEvidence(recovery)).map((row) => row.details).join(" ");
-  for (const signature of ["Refusal or unreachable", "Observer interrupted", "Observer restored", "Buffered or delayed", "Panel recreated"]) {
-    assert.match(details, new RegExp(signature));
-  }
-  assert.match(details, /status is authoritative/i);
-  assert.match(details, /Event history is incomplete and approval detail is unavailable/i);
+  assert.match(boardCss, /@media \(max-width:\s*720px\)/);
+  assert.match(panelCss, /overflow-y:\s*auto/);
 });

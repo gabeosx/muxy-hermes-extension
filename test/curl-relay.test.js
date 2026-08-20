@@ -1,49 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CurlRelay, MAX_JOURNAL_BYTES, buildBearerConfig, buildSessionConfig } from "../src/curl-relay.js";
+import { CurlRelay, buildSessionConfig } from "../src/curl-relay.js";
 
-test("bearer config keeps credentials in stdin and rejects line injection", () => {
-  assert.equal(buildBearerConfig("abc-123._~+/="), 'header = "Authorization: Bearer abc-123._~+/="\n');
-  for (const token of ["", "line\nbreak", "line\rbreak", 'quote"break', "slash\\break", "\0"]) {
-    assert.throws(() => buildBearerConfig(token), /bearer token/i);
-  }
-});
+function response({ status = 200, body = { ok: true }, headers = [], exitCode = 0 } = {}) {
+  return {
+    stdout: [
+      `HTTP/1.1 ${status} Fixture`,
+      ...headers,
+      "",
+      body === null ? "" : JSON.stringify(body),
+      `__MUXY_HERMES_STATUS__:${status}`,
+    ].join("\r\n"),
+    stderr: "",
+    exitCode,
+    timedOut: false,
+    truncated: false,
+  };
+}
 
-test("requestJson uses argv-form curl, never puts the bearer in argv, and parses the terminal status marker", async () => {
-  const calls = [];
-  const relay = new CurlRelay({
-    exec: async (argv, options) => {
-      calls.push({ argv, options });
-      return {
-        stdout: '{"version":"v0.20.2","features":{"runs":true}}\n__MUXY_HERMES_STATUS__:200',
-        stderr: "",
-        exitCode: 0,
-        timedOut: false,
-        truncated: false,
-      };
-    },
-    files: null,
-    events: null,
-  });
-
-  const response = await relay.requestJson({
-    url: "http://127.0.0.1:8642/v1/capabilities",
-    bearer: "sentinel-token",
-  });
-
-  assert.equal(response.status, 200);
-  assert.deepEqual(response.body, { version: "v0.20.2", features: { runs: true } });
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].argv[0], "/usr/bin/curl");
-  assert.equal(calls[0].argv.includes("--config"), true);
-  assert.equal(calls[0].argv.includes("-"), true);
-  assert.equal(JSON.stringify(calls[0].argv).includes("sentinel-token"), false);
-  assert.equal(calls[0].options.stdin.includes("sentinel-token"), true);
-  assert.equal(Object.hasOwn(calls[0].options, "env"), false);
-});
-
-test("session config keeps cookies and credential bodies in stdin and rejects header injection", () => {
+test("session config keeps cookies and credential bodies in stdin and rejects injection", () => {
   const config = buildSessionConfig({
     cookie: "hermes_session_at=access.jwt; hermes_session_rt=refresh-token",
     body: { provider: "basic", username: "admin", password: "line\nquote\"slash\\" },
@@ -56,268 +32,86 @@ test("session config keeps cookies and credential bodies in stdin and rejects he
   }
 });
 
-test("requestSessionJson reads headers and JSON from stdout without temporary response files", async () => {
+test("Dashboard request uses argv-form curl with all secrets in stdin", async () => {
   const calls = [];
   const relay = new CurlRelay({
     exec: async (argv, options) => {
       calls.push({ argv, options });
-      return { stdout: [
-        "HTTP/1.1 200 OK",
-        "Set-Cookie: hermes_session_at=access.jwt; HttpOnly; SameSite=Lax",
-        "Set-Cookie: hermes_session_rt=refresh-token; HttpOnly; SameSite=Lax",
-        "Set-Cookie: unrelated=ignored; HttpOnly",
-        "",
-        JSON.stringify({ ok: true }),
-        "__MUXY_HERMES_STATUS__:200",
-      ].join("\r\n"), stderr: "", exitCode: 0, timedOut: false, truncated: false };
-    },
-    files: {
-      async read() { throw new Error("session relay must not read response files"); },
-      async write() { throw new Error("session relay must not write response files"); },
-      async delete() { throw new Error("session relay must not delete response files"); },
+      return response({
+        headers: [
+          "Set-Cookie: hermes_session_at=access.jwt; HttpOnly; SameSite=Lax",
+          "Set-Cookie: hermes_session_rt=refresh-token; HttpOnly; SameSite=Lax",
+          "Set-Cookie: unrelated=ignored; HttpOnly",
+        ],
+      });
     },
   });
 
-  const response = await relay.requestSessionJson({
+  const result = await relay.requestSessionJson({
     url: "https://hermes.example/auth/password-login",
     method: "POST",
     body: { provider: "basic", username: "admin", password: "sentinel-password" },
   });
 
-  assert.equal(response.status, 200);
-  assert.deepEqual(response.body, { ok: true });
-  assert.deepEqual(response.setCookies, [
+  assert.deepEqual(result.body, { ok: true });
+  assert.deepEqual(result.setCookies, [
     { name: "hermes_session_at", value: "access.jwt", expired: false },
     { name: "hermes_session_rt", value: "refresh-token", expired: false },
   ]);
+  assert.equal(calls[0].argv[0], "/usr/bin/curl");
   assert.equal(JSON.stringify(calls[0].argv).includes("sentinel-password"), false);
   assert.equal(calls[0].options.stdin.includes("sentinel-password"), true);
+  assert.equal(Object.hasOwn(calls[0].options, "env"), false);
   assert.equal(calls[0].argv.includes("--create-dirs"), false);
-  assert.deepEqual(calls[0].argv.slice(calls[0].argv.indexOf("--dump-header"), calls[0].argv.indexOf("--dump-header") + 4), ["--dump-header", "-", "--output", "-"]);
+  assert.equal(calls[0].argv.includes("--no-buffer"), false);
 });
 
-test("requestSessionJson preserves the complete Hermes session cookie family", async () => {
+test("Dashboard request preserves only the complete Hermes session cookie family", async () => {
   const relay = new CurlRelay({
-    exec: async () => ({ stdout: [
-      "HTTP/1.1 200 OK",
-      "Set-Cookie: __Host-hermes_session_at=\"access-token==\"; HttpOnly; Secure; SameSite=Lax",
-      "Set-Cookie: __Host-hermes_session_rt=\"refresh-token==\"; HttpOnly; Secure; SameSite=Lax",
-      "Set-Cookie: __Host-hermes_session_provider=basic; HttpOnly; Secure; SameSite=Lax",
-      "",
-      JSON.stringify({ ok: true }),
-      "__MUXY_HERMES_STATUS__:200",
-    ].join("\r\n"), stderr: "", exitCode: 0, timedOut: false, truncated: false }),
+    exec: async () => response({ headers: [
+      "Set-Cookie: __Host-hermes_session_at=\"access-token==\"; HttpOnly; Secure",
+      "Set-Cookie: __Host-hermes_session_rt=\"refresh-token==\"; HttpOnly; Secure",
+      "Set-Cookie: __Host-hermes_session_provider=basic; HttpOnly; Secure",
+      "Set-Cookie: analytics=forbidden; Secure",
+    ] }),
   });
-
-  const response = await relay.requestSessionJson({ url: "https://hermes.example/auth/password-login", method: "POST", body: { provider: "basic", username: "admin", password: "sentinel-password" } });
-
-  assert.deepEqual(response.setCookies, [
+  const result = await relay.requestSessionJson({ url: "https://hermes.example/api/auth/me" });
+  assert.deepEqual(result.setCookies, [
     { name: "__Host-hermes_session_at", value: "access-token==", expired: false },
     { name: "__Host-hermes_session_rt", value: "refresh-token==", expired: false },
     { name: "__Host-hermes_session_provider", value: "basic", expired: false },
   ]);
 });
 
-test("requestSessionJson rejects escaped or otherwise malformed quoted session cookies", async () => {
-  const relay = new CurlRelay({
-    exec: async () => ({ stdout: [
-      "HTTP/1.1 200 OK",
-      "Set-Cookie: hermes_session_at=\"access\\\\token\"; HttpOnly; SameSite=Lax",
-      "",
-      JSON.stringify({ ok: true }),
-      "__MUXY_HERMES_STATUS__:200",
-    ].join("\r\n"), stderr: "", exitCode: 0, timedOut: false, truncated: false }),
-  });
+test("Dashboard request accepts cookie deletion and rejects malformed cookie values", async () => {
+  const deletion = new CurlRelay({ exec: async () => response({ headers: ["Set-Cookie: hermes_session_at=; Max-Age=0"] }) });
+  assert.deepEqual((await deletion.requestSessionJson({ url: "http://127.0.0.1:9119/auth/logout" })).setCookies, [
+    { name: "hermes_session_at", value: "", expired: true },
+  ]);
 
-  await assert.rejects(relay.requestSessionJson({ url: "http://127.0.0.1:9119/auth/password-login", method: "POST", body: { provider: "basic", username: "admin", password: "sentinel-password" } }), /relay_protocol_error/);
+  const malformed = new CurlRelay({ exec: async () => response({ headers: ["Set-Cookie: hermes_session_at=\"access\\token\"; HttpOnly"] }) });
+  await assert.rejects(malformed.requestSessionJson({ url: "http://127.0.0.1:9119/api/auth/me" }), /relay_protocol_error/);
 });
 
-test("requestSessionJson rejects malformed response output without touching files", async () => {
-  const relay = new CurlRelay({
-    exec: async () => ({ stdout: "", stderr: "failed", exitCode: 7, timedOut: false, truncated: false }),
-    files: {
-      async read() { throw new Error("missing"); },
-      async write() { throw new Error("must not clean up files"); },
-      async delete() { throw new Error("must not clean up files"); },
-    },
-  });
-  await assert.rejects(relay.requestSessionJson({ url: "https://hermes.example/api/auth/me" }), /relay_protocol_error|relay_request_failed/);
+test("Dashboard request returns bounded sanitized relay failures", async () => {
+  for (const [result, code] of [
+    [{ timedOut: true, exitCode: 28, stdout: "" }, "relay_timeout"],
+    [{ truncated: true, exitCode: 0, stdout: "" }, "relay_response_too_large"],
+    [{ timedOut: false, truncated: false, exitCode: 7, stdout: "", stderr: "secret host details" }, "relay_request_failed"],
+    [{ timedOut: false, truncated: false, exitCode: 0, stdout: "not-http" }, "relay_protocol_error"],
+  ]) {
+    const relay = new CurlRelay({ exec: async () => result });
+    await assert.rejects(relay.requestSessionJson({ url: "https://hermes.example/api/status" }), (error) => {
+      assert.equal(error.code, code);
+      assert.equal(error.message.includes("secret host details"), false);
+      return true;
+    });
+  }
 });
 
-test("streamJournal consumes file.changed through muxy.files without exec polling, then scrubs before removal", async () => {
-  const subscriptions = new Map();
-  const operations = [];
-  let journal = "";
-  let finishExec;
-  const execDone = new Promise((resolve) => { finishExec = resolve; });
-  const relay = new CurlRelay({
-    exec: async () => ({ stdout: "", exitCode: 0 }),
-    execAsync: (argv, options) => {
-      operations.push({ type: "exec", argv, options });
-      return { id: "stream-1", result: execDone, cancel() {} };
-    },
-    files: {
-      async read(path) {
-        operations.push({ type: "read", path });
-        if (!journal) throw new Error("not written yet");
-        return { path, content: journal, size: new TextEncoder().encode(journal).byteLength };
-      },
-      async write(path, content) {
-        operations.push({ type: "write", path, content });
-        journal = content;
-      },
-      async delete(paths) { operations.push({ type: "delete", paths }); },
-    },
-    events: {
-      subscribe(name, handler) {
-        subscriptions.set(name, handler);
-        return () => subscriptions.delete(name);
-      },
-    },
-    randomId: () => "fixed-id",
-  });
-  const chunks = [];
-  const running = relay.streamJournal({
-    url: "http://127.0.0.1:8642/v1/runs/run-1/events",
-    bearer: "sentinel-token",
-    onChunk: (chunk) => chunks.push(chunk),
-  });
-
-  journal = "event: message\ndata: one\n\n";
-  subscriptions.get("file.changed")({ path: ".muxy-hermes-runtime/fixed-id/stream.sse" });
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  journal += "event: message\ndata: two\n\n";
-  subscriptions.get("file.changed")({ path: ".muxy-hermes-runtime/fixed-id/stream.sse" });
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  finishExec({ stdout: "\n__MUXY_HERMES_STATUS__:200", stderr: "", exitCode: 0, timedOut: false, truncated: false });
-
-  const result = await running;
-  assert.deepEqual(chunks, ["event: message\ndata: one\n\n", "event: message\ndata: two\n\n"]);
-  assert.equal(result.bytes > 0, true);
-  assert.equal(operations.filter((entry) => entry.type === "exec").length, 1);
-  assert.equal(operations.find((entry) => entry.type === "exec").options.stdin.includes("sentinel-token"), true);
-  assert.equal(JSON.stringify(operations.find((entry) => entry.type === "exec").argv).includes("sentinel-token"), false);
-  const writeIndex = operations.findIndex((entry) => entry.type === "write" && entry.content === "");
-  const deleteIndex = operations.findIndex((entry) => entry.type === "delete");
-  assert.equal(writeIndex >= 0 && deleteIndex > writeIndex, true);
-});
-
-test("streamJournal falls back to the Promise-based webview exec bridge", async () => {
-  const subscriptions = new Map();
-  const operations = [];
-  let journal = "";
-  let finishExec;
-  const relay = new CurlRelay({
-    exec: (argv, options) => {
-      operations.push({ type: "exec", argv, options });
-      return new Promise((resolve) => { finishExec = resolve; });
-    },
-    files: {
-      async read(path) {
-        if (!journal) throw new Error("not written yet");
-        return { path, content: journal, size: new TextEncoder().encode(journal).byteLength };
-      },
-      async write(path, content) { operations.push({ type: "write", path, content }); journal = content; },
-      async delete(paths) { operations.push({ type: "delete", paths }); },
-    },
-    events: {
-      subscribe(name, handler) { subscriptions.set(name, handler); return () => subscriptions.delete(name); },
-    },
-    randomId: () => "webview-id",
-  });
-
-  const chunks = [];
-  const running = relay.streamJournal({
-    url: "http://127.0.0.1:8642/v1/chat/completions",
-    bearer: "sentinel-token",
-    onChunk: (chunk) => chunks.push(chunk),
-  });
-  journal = "data: one\n\n";
-  subscriptions.get("file.changed")({ path: ".muxy-hermes-runtime/webview-id/stream.sse" });
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  finishExec({ stdout: "\n__MUXY_HERMES_STATUS__:200", stderr: "", exitCode: 0, timedOut: false, truncated: false });
-
-  const result = await running;
-  assert.deepEqual(chunks, ["data: one\n\n"]);
-  assert.equal(result.executionId, null);
-  assert.equal(result.httpStatus, 200);
-  assert.equal(operations.filter((entry) => entry.type === "exec").length, 1);
-  assert.equal(operations.find((entry) => entry.type === "exec").options.stdin.includes("sentinel-token"), true);
-});
-
-test("streamJournal fails closed when the journal exceeds the Muxy read ceiling", async () => {
-  let handler;
-  let finishExec;
-  const relay = new CurlRelay({
-    exec: async () => ({ stdout: "", exitCode: 0 }),
-    execAsync: () => ({ id: "stream-2", result: new Promise((resolve) => { finishExec = resolve; }), cancel() {} }),
-    files: {
-      async read(path) { return { path, content: "x", size: MAX_JOURNAL_BYTES + 1 }; },
-      async write() {},
-      async delete() {},
-    },
-    events: { subscribe(_name, callback) { handler = callback; return () => {}; } },
-    randomId: () => "too-large",
-  });
-  const running = relay.streamJournal({ url: "http://127.0.0.1:8642/events", bearer: "token", onChunk() {} });
-  handler({ path: ".muxy-hermes-runtime/too-large/stream.sse" });
-  finishExec({ stdout: "\n__MUXY_HERMES_STATUS__:200", stderr: "", exitCode: 0, timedOut: false, truncated: false });
-  await assert.rejects(running, /journal_limit_exceeded/);
-});
-
-test("stale cleanup is fixed-root and scrubs each journal before deleting its run directory", async () => {
-  const operations = [];
-  const relay = new CurlRelay({
-    exec: async () => ({}),
-    files: {
-      async list(path) {
-        operations.push({ type: "list", path });
-        if (path === ".muxy-hermes-runtime") {
-          return [{ name: "deadbeef", path: ".muxy-hermes-runtime/deadbeef", isDirectory: true, isIgnored: true }];
-        }
-        return [{ name: "stream.sse", path: `${path}/stream.sse`, isDirectory: false, isIgnored: true }];
-      },
-      async write(path, content) { operations.push({ type: "write", path, content }); },
-      async delete(paths) { operations.push({ type: "delete", paths }); },
-    },
-    events: null,
-  });
-
-  assert.deepEqual(await relay.cleanupStaleJournals(), { cleaned: 1 });
-  assert.deepEqual(operations.map((entry) => entry.type), ["list", "list", "write", "delete"]);
-  assert.equal(operations[2].path, ".muxy-hermes-runtime/deadbeef/stream.sse");
-  assert.equal(operations[2].content, "");
-  assert.deepEqual(operations[3].paths, [".muxy-hermes-runtime/deadbeef"]);
-});
-
-test("stale cleanup treats a missing root as empty and refuses unexpected entries without deleting", async () => {
-  const missing = new CurlRelay({
-    exec: async () => ({}),
-    files: { async list() { const error = new Error("ENOENT: No such file"); error.code = "ENOENT"; throw error; } },
-    events: null,
-  });
-  assert.deepEqual(await missing.cleanupStaleJournals(), { cleaned: 0 });
-
-  const muxyMissing = new CurlRelay({
-    exec: async () => ({}),
-    files: { async list() { throw new Error("“.muxy-hermes-runtime” no longer exists"); } },
-    events: null,
-  });
-  assert.deepEqual(await muxyMissing.cleanupStaleJournals(), { cleaned: 0 });
-
-  let deleted = false;
-  const unsafe = new CurlRelay({
-    exec: async () => ({}),
-    files: {
-      async list(path) {
-        if (path === ".muxy-hermes-runtime") return [{ name: "notes.txt", path: ".muxy-hermes-runtime/notes.txt", isDirectory: false }];
-        return [];
-      },
-      async write() {},
-      async delete() { deleted = true; },
-    },
-    events: null,
-  });
-  await assert.rejects(unsafe.cleanupStaleJournals(), /journal_cleanup_unexpected_entry/);
-  assert.equal(deleted, false);
+test("Dashboard request rejects oversized bodies before command execution", async () => {
+  let called = false;
+  const relay = new CurlRelay({ exec: async () => { called = true; return response(); } });
+  await assert.rejects(relay.requestSessionJson({ url: "https://hermes.example/api/test", method: "POST", body: { value: "x".repeat(70_000) } }), /relay_request_too_large/);
+  assert.equal(called, false);
 });

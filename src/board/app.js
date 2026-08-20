@@ -151,14 +151,14 @@ export class HermesProjectBoard {
         h("label", { for: "dashboard-provider" }, "Sign-in provider"), provider,
         h("label", { for: "dashboard-username" }, "Username"), username,
         h("label", { for: "dashboard-password" }, "Password"), password,
-        h("p", { class: "board-help" }, "You’ll stay signed in on this Mac until you log out."),
+        h("p", { class: "board-help" }, "You’ll stay signed in on this Mac until you log out. Use password sign-in only on a trusted network, VPN, or operator-controlled connection."),
         signIn,
       );
     } else if (this.authSnapshot.state === "oauth_required") {
       authForm = h("section", { class: "board-connect-form" },
-        h("p", { class: "board-auth-state", role: "status" }, "Sign in required"),
-        h("strong", null, "Sign in in your browser"),
-        h("p", { class: "board-help" }, "This Dashboard requires a browser sign-in. It can’t be opened from this extension yet."),
+        h("p", { class: "board-auth-state", role: "status" }, "Unsupported sign-in provider"),
+        h("strong", null, "OAuth/OIDC not supported"),
+        h("p", { class: "board-help" }, "This beta supports provider-advertised password sign-in only. Use the Hermes Dashboard directly for OAuth or OIDC."),
       );
     } else if (this.authSnapshot.state === "auth_unavailable") {
       authForm = h("section", { class: "board-connect-form" },

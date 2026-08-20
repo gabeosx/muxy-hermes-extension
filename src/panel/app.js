@@ -275,13 +275,13 @@ export class HermesGatewayPanel {
         h("label", { class: "gateway-label", for: "dashboard-provider" }, "Sign-in method"), provider,
         h("label", { class: "gateway-label", for: "dashboard-username" }, "Username"), username,
         h("label", { class: "gateway-label", for: "dashboard-password" }, "Password"), password,
-        h("p", { class: "gateway-footnote" }, "You’ll stay signed in on this Mac until you log out."),
+        h("p", { class: "gateway-footnote" }, "You’ll stay signed in on this Mac until you log out. Use password sign-in only on a trusted network, VPN, or operator-controlled connection."),
         signIn,
       );
     } else if (this.authSnapshot.state === "oauth_required") {
       authForm = h("section", { class: "gateway-card gateway-form" },
-        h("h2", null, "Browser sign-in required"),
-        h("p", null, "This Hermes server uses a browser sign-in that the extension cannot open yet."),
+        h("h2", null, "OAuth/OIDC not supported"),
+        h("p", null, "This beta supports provider-advertised password sign-in only. Use the Hermes Dashboard directly for OAuth or OIDC."),
       );
     } else if (this.authSnapshot.state === "auth_unavailable") {
       authForm = h("section", { class: "gateway-card gateway-form" },
