@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DashboardOperationsClient,
+  formatScheduleCadence,
   normalizeGatewayHealth,
   normalizeQueueStats,
   normalizeScheduledJobs,
@@ -28,6 +29,7 @@ function sessionFixture(overrides = {}) {
             state: "scheduled",
             next_run_at: "2026-08-20T13:00:00Z",
             last_status: "success",
+            schedule: { kind: "cron", expr: "0 12 * * *", display: "0 12 * * *" },
             prompt: "must-not-survive",
             script: "must-not-survive",
             workdir: "/must/not/survive",
@@ -39,6 +41,7 @@ function sessionFixture(overrides = {}) {
             last_status: "failed",
             last_error: "private provider failure",
             next_run_at: "2026-08-21T13:00:00Z",
+            schedule: { kind: "interval", minutes: 15, display: "every 15m" },
           },
         ],
       };
@@ -75,6 +78,8 @@ test("operations client projects bounded attention, queue, schedule, and health 
   });
   assert.deepEqual(snapshot.attention, { blocked: 1, review: 4, diagnostics: 3, failedJobs: 1, total: 9 });
   assert.equal(snapshot.jobs[0].name, "Broken sync", "failed jobs should lead the watchlist");
+  assert.equal(snapshot.jobs[0].cadence, "Every 15 minutes");
+  assert.equal(snapshot.jobs[1].cadence, "Daily");
   assert.equal(snapshot.health.memory, "elevated");
   assert.equal(snapshot.updatedAt, 1_777_777_777_000);
   assert.ok(session.calls.filter((url) => url.includes("board=default")).length >= 3);
@@ -83,6 +88,18 @@ test("operations client projects bounded attention, queue, schedule, and health 
   for (const forbidden of ["must-not-survive", "private provider failure", "private detail", "9876", "claim_lock", "gateway_rss_mb", "free_mb"]) {
     assert.equal(serialized.includes(forbidden), false, `snapshot leaked ${forbidden}`);
   }
+});
+
+test("scheduled-job cadence stays human-readable and timezone-neutral", () => {
+  assert.equal(formatScheduleCadence({ kind: "cron", expr: "*/15 * * * *" }), "Every 15 minutes");
+  assert.equal(formatScheduleCadence({ kind: "cron", expr: "0 * * * *" }), "Hourly");
+  assert.equal(formatScheduleCadence({ kind: "cron", expr: "0 12 * * *" }), "Daily");
+  assert.equal(formatScheduleCadence({ kind: "cron", expr: "0 8 * * 1-5" }), "Weekdays");
+  assert.equal(formatScheduleCadence({ kind: "cron", expr: "0 8 * * 1" }), "Every Monday");
+  assert.equal(formatScheduleCadence({ kind: "interval", minutes: 720 }), "Every 12 hours");
+  assert.equal(formatScheduleCadence(null, "every 2m"), "Every 2 minutes");
+  assert.equal(formatScheduleCadence({ kind: "cron", expr: "0 8 1,15 * *" }), "Custom schedule");
+  assert.equal(formatScheduleCadence(null, ""), "Schedule unavailable");
 });
 
 test("optional Hermes surfaces degrade independently", async () => {

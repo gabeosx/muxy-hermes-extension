@@ -3,8 +3,10 @@ import { normalizeBoardSlug, normalizeHermesDashboardUrl } from "./kanban-client
 const MAX_JOBS = 500;
 const MAX_JOB_NAME = 160;
 const MAX_STATUS = 48;
+const MAX_SCHEDULE = 160;
 const PRESSURE_STATES = new Set(["ok", "elevated", "critical", "unknown"]);
 const TASK_STATUSES = Object.freeze(["triage", "todo", "scheduled", "ready", "running", "blocked", "review", "done"]);
+const WEEKDAYS = Object.freeze(["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]);
 
 export class DashboardOperationsError extends Error {
   constructor(code, status = null) {
@@ -81,6 +83,101 @@ function cronFailed(job) {
     || Boolean(safeText(job?.last_fire_error?.detail, 1));
 }
 
+function intervalCadence(minutes) {
+  if (!Number.isSafeInteger(minutes) || minutes <= 0 || minutes > 10 * 365 * 24 * 60) return null;
+  if (minutes % (24 * 60) === 0) {
+    const days = minutes / (24 * 60);
+    return days === 1 ? "Daily" : `Every ${days} days`;
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return hours === 1 ? "Hourly" : `Every ${hours} hours`;
+  }
+  return minutes === 1 ? "Every minute" : `Every ${minutes} minutes`;
+}
+
+function fixedField(value, maximum) {
+  if (!/^\d{1,2}$/.test(value)) return null;
+  const number = Number(value);
+  return number >= 0 && number <= maximum ? number : null;
+}
+
+function weekdayCadence(value) {
+  if (value === "1-5" || value.toLowerCase() === "mon-fri") return "Weekdays";
+  const aliases = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  const lower = value.toLowerCase();
+  if (Object.hasOwn(aliases, lower)) return `Every ${WEEKDAYS[aliases[lower]]}`;
+  const numeric = fixedField(value, 7);
+  if (numeric !== null) return `Every ${WEEKDAYS[numeric === 7 ? 0 : numeric]}`;
+  return null;
+}
+
+function cronCadence(expression) {
+  const fields = expression.split(/\s+/);
+  if (fields.length !== 5) return null;
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = fields;
+  if (month !== "*") return null;
+
+  if (dayOfMonth === "*" && dayOfWeek === "*") {
+    if (hour === "*" && minute === "*") return "Every minute";
+    const minuteStep = /^\*\/([1-9]\d?)$/.exec(minute);
+    if (hour === "*" && minuteStep) {
+      const cadence = intervalCadence(Number(minuteStep[1]));
+      return Number(minuteStep[1]) <= 59 ? cadence : null;
+    }
+    if (hour === "*" && fixedField(minute, 59) !== null) return "Hourly";
+    const hourStep = /^\*\/([1-9]\d?)$/.exec(hour);
+    if (fixedField(minute, 59) !== null && hourStep && Number(hourStep[1]) <= 23) {
+      return intervalCadence(Number(hourStep[1]) * 60);
+    }
+    if (fixedField(minute, 59) !== null && fixedField(hour, 23) !== null) return "Daily";
+    return null;
+  }
+
+  if (dayOfMonth === "*" && fixedField(minute, 59) !== null && fixedField(hour, 23) !== null) {
+    return weekdayCadence(dayOfWeek) ?? (/^[0-7](?:,[0-7])+$/.test(dayOfWeek) ? "Weekly" : null);
+  }
+
+  if (dayOfWeek === "*" && fixedField(dayOfMonth, 31) !== null
+    && fixedField(minute, 59) !== null && fixedField(hour, 23) !== null) return "Monthly";
+  return null;
+}
+
+export function formatScheduleCadence(schedule, scheduleDisplay = "") {
+  const structured = schedule && typeof schedule === "object" && !Array.isArray(schedule) ? schedule : null;
+  const kind = safeText(structured?.kind, 16).toLowerCase();
+  if (kind === "interval") {
+    const cadence = intervalCadence(structured.minutes);
+    if (cadence) return cadence;
+  }
+
+  const candidates = [
+    kind === "cron" ? structured?.expr : null,
+    typeof schedule === "string" ? schedule : null,
+    scheduleDisplay,
+    structured?.display,
+  ].map((value) => safeText(value, MAX_SCHEDULE)).filter(Boolean);
+
+  for (const candidate of candidates) {
+    const lower = candidate.toLowerCase();
+    if (["@hourly", "hourly"].includes(lower)) return "Hourly";
+    if (["@daily", "daily"].includes(lower)) return "Daily";
+    if (["@weekly", "weekly"].includes(lower)) return "Weekly";
+    if (["@monthly", "monthly"].includes(lower)) return "Monthly";
+    const compactInterval = /^every\s+(\d+)\s*(m|min|minute|minutes|h|hr|hour|hours|d|day|days)$/i.exec(candidate);
+    if (compactInterval) {
+      const value = Number(compactInterval[1]);
+      const unit = compactInterval[2].toLowerCase();
+      const multiplier = unit.startsWith("h") ? 60 : unit.startsWith("d") ? 24 * 60 : 1;
+      const cadence = intervalCadence(value * multiplier);
+      if (cadence) return cadence;
+    }
+    const cadence = cronCadence(candidate);
+    if (cadence) return cadence;
+  }
+  return candidates.length ? "Custom schedule" : "Schedule unavailable";
+}
+
 export function normalizeScheduledJobs(payload) {
   if (!Array.isArray(payload)) throw new DashboardOperationsError("cron_contract_mismatch");
   const jobs = [];
@@ -101,6 +198,7 @@ export function normalizeScheduledJobs(payload) {
       lastStatus: safeText(candidate.last_status, MAX_STATUS).toLowerCase() || null,
       lastRunAt: safeTimestamp(candidate.last_run_at),
       nextRunAt: safeTimestamp(candidate.next_run_at),
+      cadence: formatScheduleCadence(candidate.schedule, candidate.schedule_display),
     }));
   }
   jobs.sort((a, b) => {
