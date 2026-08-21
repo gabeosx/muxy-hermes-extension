@@ -27,7 +27,8 @@ const FORBIDDEN_PRODUCT_NAMES = new Set([
   "stop-gate.js",
   "verdict.js",
 ]);
-const EXCLUDED_COPY_ROOTS = new Set([".git", ".planning", ".agents", ".gsd", "dist", "node_modules"]);
+const EXCLUDED_COPY_ROOTS = new Set([".git", ".planning", ".qualification", ".agents", ".gsd", "dist", "node_modules"]);
+const EXCLUDED_COPY_FILES = new Set(["skills-lock.json"]);
 const SECRET_PATTERNS = [
   { name: "private_key", pattern: /-----BEGIN (?:OPENSSH |RSA |EC )?PRIVATE KEY-----/ },
   { name: "github_token", pattern: /\b(?:ghp|github_pat)_[A-Za-z0-9_]{20,}\b/ },
@@ -128,6 +129,62 @@ async function npmAudit() {
   return Object.freeze({ high: 0, critical: 0 });
 }
 
+export async function validateReleaseGovernance() {
+  const [manifestSource, lockSource, changelog, releasing, workflow] = await Promise.all([
+    readFile(resolve(root, "package.json"), "utf8"),
+    readFile(resolve(root, "package-lock.json"), "utf8"),
+    readFile(resolve(root, "CHANGELOG.md"), "utf8"),
+    readFile(resolve(root, "RELEASING.md"), "utf8"),
+    readFile(resolve(root, ".github/workflows/ci.yml"), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestSource);
+  const lockfile = JSON.parse(lockSource);
+  assert.equal(manifest.private, true, "the marketplace source must remain private to npm");
+  assert.equal(lockfile.version, manifest.version, "package-lock version must match package.json");
+  assert.equal(lockfile.packages?.[""]?.version, manifest.version, "root lockfile version must match package.json");
+  assert.equal(
+    Object.keys(manifest.scripts ?? {}).some((name) => /^(?:prepublish|prepublishOnly|publish|postpublish)$/.test(name)),
+    false,
+    "package scripts must not publish to npm",
+  );
+
+  assert.match(changelog, /^## \[?Unreleased\]?/m, "changelog must contain Unreleased notes");
+  assert.match(changelog, new RegExp(`^## \\[${manifest.version}\\]`, "m"), "changelog must cover the current package version");
+  for (const heading of ["Versioning", "Prepare a release", "Submit a draft marketplace pull request", "After upstream merge", "Rollback"]) {
+    assert.match(releasing, new RegExp(`^## ${heading}`, "m"), `release guide must include ${heading}`);
+  }
+  for (const contract of [
+    /package\.json.*version source/i,
+    /package-lock\.json.*match/i,
+    /patch.*fixes.*security.*documentation.*listing/i,
+    /minor.*features.*permission.*deployment/i,
+    /hermes-agent@version.*immutable/i,
+    /hermes-agent-vX\.Y\.Z/,
+    /No npm publish step/i,
+    /stops at a draft pull request/i,
+    /npm test/,
+    /npm run validate/,
+    /npm run qualify/,
+    /node scripts\/validate\.mjs hermes-agent/,
+    /node scripts\/pack\.mjs --dry-run hermes-agent/,
+  ]) assert.match(releasing, contract, "release guide lacks a required contract");
+
+  const workflowDirectory = resolve(root, ".github/workflows");
+  const workflowFiles = (await readdir(workflowDirectory)).filter((file) => /\.ya?ml$/.test(file)).sort();
+  assert.deepEqual(workflowFiles, ["ci.yml"], "the source repository must have one bounded CI workflow");
+  assert.match(workflow, /^on:\n  push:\n  pull_request:\n  workflow_dispatch:/m, "CI must run for pushes, pull requests, and manual dispatch");
+  assert.match(workflow, /^permissions:\n  contents: read$/m, "CI must use top-level read-only contents permission");
+  assert.equal([...workflow.matchAll(/^\s*permissions:/gm)].length, 1, "CI must not grant job-level permissions");
+  assert.match(workflow, /node-version:\s*20/, "CI must use Node 20");
+  assert.match(workflow, /uses:\s*actions\/checkout@11bd71901bbe5b1630ceea73d27597364c9af683\s+# v4/, "checkout must use the reviewed immutable v4 pin");
+  assert.match(workflow, /uses:\s*actions\/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020\s+# v4/, "setup-node must use the reviewed immutable v4 pin");
+  for (const command of ["npm ci", "npm test", "npm run validate"]) assert.ok(workflow.includes(command), `CI must run ${command}`);
+  assert.match(workflow, /if:\s*github\.event_name == 'workflow_dispatch'/, "qualification must be manual only");
+  assert.match(workflow, /npm run qualify/, "manual qualification must be available");
+  assert.doesNotMatch(workflow, /secrets\.|permissions:\s*write|npm publish|\bdeploy\b/i, "CI must not receive secrets or publish authority");
+  return Object.freeze({ version: manifest.version, workflow: Object.freeze({ node: 20 }) });
+}
+
 async function runChecked(command, args, { cwd, label, timeout = 180_000 } = {}) {
   try {
     return await execFileAsync(command, args, { cwd, timeout, maxBuffer: 8 * 1024 * 1024 });
@@ -142,7 +199,7 @@ function copyFilter(source) {
   const display = relative(root, source);
   if (!display) return true;
   const [top] = display.split(/[\\/]/);
-  return !EXCLUDED_COPY_ROOTS.has(top) && !display.endsWith(".log");
+  return !EXCLUDED_COPY_ROOTS.has(top) && !EXCLUDED_COPY_FILES.has(display) && !display.endsWith(".log");
 }
 
 async function distDigests(copyRoot) {
@@ -189,10 +246,11 @@ export async function validateRelease({ structuralOnly = false } = {}) {
   assert.equal(packageJson.engines?.node, ">=20");
   assert.equal(Object.keys(packageJson.dependencies ?? {}).length, 0);
 
+  const governance = await validateReleaseGovernance();
   const graph = await validateImportReachability();
   await scanReleaseSecrets(root);
   const audit = await npmAudit();
-  if (structuralOnly) return Object.freeze({ node: process.version, graph, audit, cleanCopies: null });
+  if (structuralOnly) return Object.freeze({ node: process.version, governance, graph, audit, cleanCopies: null });
 
   await runChecked(npm, ["test"], { cwd: root, label: "canonical_test_1" });
   await runChecked(npm, ["test"], { cwd: root, label: "canonical_test_2" });
@@ -200,7 +258,7 @@ export async function validateRelease({ structuralOnly = false } = {}) {
   await scanReleaseSecrets(resolve(root, "dist"));
   const cleanCopies = await validateCleanCopies();
   assert.equal(cleanCopies.files.length, distribution.files.length, "canonical and clean-copy distributions differ in size");
-  return Object.freeze({ node: process.version, graph, audit, distribution, cleanCopies });
+  return Object.freeze({ node: process.version, governance, graph, audit, distribution, cleanCopies });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
