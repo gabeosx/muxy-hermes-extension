@@ -44,9 +44,9 @@ const REQUIRED_NATIVE_CATEGORIES = Object.freeze([
   "scale_large",
 ]);
 const REQUIRED_SCREENSHOTS = Object.freeze({
-  operations: "assets/screenshots/operations.png",
-  agentApproval: "assets/screenshots/agent-approval.png",
-  projectBoard: "assets/screenshots/project-board.png",
+  operations: "assets/screenshots/screenshot-2.png",
+  agentApproval: "assets/screenshots/screenshot-3.png",
+  projectBoard: "assets/screenshots/screenshot-4.png",
 });
 
 function digest(value) {

@@ -108,9 +108,9 @@ test("manual native observations require the exact Muxy tuple, claims, categorie
     categories,
     claims: { privacyScan: true, workspacePathAbsent: true, remoteSecretAbsent: true },
     screenshots: {
-      operations: screenshot("assets/screenshots/operations.png"),
-      agentApproval: screenshot("assets/screenshots/agent-approval.png"),
-      projectBoard: screenshot("assets/screenshots/project-board.png"),
+      operations: screenshot("assets/screenshots/screenshot-2.png"),
+      agentApproval: screenshot("assets/screenshots/screenshot-3.png"),
+      projectBoard: screenshot("assets/screenshots/screenshot-4.png"),
     },
   };
   assert.equal(validateNativeResult(state, valid).muxyVersion, "1.5.0 (945)");

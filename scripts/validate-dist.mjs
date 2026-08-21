@@ -17,10 +17,10 @@ const allowedCommandKeys = new Set(["id", "title", "action"]);
 const allowedCommandActionKeys = new Set(["kind", "panel", "tabType"]);
 const REQUIRED_PERMISSIONS = ["commands:exec", "panels:write", "storage:read", "storage:write", "tabs:write"];
 const REQUIRED_SCREENSHOTS = [
-  "assets/screenshots/hero.png",
-  "assets/screenshots/operations.png",
-  "assets/screenshots/agent-approval.png",
-  "assets/screenshots/project-board.png",
+  "assets/screenshots/screenshot-1.png",
+  "assets/screenshots/screenshot-2.png",
+  "assets/screenshots/screenshot-3.png",
+  "assets/screenshots/screenshot-4.png",
 ];
 const README_SCREENSHOTS = Object.freeze([
   "assets/readme/operations.png",

@@ -16,10 +16,10 @@ test("marketplace identity, metadata, and permissions are frozen", async () => {
     github: "gabeosx",
     icon: "assets/icon.svg",
     screenshots: [
-      "assets/screenshots/hero.png",
-      "assets/screenshots/operations.png",
-      "assets/screenshots/agent-approval.png",
-      "assets/screenshots/project-board.png",
+      "assets/screenshots/screenshot-1.png",
+      "assets/screenshots/screenshot-2.png",
+      "assets/screenshots/screenshot-3.png",
+      "assets/screenshots/screenshot-4.png",
     ],
   });
   assert.deepEqual(manifest.muxy.permissions, ["commands:exec", "panels:write", "storage:read", "storage:write", "tabs:write"]);
