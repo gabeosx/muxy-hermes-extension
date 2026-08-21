@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -21,6 +21,11 @@ const REQUIRED_SCREENSHOTS = [
   "assets/screenshots/agent-approval.png",
   "assets/screenshots/project-board.png",
 ];
+const README_SCREENSHOTS = Object.freeze([
+  "assets/readme/operations.png",
+  "assets/readme/agent-approval.png",
+  "assets/readme/project-board.png",
+]);
 
 function inside(base, path) {
   const child = relative(base, path);
@@ -111,6 +116,19 @@ function pngDimensions(buffer) {
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
+async function validateReadmeScreenshots(base, declared = null) {
+  for (const screenshot of README_SCREENSHOTS) {
+    const path = resolve(base, screenshot);
+    assert.ok(inside(base, path), `README screenshot escapes package: ${screenshot}`);
+    assert.deepEqual(
+      pngDimensions(await readFile(path)),
+      { width: 760, height: 475 },
+      `${screenshot} must be exactly 760×475`,
+    );
+    declared?.add(screenshot);
+  }
+}
+
 async function validateListingAssets(base, declared = null) {
   const iconPath = resolve(base, "assets/icon.svg");
   assert.ok(inside(base, iconPath));
@@ -141,6 +159,8 @@ async function validateBuild() {
   assert.equal(await readFile(resolve(dist, "OPEN_ISSUES.md"), "utf8"), await readFile(resolve(root, "OPEN_ISSUES.md"), "utf8"), "dist OPEN_ISSUES differs from source");
   await validateListingAssets(root);
   await validateListingAssets(dist, declared);
+  await validateReadmeScreenshots(root);
+  await validateReadmeScreenshots(dist, declared);
 
   const visited = new Set();
   for (const entry of distEntries) {

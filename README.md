@@ -2,18 +2,32 @@
 
 [Hermes Agent](https://github.com/NousResearch/hermes-agent) is an open-source AI agent that you run yourself. This extension connects Muxy to the Hermes Dashboard you already have. It does not install Hermes, host it, or change its configuration.
 
-From Muxy, you can check on Hermes, start and guide an agent, respond to approval requests, manage scheduled work, and use Hermes project boards.
+Keep an eye on Hermes, start and guide an agent, respond to approvals, and manage project boards without leaving Muxy.
 
-![Hermes operations panel](./assets/screenshots/operations.png)
+![Hermes operations summary showing health, queue pressure, and scheduled work](./assets/readme/operations.png)
 
-## What you can do
+## Agent runs and approvals
 
-- See whether Hermes is online and review work that needs attention
-- Start an agent and follow its response and tool activity as it happens
-- Approve or reject actions, send guidance, or stop a run
-- Inspect scheduled jobs and their recent status
-- Create, select, and move cards on Hermes project boards
+Start a request from the Hermes panel and follow the response and tool activity as it happens. When an action needs approval, the request stays visible until you choose what to do.
+
+- Allow an action once, for the session, or always
+- Deny an action, send guidance, or stop the run
 - Reconnect automatically if the live connection drops while the panel is open
+
+![Hermes approval request with explicit allow and deny controls](./assets/readme/agent-approval.png)
+
+## Kanban boards
+
+Run **Hermes: Open Project Board** to work with the board currently selected in Hermes.
+
+- Add a card to an available starting status
+- Move a card through the status menu as the work changes
+- Confirm the change before moving a card to Blocked or Done
+- Refresh the board or explicitly select another one
+
+Cards move only when you choose a new status. The extension does not automatically attach an agent request to a card, move cards when a run finishes, or provide drag-and-drop.
+
+![Hermes Project Board showing the Launchpad Checklist card in Done](./assets/readme/project-board.png)
 
 ## What you need
 
