@@ -42,3 +42,35 @@ test("release validator owns clean-copy cleanup and never exposes command output
   assert.match(source, /assert\.deepEqual\(second\.digests, first\.digests/);
   assert.match(source, /throw new Error\(`\$\{label\}_failed:\$\{exitCode\}\$\{signal\}`\)/);
 });
+
+test("release documents define the immutable draft-only marketplace handoff", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const [changelog, releasing, readme] = await Promise.all([
+    readFile(new URL("../CHANGELOG.md", import.meta.url), "utf8"),
+    readFile(new URL("../RELEASING.md", import.meta.url), "utf8"),
+    readFile(new URL("../README.md", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(changelog, /^# Changelog/m);
+  assert.match(changelog, /^## \[?Unreleased\]?/m);
+  assert.match(changelog, new RegExp(`^## \\[${manifest.version}\\]`, "m"));
+  for (const heading of ["Versioning", "Prepare a release", "Submit a draft marketplace pull request", "After upstream merge", "Rollback"]) {
+    assert.match(releasing, new RegExp(`^## ${heading}`, "m"));
+  }
+  assert.match(releasing, /package\.json.*version source/i);
+  assert.match(releasing, /package-lock\.json.*match/i);
+  assert.match(releasing, /patch.*fixes.*security.*documentation.*listing/i);
+  assert.match(releasing, /minor.*features.*permission.*deployment/i);
+  assert.match(releasing, /hermes-agent@version.*immutable/i);
+  assert.match(releasing, /hermes-agent-vX\.Y\.Z/);
+  assert.match(releasing, /No npm publish step/i);
+  assert.match(releasing, /stops at a draft pull request/i);
+  for (const command of ["npm test", "npm run validate", "npm run qualify", "npm ci", "node scripts/validate.mjs hermes-agent", "node scripts/pack.mjs --dry-run hermes-agent"]) {
+    assert.ok(releasing.includes(command), `release guide must include ${command}`);
+  }
+  for (const excluded of ["dist/", ".planning/", ".qualification/", ".agents/", ".gsd/", ".github/", "node_modules/", "receipts", "credentials", "generated qualification data", "local caches/logs", "skills-lock.json"]) {
+    assert.ok(releasing.includes(excluded), `release guide must exclude ${excluded}`);
+  }
+  assert.match(readme, /\[CHANGELOG\.md\]\(CHANGELOG\.md\)/);
+  assert.match(readme, /\[RELEASING\.md\]\(RELEASING\.md\)/);
+});
