@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { productionImportGraph, scanReleaseSecrets, validateImportReachability } from "../scripts/validate-release.mjs";
+import { productionImportGraph, scanReleaseSecrets, validateImportReachability, validateReleaseGovernance } from "../scripts/validate-release.mjs";
 
 test("production import graph contains only current Dashboard and Muxy modules", async () => {
   const graph = await productionImportGraph();
@@ -73,4 +73,36 @@ test("release documents define the immutable draft-only marketplace handoff", as
   }
   assert.match(readme, /\[CHANGELOG\.md\]\(CHANGELOG\.md\)/);
   assert.match(readme, /\[RELEASING\.md\]\(RELEASING\.md\)/);
+});
+
+test("release governance bounds CI, versions, copy exclusions, and publication authority", async () => {
+  const [manifestSource, lockSource, workflow, validator] = await Promise.all([
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../package-lock.json", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/validate-release.mjs", import.meta.url), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestSource);
+  const lockfile = JSON.parse(lockSource);
+  assert.equal(manifest.private, true);
+  assert.equal(lockfile.version, manifest.version);
+  assert.equal(lockfile.packages[""].version, manifest.version);
+  assert.equal(Object.keys(manifest.scripts).some((name) => /^(?:prepublish|prepublishOnly|publish|postpublish)$/.test(name)), false);
+  assert.match(validator, /EXCLUDED_COPY_ROOTS.*\.qualification/s);
+  assert.match(validator, /validateReleaseGovernance/);
+
+  assert.match(workflow, /^on:\n  push:\n  pull_request:\n  workflow_dispatch:/m);
+  assert.match(workflow, /^permissions:\n  contents: read$/m);
+  assert.equal([...workflow.matchAll(/^\s*permissions:/gm)].length, 1);
+  assert.match(workflow, /node-version:\s*20/);
+  assert.match(workflow, /uses:\s*actions\/checkout@11bd71901bbe5b1630ceea73d27597364c9af683\s+# v4/);
+  assert.match(workflow, /uses:\s*actions\/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020\s+# v4/);
+  for (const command of ["npm ci", "npm test", "npm run validate"]) assert.ok(workflow.includes(command));
+  assert.match(workflow, /if:\s*github\.event_name == 'workflow_dispatch'/);
+  assert.match(workflow, /npm run qualify/);
+  assert.doesNotMatch(workflow, /secrets\.|permissions:\s*write|npm publish|deploy/i);
+
+  const governance = await validateReleaseGovernance();
+  assert.equal(governance.version, manifest.version);
+  assert.equal(governance.workflow.node, 20);
 });
