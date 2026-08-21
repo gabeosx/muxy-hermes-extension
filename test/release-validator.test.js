@@ -109,3 +109,14 @@ test("release governance bounds CI, versions, copy exclusions, and publication a
   assert.equal(governance.version, manifest.version);
   assert.equal(governance.workflow.node, 20);
 });
+
+test("Tailwind scans only product sources so sparse marketplace builds stay reproducible", async () => {
+  for (const stylesheet of ["global.css", "board.css"]) {
+    const source = await readFile(new URL(`../src/styles/${stylesheet}`, import.meta.url), "utf8");
+    assert.match(source, /^@import "tailwindcss" source\(none\);/);
+    assert.match(source, /^@source "\.\.\/\*\*\/\*\.js";$/m);
+    assert.match(source, /^@source "\.\.\/\.\.\/panel\/\*\.html";$/m);
+    assert.match(source, /^@source "\.\.\/\.\.\/board\/\*\.html";$/m);
+    assert.equal([...source.matchAll(/^@source /gm)].length, 3);
+  }
+});

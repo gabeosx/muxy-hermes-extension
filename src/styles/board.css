@@ -1,4 +1,7 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "../**/*.js";
+@source "../../panel/*.html";
+@source "../../board/*.html";
 
 :root {
   --s1: 2px;
