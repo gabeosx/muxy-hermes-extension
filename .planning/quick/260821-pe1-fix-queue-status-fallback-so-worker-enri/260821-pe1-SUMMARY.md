@@ -31,3 +31,7 @@ The operations panel now treats active-worker telemetry as optional enrichment. 
 ## Scope
 
 Pre-existing untracked agent metadata, debug notes, caches, and `skills-lock.json` were left untouched and unstaged.
+
+## Marketplace handoff
+
+The same two files were copied byte-for-byte into `gabeosx/extensions`, validated again, and pushed as `ae640dc` to the existing `codex/hermes-agent-marketplace-beta` branch for `muxy-app/extensions#134`. The changed-extension analysis and version/title checks passed; Muxy’s extension validation job remains skipped pending the repository’s normal maintainer-approval flow.

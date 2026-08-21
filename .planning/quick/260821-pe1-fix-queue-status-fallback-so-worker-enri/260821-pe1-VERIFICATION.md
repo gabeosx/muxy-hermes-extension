@@ -2,7 +2,7 @@
 quick_id: 260821-pe1
 verified: 2026-08-21T22:23:08Z
 status: passed
-score: 3/3 must-haves verified
+score: 4/4 verification checks passed
 behavior_unverified: 0
 overrides_applied: 0
 ---
@@ -18,6 +18,7 @@ overrides_applied: 0
 | Valid stats render when worker telemetry fails. | Passed | The new regression fixture pairs valid stats with a `503` worker response and asserts all counts, wait age, availability, and conservative zero workers. |
 | Invalid or unavailable stats remain unavailable. | Passed | Existing optional-surface tests still pass; only worker parsing moved behind a best-effort boundary. |
 | The real Muxy panel shows the authoritative queue. | Passed | After rebuilding and using Muxy’s native Reload action, the live panel displayed `0 waiting`, `0 running`, `No work waiting`, and separately retained `2 blocked tasks`. |
+| Canonical source and marketplace review branches contain the same fix. | Passed | Source commit `57a6f64` and marketplace commit `ae640dc` were pushed; both changed files compare byte-for-byte, and PR `muxy-app/extensions#134` reports the new marketplace commit. |
 
 ## Automated evidence
 
