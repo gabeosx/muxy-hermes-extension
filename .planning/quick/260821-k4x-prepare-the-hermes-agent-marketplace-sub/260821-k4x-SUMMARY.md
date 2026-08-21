@@ -35,7 +35,7 @@ Hermes Agent now has a legible, deterministic marketplace hero; four verified li
 
 ## External handoff
 
-The coordinating agent must still perform the explicitly reserved external work: re-run the secret scan before public visibility, make the source repository public, create or refresh the `gabeosx/extensions` fork and sparse checkout, copy only the allowlisted source, run Muxy's upstream validation and dry-run pack, complete the required audits, and open a draft-only upstream PR. No npm publishing, store publication, merge, tag, or release was performed here.
+The source repository is public at `gabeosx/muxy-hermes-extension`, with the reviewed handoff on `codex/marketplace-submission`. The exact allowlisted source was copied into the public `gabeosx/extensions` fork, where its clean-copy digest matched the source. Muxy's official build and live-schema validator passed, and the dry-run package was 3,685,280 bytes with SHA-256 `cb32489c30242431fdd194c1b9fb7785ff22b319b772f2a3b9a8cfd9f8fae439`. Draft upstream PR `muxy-app/extensions#134` is open and remains draft-only. Its title/version gate and automated security analysis pass; the fork-code validation workflow awaits normal maintainer approval. No npm publishing, store publication, merge, tag, or release was performed.
 
 ## Deviations
 
