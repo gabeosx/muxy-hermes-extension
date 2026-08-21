@@ -15,8 +15,8 @@ human_verification:
 
 **Task Goal:** Prepare the Hermes Agent marketplace submission with a store-first hero, release/versioning docs and bounded CI, exact package validation, while preserving untracked user files and stopping before external GitHub actions.
 
-**Verified:** 2026-08-21T18:57:53Z  
-**Status:** human_needed  
+**Verified:** 2026-08-21T18:57:53Z
+**Status:** human_needed
 **Re-verification:** No — initial verification
 
 ## Goal Achievement
@@ -103,5 +103,5 @@ No implementation gaps found. The only remaining item is the required human visu
 
 ---
 
-_Verified: 2026-08-21T18:57:53Z_  
+_Verified: 2026-08-21T18:57:53Z_
 _Verifier: gsd-verifier_
