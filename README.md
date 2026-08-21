@@ -18,14 +18,15 @@ Start a request from the Hermes panel and follow the response and tool activity 
 
 ## Kanban boards
 
-Run **Hermes: Open Project Board** to work with the board currently selected in Hermes.
+Run **Hermes: Open Project Board** to monitor and manage a real Hermes Kanban board from Muxy. Kanban tasks are different from standalone requests in the Agent panel: they are durable cards owned by Hermes.
 
-- Add a card to an available starting status
-- Move a card through the status menu as the work changes
-- Confirm the change before moving a card to Blocked or Done
-- Refresh the board or explicitly select another one
+- Create a card with task instructions and choose the Hermes profile that should handle it
+- Move an assigned card to Ready so the Hermes dispatcher can claim it
+- Follow automatic transitions through Running and into Review, Blocked, or Done while the board is open
+- Move cards manually when you need to intervene; Blocked and Done require confirmation
+- Refresh on demand or explicitly select another board
 
-Cards move only when you choose a new status. The extension does not automatically attach an agent request to a card, move cards when a run finishes, or provide drag-and-drop.
+Hermes attaches each dispatched worker run to its Kanban card and records the outcome. The Muxy board refreshes automatically to show those worker-driven changes. Requests started separately from the Agent panel remain standalone and are not converted into cards.
 
 ![Hermes Project Board showing the Launchpad Checklist card in Done](./assets/readme/project-board.png)
 
@@ -65,8 +66,8 @@ The extension does not need to know whether Hermes is native, in Docker, or behi
 
 - Password login only; OAuth and OIDC are not implemented
 - One Hermes Dashboard connection at a time
-- Live agent controls work only while the panel is open
-- No background approvals or background run ownership
+- Standalone Agent panel controls work only while the panel is open
+- No background approvals or background ownership for standalone Agent panel runs; Hermes owns Kanban workers independently
 - No mapping between Muxy workspace paths and Hermes filesystem paths
 - Muxy SSH workspaces are not supported in version `0.1.0`
 

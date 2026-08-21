@@ -132,17 +132,34 @@ test("Kanban client uses the verified dashboard session and keeps cookies out of
   const client = new KanbanClient({ baseUrl: "https://hermes.example", session, board: "muxy-project" });
 
   await client.loadBoard();
-  await client.createTask({ title: "New", triage: true, idempotencyKey: "muxy-123" });
+  await client.createTask({ title: "New", body: "Implement the verified change.", assignee: "builder", triage: true, idempotencyKey: "muxy-123" });
   await client.updateStatus("t_new", "ready");
 
   assert.equal(calls[0].url, "https://hermes.example/api/plugins/kanban/board?board=muxy-project");
   assert.equal(calls[1].url, "https://hermes.example/api/plugins/kanban/tasks?board=muxy-project");
   assert.equal(calls[2].url, "https://hermes.example/api/plugins/kanban/tasks/t_new?board=muxy-project");
-  assert.deepEqual(calls[1].body, { title: "New", triage: true, workspace_kind: "scratch", idempotency_key: "muxy-123" });
+  assert.deepEqual(calls[1].body, {
+    title: "New",
+    body: "Implement the verified change.",
+    assignee: "builder",
+    triage: true,
+    workspace_kind: "scratch",
+    idempotency_key: "muxy-123",
+  });
   assert.deepEqual(calls[2].body, { status: "ready" });
   assert.equal(JSON.stringify(calls).includes("cookie"), false);
   client.release();
   assert.equal(client.session, null);
+});
+
+test("Kanban task creation validates bounded instructions and assignee values", async () => {
+  const client = new KanbanClient({
+    baseUrl: "https://hermes.example",
+    board: "default",
+    session: { async requestJson() { throw new Error("request should not run"); } },
+  });
+  await assert.rejects(client.createTask({ title: "Task", body: "x".repeat(20_001) }), /instructions/);
+  await assert.rejects(client.createTask({ title: "Task", assignee: "bad\nprofile" }), /assignee/);
 });
 
 test("Kanban client distinguishes authentication, unavailable plugin, and generic failures", async () => {

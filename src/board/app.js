@@ -14,6 +14,7 @@ const STATUS_LABELS = Object.freeze({
   done: "Done",
 });
 const SESSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const BOARD_REFRESH_INTERVAL_MS = 3_000;
 
 function errorCopy(error) {
   if (error instanceof DashboardAuthError && error.code === "invalid_credentials") return "Hermes rejected those credentials. Check the username and password, then try again.";
@@ -32,7 +33,7 @@ function errorCopy(error) {
   if (error?.code === "relay_launch_spawn_missing") {
     return "Muxy SSH workspaces are not supported in this beta. Use a local Muxy workspace with your own SSH forward or a trusted HTTPS Dashboard address.";
   }
-  if (/^(Enter|Use|Board slug|Task title|Invalid)/.test(error?.message ?? "")) return error.message;
+  if (/^(Enter|Use|Choose|Board slug|Task title|Task instructions|Invalid)/.test(error?.message ?? "")) return error.message;
   return "The Hermes board could not be reached. Check the Dashboard address and sign-in, then try again.";
 }
 
@@ -47,6 +48,8 @@ export class HermesProjectBoard {
     this.usernameValue = "";
     this.passwordValue = "";
     this.createTitle = "";
+    this.createBody = "";
+    this.createAssignee = null;
     this.createInTriage = true;
     this.state = "disconnected";
     this.authSnapshot = Object.freeze({ state: "disconnected", providers: [], identity: null, label: "" });
@@ -58,12 +61,17 @@ export class HermesProjectBoard {
     this.sessionCheckInFlight = false;
     this.lastSessionCheckAt = 0;
     this.sessionCheckTimer = null;
+    this.boardRefreshInFlight = false;
+    this.boardRefreshTimer = null;
+    this.released = false;
   }
 
   start() {
+    this.released = false;
     this.render();
     void this.restoreSavedSession();
     this.sessionCheckTimer = globalThis.setInterval(() => { void this.verifySavedSession(); }, SESSION_CHECK_INTERVAL_MS);
+    this.boardRefreshTimer = globalThis.setInterval(() => { void this.refresh({ silent: true }); }, BOARD_REFRESH_INTERVAL_MS);
     window.muxy?.onFocus?.((focused) => {
       if (focused && Date.now() - this.lastSessionCheckAt >= SESSION_CHECK_INTERVAL_MS) void this.verifySavedSession();
       if (focused && this.state === "disconnected") this.urlInput?.focus();
@@ -73,10 +81,13 @@ export class HermesProjectBoard {
   }
 
   release() {
+    this.released = true;
     this.client?.release();
     this.client = null;
     if (this.sessionCheckTimer) globalThis.clearInterval(this.sessionCheckTimer);
     this.sessionCheckTimer = null;
+    if (this.boardRefreshTimer) globalThis.clearInterval(this.boardRefreshTimer);
+    this.boardRefreshTimer = null;
     this.usernameValue = "";
     this.passwordValue = "";
     if (this.usernameInput) this.usernameInput.value = "";
@@ -224,12 +235,27 @@ export class HermesProjectBoard {
   }
 
   boardView() {
+    const assignees = this.board.assignees;
+    if (this.createAssignee === null || (this.createAssignee && !assignees.includes(this.createAssignee))) {
+      this.createAssignee = assignees[0] ?? "";
+    }
     const title = h("input", {
-      id: "new-card-title", class: "board-input", type: "text", maxlength: "1000", placeholder: "Add a task…",
+      id: "new-card-title", class: "board-input board-task-title", type: "text", maxlength: "1000", placeholder: "Task title…", "aria-label": "Task title",
       oninput: (event) => { this.createTitle = event.target.value; this.syncForms(); },
     });
     title.value = this.createTitle;
-    const triage = h("select", { id: "new-card-column", class: "board-select", onchange: (event) => { this.createInTriage = event.target.value === "triage"; } },
+    const body = h("input", {
+      id: "new-card-body", class: "board-input board-task-instructions", type: "text", maxlength: "20000", placeholder: "Task instructions (optional)…", "aria-label": "Task instructions",
+      oninput: (event) => { this.createBody = event.target.value; },
+    });
+    body.value = this.createBody;
+    const assignee = h("select", {
+      id: "new-card-assignee", class: "board-select", "aria-label": "Hermes assignee",
+      onchange: (event) => { this.createAssignee = event.target.value; },
+    },
+    h("option", { value: "", selected: !this.createAssignee }, "Unassigned"),
+    assignees.map((name) => h("option", { value: name, selected: name === this.createAssignee }, name)));
+    const triage = h("select", { id: "new-card-column", class: "board-select", "aria-label": "Starting status", onchange: (event) => { this.createInTriage = event.target.value === "triage"; } },
       h("option", { value: "triage", selected: this.createInTriage }, "Triage"),
       h("option", { value: "todo", selected: !this.createInTriage }, "Todo"),
     );
@@ -240,7 +266,7 @@ export class HermesProjectBoard {
     return h("section", { class: "board-workspace" },
       h("div", { class: "board-toolbar" },
         h("div", null, h("strong", null, `${total} ${total === 1 ? "card" : "cards"}`)),
-        h("form", { class: "board-create-form", onsubmit: (event) => void this.createCard(event) }, title, triage, submit),
+        h("form", { class: "board-create-form", onsubmit: (event) => void this.createCard(event) }, title, assignee, triage, submit, body),
       ),
       h("p", { class: "board-message", role: this.message ? "alert" : null, "aria-live": "polite" }, this.message),
       h("div", { class: "board-columns", "aria-label": "Hermes Kanban board", "aria-busy": Boolean(this.pendingTaskId) }, this.board.columns.map((column) => this.columnView(column))),
@@ -403,18 +429,31 @@ export class HermesProjectBoard {
     this.render();
   }
 
-  async refresh() {
-    if (!this.client || this.pendingTaskId) return;
-    this.message = "Refreshing…";
-    this.render();
+  async refresh({ silent = false } = {}) {
+    if (this.released || !this.client || this.state !== "ready" || this.pendingTaskId || this.boardRefreshInFlight || this.sessionCheckInFlight) return;
+    this.boardRefreshInFlight = true;
+    if (!silent) {
+      this.message = "Refreshing…";
+      this.render();
+    }
+    let shouldRender = !silent;
     try {
-      this.board = await this.client.loadBoard();
-      this.message = "";
-      await this.persistSession();
+      const board = await this.client.loadBoard();
+      if (!this.released) {
+        shouldRender ||= JSON.stringify(board) !== JSON.stringify(this.board);
+        this.board = board;
+      }
+      if (!silent) {
+        this.message = "";
+        await this.persistSession();
+      }
     } catch (error) {
       this.handleActionError(error);
+      shouldRender = true;
+    } finally {
+      this.boardRefreshInFlight = false;
     }
-    this.render();
+    if (!this.released && shouldRender) this.render();
   }
 
   async createCard(event) {
@@ -426,10 +465,13 @@ export class HermesProjectBoard {
     try {
       await this.client.createTask({
         title: this.createTitle,
+        body: this.createBody,
+        assignee: this.createAssignee || null,
         triage: this.createInTriage,
         idempotencyKey: `muxy-${globalThis.crypto.randomUUID()}`,
       });
       this.createTitle = "";
+      this.createBody = "";
       this.board = await this.client.loadBoard();
       this.message = "Card created.";
       await this.persistSession();

@@ -22,6 +22,9 @@ test("the project board is a responsive Muxy tab rather than a second chat clien
     "OAuth/OIDC not supported",
     "You’ll stay signed in on this Mac until you log out. Use password sign-in only on a trusted network, VPN, or operator-controlled connection.",
     "Add card",
+    "Task title",
+    "Task instructions",
+    "Hermes assignee",
   ]) assert.match(app, new RegExp(copy.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
   assert.match(app, /type: "password", autocomplete: "current-password"/);
@@ -34,6 +37,11 @@ test("the project board is a responsive Muxy tab rather than a second chat clien
   assert.match(app, /SESSION_CHECK_INTERVAL_MS/);
   assert.match(app, /authSnapshot\.state === "logged_in"/);
   assert.match(app, /listBoards/);
+  assert.match(app, /BOARD_REFRESH_INTERVAL_MS/);
+  assert.match(app, /refresh\(\{ silent: true \}\)/);
+  assert.match(app, /boardRefreshInFlight/);
+  assert.match(app, /assignee: this\.createAssignee \|\| null/);
+  assert.match(app, /body: this\.createBody/);
   assert.match(app, /selectBoardSlug/);
   assert.match(app, /openBoard/);
   assert.doesNotMatch(app, /id: "board-slug"/);
@@ -51,5 +59,6 @@ test("the project board is a responsive Muxy tab rather than a second chat clien
   assert.match(css, /overflow-y:\s*auto/);
   assert.match(css, /min-height:\s*0/);
   assert.match(css, /board-session/);
+  assert.match(css, /board-task-instructions/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
 });

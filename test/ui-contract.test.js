@@ -71,8 +71,10 @@ test("OAuth-only providers and password security boundaries are explicit in both
   assert.match(readme, /assets\/readme\/agent-approval\.png/);
   assert.match(readme, /assets\/readme\/project-board\.png/);
   assert.doesNotMatch(readme, /assets\/demo\/|<video|\.gif|\.mp4/i);
-  assert.match(readme, /does not automatically attach an agent request to a card/);
-  assert.match(readme, /does not.*provide drag-and-drop/);
+  assert.match(readme, /Hermes attaches each dispatched worker run to its Kanban card/);
+  assert.match(readme, /refreshes automatically to show those worker-driven changes/);
+  assert.match(readme, /Requests started separately from the Agent panel remain standalone/);
+  assert.doesNotMatch(readme, /Cards move only when you choose|does not automatically attach an agent request to a card/);
 });
 
 test("native styles retain themes, focus, responsive scale, and reduced motion", async () => {
