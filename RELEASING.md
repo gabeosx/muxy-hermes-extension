@@ -30,7 +30,7 @@ Published `hermes-agent@version` pairs are immutable. A correction never rebuild
 
 Prepare a clean sparse checkout of the authenticated `gabeosx/extensions` fork. Copy only the reviewed extension source to `extensions/hermes-agent`; keep source fixtures and release documents that reviewers need.
 
-Exclude `dist/`, `.planning/`, `.qualification/`, `.agents/`, `.gsd/`, `.github/`, `node_modules/`, receipts, credentials, generated qualification data, local caches/logs, and `skills-lock.json`. The checked-in `qualification/` harness remains in the source copy; `.qualification/` is the runtime evidence directory that must not cross the repository boundary.
+Exclude `dist/`, `.planning/`, `.qualification/`, `.agents/`, `.gsd/`, `node_modules/`, receipts, credentials, generated qualification data, local caches/logs, and `skills-lock.json`. Retain the checked-in `fixtures/` data, `qualification/` harness, and `.github/workflows/ci.yml` because the submitted release tests and governance validator exercise them. The nested workflow remains review-only inside `extensions/hermes-agent`; GitHub does not activate workflows outside the repository-root `.github/workflows/` directory. `.qualification/` is the runtime evidence directory that must not cross the repository boundary.
 
 From the copied extension, run:
 

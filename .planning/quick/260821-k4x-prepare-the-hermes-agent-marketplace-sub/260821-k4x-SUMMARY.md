@@ -39,4 +39,4 @@ The coordinating agent must still perform the explicitly reserved external work:
 
 ## Deviations
 
-None. The full suite first encountered a sandbox-only loopback bind denial; rerunning the same unchanged tests with local loopback networking enabled passed. No product defect was found.
+The first exact sparse-copy rehearsal exposed two missing review inputs: `fixtures/kanban/board.json` and the nested read-only CI workflow required by the governance test. The allowlist and release guide were corrected before any marketplace branch was pushed. The full suite also first encountered a sandbox-only loopback bind denial; rerunning the same unchanged tests with local loopback networking enabled passed. No product defect was found.

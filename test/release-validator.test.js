@@ -68,8 +68,11 @@ test("release documents define the immutable draft-only marketplace handoff", as
   for (const command of ["npm test", "npm run validate", "npm run qualify", "npm ci", "node scripts/validate.mjs hermes-agent", "node scripts/pack.mjs --dry-run hermes-agent"]) {
     assert.ok(releasing.includes(command), `release guide must include ${command}`);
   }
-  for (const excluded of ["dist/", ".planning/", ".qualification/", ".agents/", ".gsd/", ".github/", "node_modules/", "receipts", "credentials", "generated qualification data", "local caches/logs", "skills-lock.json"]) {
+  for (const excluded of ["dist/", ".planning/", ".qualification/", ".agents/", ".gsd/", "node_modules/", "receipts", "credentials", "generated qualification data", "local caches/logs", "skills-lock.json"]) {
     assert.ok(releasing.includes(excluded), `release guide must exclude ${excluded}`);
+  }
+  for (const retained of ["fixtures/", "qualification/", ".github/workflows/ci.yml"]) {
+    assert.ok(releasing.includes(retained), `release guide must retain ${retained}`);
   }
   assert.match(readme, /\[CHANGELOG\.md\]\(CHANGELOG\.md\)/);
   assert.match(readme, /\[RELEASING\.md\]\(RELEASING\.md\)/);
