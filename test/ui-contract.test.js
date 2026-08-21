@@ -16,6 +16,7 @@ test("marketplace identity, metadata, and permissions are frozen", async () => {
     github: "gabeosx",
     icon: "assets/icon.svg",
     screenshots: [
+      "assets/screenshots/hero.png",
       "assets/screenshots/operations.png",
       "assets/screenshots/agent-approval.png",
       "assets/screenshots/project-board.png",
