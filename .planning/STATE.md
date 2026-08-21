@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Marketplace Beta Hardening
 status: active
-last_updated: "2026-08-21T17:01:05.000Z"
+last_updated: "2026-08-21T17:18:12.000Z"
 last_activity: 2026-08-21
 progress:
   total_phases: 4
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 7 of 7 — Marketplace Submission
 Plan: Not started
 Status: Ready — Phase 6 passed the revised `0.1.0` support matrix; Muxy SSH workspaces are explicitly unsupported and tracked for the next release
-Last activity: 2026-08-21 — Completed quick task 260821-hyr: polished the README for readability, logical flow, and a natural human voice
+Last activity: 2026-08-21 — Completed quick task 260821-i95: corrected the approval screenshot caption to describe all four approval choices
 
 ## Performance Metrics
 
@@ -140,6 +140,7 @@ None yet.
 | 260821-e4b | Replace blurry README and marketplace screenshots with sharp high-density captures | 2026-08-21 | 9e2e483 | Passed | [260821-e4b-replace-blurry-readme-and-marketplace-sc](./quick/260821-e4b-replace-blurry-readme-and-marketplace-sc/) |
 | 260821-h9f | Make Muxy Kanban cards dispatchable and reflect Hermes worker-driven status changes | 2026-08-21 | 36c7b5c | Passed | [260821-h9f-make-muxy-kanban-cards-dispatchable-and-](./quick/260821-h9f-make-muxy-kanban-cards-dispatchable-and-/) |
 | 260821-hyr | Polish the README for readability, logical flow, and a natural human voice | 2026-08-21 | 76aeddc | Passed | [260821-hyr-polish-the-readme-for-readability-logica](./quick/260821-hyr-polish-the-readme-for-readability-logica/) |
+| 260821-i95 | Correct the approval screenshot caption to describe all four approval choices | 2026-08-21 | 679b806 | Passed | [260821-i95-correct-the-approval-screenshot-caption-](./quick/260821-i95-correct-the-approval-screenshot-caption-/) |
 
 ### Roadmap Evolution
 
