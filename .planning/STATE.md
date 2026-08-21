@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 7 of 7 — Marketplace Submission
 Plan: Not started
 Status: Ready — Phase 6 passed the revised `0.1.0` support matrix; Muxy SSH workspaces are explicitly unsupported and tracked for the next release
-Last activity: 2026-08-21 — Completed quick task 260821-i95: corrected the approval screenshot caption to describe all four approval choices
+Last activity: 2026-08-21 — Completed quick task 260821-k4x: prepared the verified marketplace hero, release governance, and draft-submission handoff
 
 ## Performance Metrics
 
@@ -141,6 +141,7 @@ None yet.
 | 260821-h9f | Make Muxy Kanban cards dispatchable and reflect Hermes worker-driven status changes | 2026-08-21 | 36c7b5c | Passed | [260821-h9f-make-muxy-kanban-cards-dispatchable-and-](./quick/260821-h9f-make-muxy-kanban-cards-dispatchable-and-/) |
 | 260821-hyr | Polish the README for readability, logical flow, and a natural human voice | 2026-08-21 | 76aeddc | Passed | [260821-hyr-polish-the-readme-for-readability-logica](./quick/260821-hyr-polish-the-readme-for-readability-logica/) |
 | 260821-i95 | Correct the approval screenshot caption to describe all four approval choices | 2026-08-21 | 679b806 | Passed | [260821-i95-correct-the-approval-screenshot-caption-](./quick/260821-i95-correct-the-approval-screenshot-caption-/) |
+| 260821-k4x | Prepare the Hermes Agent marketplace submission with a store-first hero, release governance, and exact-package validation | 2026-08-21 | 9ffbaa1 | Needs Review | [260821-k4x-prepare-the-hermes-agent-marketplace-sub](./quick/260821-k4x-prepare-the-hermes-agent-marketplace-sub/) |
 
 ### Roadmap Evolution
 
