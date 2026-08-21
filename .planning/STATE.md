@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 7 of 7 — Marketplace Submission
 Plan: Not started
 Status: Ready — Phase 6 passed the revised `0.1.0` support matrix; Muxy SSH workspaces are explicitly unsupported and tracked for the next release
-Last activity: 2026-08-20 — Rewrote the marketplace README in plain language and clearly separated Hermes Agent from the Muxy extension
+Last activity: 2026-08-21 — Completed quick task 260821-e4b: replaced blurry README and marketplace screenshots with sharp high-density captures
 
 ## Performance Metrics
 
@@ -136,6 +136,8 @@ None yet.
 | 260820-fqf | Make scheduled jobs expandable, show cadence, and integration-test the operations panel | 2026-08-20 | eab3fc3 | Passed | [260820-fqf-make-scheduled-jobs-expandable-show-cade](./quick/260820-fqf-make-scheduled-jobs-expandable-show-cade/) |
 | 260820-n3r | Descope Muxy SSH workspaces from 0.1.0 and track restoration as an open issue | 2026-08-20 | this commit | Passed | [260820-n3r-descope-muxy-ssh-workspaces-from-0-1-0-a](./quick/260820-n3r-descope-muxy-ssh-workspaces-from-0-1-0-a/) |
 | 260820-ntb | Rewrite README in clear human language that accurately distinguishes Hermes Agent from the Muxy extension | 2026-08-20 | this commit | Passed | [260820-ntb-rewrite-readme-in-clear-human-language-t](./quick/260820-ntb-rewrite-readme-in-clear-human-language-t/) |
+| 260821-djl | Simplify the README around clear static screenshots and remove the hard-to-follow demo-video presentation | 2026-08-21 | ffae54e | Passed | [260821-djl-simplify-the-readme-around-clear-static-](./quick/260821-djl-simplify-the-readme-around-clear-static-/) |
+| 260821-e4b | Replace blurry README and marketplace screenshots with sharp high-density captures | 2026-08-21 | 9e2e483 | Passed | [260821-e4b-replace-blurry-readme-and-marketplace-sc](./quick/260821-e4b-replace-blurry-readme-and-marketplace-sc/) |
 
 ### Roadmap Evolution
 

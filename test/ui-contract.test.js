@@ -58,7 +58,7 @@ test("OAuth-only providers and password security boundaries are explicit in both
     assert.match(source, /Muxy SSH workspaces are not supported in this beta/);
     assert.match(source, /type: "password"/);
   }
-  for (const heading of ["What you can do", "Compatibility", "Security", "Permissions", "Privacy", "Troubleshooting", "Uninstalling"]) {
+  for (const heading of ["Agent runs and approvals", "Kanban boards", "Compatibility", "Security", "Permissions", "Privacy", "Troubleshooting", "Uninstalling"]) {
     assert.match(readme, new RegExp(heading));
   }
   assert.match(readme, /Hermes Agent.*is an open-source AI agent/);
@@ -67,6 +67,12 @@ test("OAuth-only providers and password security boundaries are explicit in both
   assert.match(readme, /Muxy 1\.5\.0 \(945\)/);
   assert.match(readme, /Hermes 0\.20\.2/);
   assert.match(readme, /No analytics or telemetry/);
+  assert.match(readme, /assets\/readme\/operations\.png/);
+  assert.match(readme, /assets\/readme\/agent-approval\.png/);
+  assert.match(readme, /assets\/readme\/project-board\.png/);
+  assert.doesNotMatch(readme, /assets\/demo\/|<video|\.gif|\.mp4/i);
+  assert.match(readme, /does not automatically attach an agent request to a card/);
+  assert.match(readme, /does not.*provide drag-and-drop/);
 });
 
 test("native styles retain themes, focus, responsive scale, and reduced motion", async () => {
