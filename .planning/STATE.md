@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Marketplace Beta Hardening
 status: active
-last_updated: "2026-08-20T19:15:00.000Z"
-last_activity: 2026-08-20
+last_updated: "2026-08-21T16:36:50.000Z"
+last_activity: 2026-08-21
 progress:
   total_phases: 4
   completed_phases: 3
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 7 of 7 — Marketplace Submission
 Plan: Not started
 Status: Ready — Phase 6 passed the revised `0.1.0` support matrix; Muxy SSH workspaces are explicitly unsupported and tracked for the next release
-Last activity: 2026-08-21 — Completed quick task 260821-e4b: replaced blurry README and marketplace screenshots with sharp high-density captures
+Last activity: 2026-08-21 — Completed quick task 260821-h9f: verified the real Hermes Kanban worker lifecycle and made Muxy-created cards dispatchable with live status refresh
 
 ## Performance Metrics
 
@@ -138,6 +138,7 @@ None yet.
 | 260820-ntb | Rewrite README in clear human language that accurately distinguishes Hermes Agent from the Muxy extension | 2026-08-20 | this commit | Passed | [260820-ntb-rewrite-readme-in-clear-human-language-t](./quick/260820-ntb-rewrite-readme-in-clear-human-language-t/) |
 | 260821-djl | Simplify the README around clear static screenshots and remove the hard-to-follow demo-video presentation | 2026-08-21 | ffae54e | Passed | [260821-djl-simplify-the-readme-around-clear-static-](./quick/260821-djl-simplify-the-readme-around-clear-static-/) |
 | 260821-e4b | Replace blurry README and marketplace screenshots with sharp high-density captures | 2026-08-21 | 9e2e483 | Passed | [260821-e4b-replace-blurry-readme-and-marketplace-sc](./quick/260821-e4b-replace-blurry-readme-and-marketplace-sc/) |
+| 260821-h9f | Make Muxy Kanban cards dispatchable and reflect Hermes worker-driven status changes | 2026-08-21 | 36c7b5c | Passed | [260821-h9f-make-muxy-kanban-cards-dispatchable-and-](./quick/260821-h9f-make-muxy-kanban-cards-dispatchable-and-/) |
 
 ### Roadmap Evolution
 
