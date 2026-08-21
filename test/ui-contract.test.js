@@ -71,8 +71,11 @@ test("OAuth-only providers and password security boundaries are explicit in both
   assert.match(readme, /assets\/readme\/agent-approval\.png/);
   assert.match(readme, /assets\/readme\/project-board\.png/);
   assert.doesNotMatch(readme, /assets\/demo\/|<video|\.gif|\.mp4/i);
-  assert.match(readme, /does not automatically attach an agent request to a card/);
-  assert.match(readme, /does not.*provide drag-and-drop/);
+  assert.match(readme, /Hermes starts a worker, links its run to the card, and moves the card to Running/);
+  assert.match(readme, /The board refreshes automatically/);
+  assert.match(readme, /Requests started in the Agent panel stay separate and are not turned into cards/);
+  assert.match(readme, /closing the Muxy board does not stop them/);
+  assert.doesNotMatch(readme, /Cards move only when you choose|does not automatically attach an agent request to a card/);
 });
 
 test("native styles retain themes, focus, responsive scale, and reduced motion", async () => {

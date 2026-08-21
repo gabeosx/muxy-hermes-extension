@@ -2,52 +2,50 @@
 
 [Hermes Agent](https://github.com/NousResearch/hermes-agent) is an open-source AI agent that you run yourself. This extension connects Muxy to the Hermes Dashboard you already have. It does not install Hermes, host it, or change its configuration.
 
-Keep an eye on Hermes, start and guide an agent, respond to approvals, and manage project boards without leaving Muxy.
+With it, you can check on Hermes at a glance, start and guide agent work, respond to approvals, and manage Kanban boards without leaving Muxy.
 
 ![Hermes operations summary showing health, queue pressure, and scheduled work](./assets/readme/operations.png)
 
 ## Agent runs and approvals
 
-Start a request from the Hermes panel and follow the response and tool activity as it happens. When an action needs approval, the request stays visible until you choose what to do.
+Open the Hermes panel to start a request and follow the response and tool activity as they happen. When Hermes asks for approval, the request stays on screen until you decide.
 
-- Allow an action once, for the session, or always
-- Deny an action, send guidance, or stop the run
-- Reconnect automatically if the live connection drops while the panel is open
+- Choose **Allow once**, **Allow for session**, **Always allow**, or **Deny**
+- Send more guidance while Hermes is working, or stop the run
+- If the live connection drops while the panel is open, the extension reconnects automatically
 
 ![Hermes approval request with explicit allow and deny controls](./assets/readme/agent-approval.png)
 
 ## Kanban boards
 
-Run **Hermes: Open Project Board** to work with the board currently selected in Hermes.
+Run **Hermes: Open Project Board** to open one of the boards available in your Hermes Dashboard. Hermes stores these cards and dispatches their work; they are not a second view of requests from the Agent panel.
 
-- Add a card to an available starting status
-- Move a card through the status menu as the work changes
-- Confirm the change before moving a card to Blocked or Done
-- Refresh the board or explicitly select another one
+- Add a card with instructions and assign it to the Hermes profile that should handle it
+- Move an assigned card to Ready; Hermes starts a worker, links its run to the card, and moves the card to Running
+- Keep the board open to watch the card move to Review, Blocked, or Done as the work progresses
+- Move cards yourself when needed; Muxy asks for confirmation before moving one to Blocked or Done
 
-Cards move only when you choose a new status. The extension does not automatically attach an agent request to a card, move cards when a run finishes, or provide drag-and-drop.
+The board refreshes automatically, and you can still refresh it by hand. Closing the board does not stop Kanban work in Hermes; when you reopen it, you will see the latest state. Requests started in the Agent panel stay separate and are not turned into cards.
 
 ![Hermes Project Board showing the Launchpad Checklist card in Done](./assets/readme/project-board.png)
 
 ## What you need
 
 - Muxy
-- An existing Hermes Dashboard that you can reach from your Mac
-- A password login provider configured in Hermes
+- A Hermes Dashboard that is already running and reachable from your Mac
+- At least one password login provider enabled in Hermes
 
-Version `0.1.0` was tested with **Muxy 1.5.0 (945)** and **Hermes 0.20.2**. Other versions may work, but have not been qualified yet. If Hermes returns an incompatible response, the extension stops and shows an error instead of guessing.
-
-OAuth- and OIDC-only Hermes installations are not supported yet.
+Version `0.1.0` was tested with **Muxy 1.5.0 (945)** and **Hermes 0.20.2**. Other versions may work, but have not been tested yet. If a Dashboard response is not compatible, you will see an error instead of a broken or misleading view.
 
 ## Install and connect
 
 1. Install **Hermes Agent** from the Muxy marketplace.
 2. Make sure your Hermes Dashboard is running.
 3. In Muxy, run **Hermes: Toggle Agent Panel**.
-4. Enter the same Dashboard address you would open in a browser, select your password provider, and sign in.
+4. Enter the same Dashboard address you use in a browser, select your password provider, and sign in.
 5. To use a project board, run **Hermes: Open Project Board**.
 
-If you previously loaded the development version of this extension, remove it before installing `hermes-agent`. The marketplace version uses a new storage namespace, so you will need to sign in again. Old cookies are not copied.
+If you previously loaded a development build of this extension, remove it before installing `hermes-agent`. The marketplace build uses separate storage, so you will need to sign in once more.
 
 ## Compatibility
 
@@ -55,45 +53,43 @@ If you previously loaded the development version of this extension, remove it be
 |-------------------------|----------------|
 | On your Mac | Use the loopback address shown by Hermes, such as `http://127.0.0.1:8642` |
 | In Docker on your Mac | Publish the Dashboard port to `127.0.0.1` and use that address |
-| On another machine through SSH | Create your own local `ssh -L` forward, then connect to its `127.0.0.1` address |
-| Behind private HTTPS | Use its HTTPS address from a trusted network, VPN, or access layer you control |
+| On another machine through SSH | Set up a local `ssh -L` forward, then connect to its `127.0.0.1` address |
+| At a private HTTPS address | Use its HTTPS address from a trusted network, VPN, or secure access layer you control |
 | Inside a Muxy SSH workspace | Not supported in version `0.1.0`; follow [the open issue](./OPEN_ISSUES.md) for progress |
 
 The extension does not need to know whether Hermes is native, in Docker, or behind an SSH forward. It only needs a Dashboard address that is reachable from Muxy.
 
 ## Current limitations
 
-- Password login only; OAuth and OIDC are not implemented
+- Password login only; OAuth and OIDC are not supported yet
 - One Hermes Dashboard connection at a time
-- Live agent controls work only while the panel is open
-- No background approvals or background run ownership
-- No mapping between Muxy workspace paths and Hermes filesystem paths
+- The Agent panel must stay open for live responses, approvals, guidance, and stop controls; it does not keep a background connection
+- Kanban workers run in Hermes independently, so closing the Muxy board does not stop them
+- The extension does not translate Muxy workspace paths into Hermes filesystem paths
 - Muxy SSH workspaces are not supported in version `0.1.0`
 
 ## Security
 
-Do not expose a password-protected Hermes Dashboard directly to the unrestricted public internet. Use loopback, a trusted local network, a VPN, or an access layer you control. This follows [Hermes's own Dashboard guidance](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/web-dashboard.md).
+Do not put your Hermes Dashboard directly on the public internet just because it has a password. Keep it on loopback, a trusted local network, a VPN, or a secure access layer you control. This follows [Hermes's own Dashboard guidance](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/web-dashboard.md).
 
 The extension never approves an agent action for you. Approval requests stay visible until you choose what to do.
 
-Passwords are used only for the sign-in request and are then cleared. Live connections use short-lived, one-use WebSocket tickets. Saved sessions contain only the Hermes cookies needed to sign you back in.
+Your password is used only to sign in and is then cleared; it is never saved. Live connections use short-lived, one-use WebSocket tickets that are not saved either. The saved session contains only the Hermes cookies needed to sign you back in.
 
 ## Permissions
 
 | Permission | What it is used for |
 |------------|---------------------|
-| Command execution | Sends requests to the Hermes Dashboard with `/usr/bin/curl`. Request bodies and cookies are passed through stdin, not command arguments. |
+| Command execution | Uses `/usr/bin/curl` to talk to the Hermes Dashboard. Request bodies and cookies are passed through stdin, not exposed in command arguments. |
 | Panel control | Opens and updates the Hermes side panel. |
 | Tab control | Opens the Hermes project board. |
-| Isolated storage | Saves the Dashboard address, Hermes session cookies, login provider, and selected board for this extension only. |
+| Isolated storage | Saves the Dashboard address, login provider, selected board, and Hermes session cookies for this extension only. |
 
 The extension cannot read or write your workspace files. It does not request Docker, SSH, background-process, or telemetry access.
 
 ## Privacy
 
-No analytics or telemetry is collected.
-
-Your password is not saved. WebSocket tickets are not saved. The extension stores the Dashboard address, selected login provider, selected board, and the small set of Hermes session cookies required to restore your sign-in.
+No analytics or telemetry is collected. The extension stores only the Dashboard address, selected login provider, selected board, and the Hermes session cookies needed to restore your sign-in.
 
 Prompts and controls you submit are sent directly to the Hermes Dashboard you configured. The extension does not send them anywhere else.
 
@@ -101,14 +97,14 @@ Prompts and controls you submit are sent directly to the Hermes Dashboard you co
 
 | What you see | What to do |
 |--------------|------------|
-| Invalid password | Check the selected provider and password, then try again. |
+| Invalid password | Check your username, selected provider, and password, then try again. |
 | OAuth/OIDC not supported | This Hermes installation has no password provider. Use Hermes directly for now. |
 | Sign-in expired | Sign in again. The extension removes the expired session. |
 | Permission denied | Review Muxy's permission prompt and retry if you intended to allow the action. |
 | Muxy SSH workspace unsupported | Open a local Muxy workspace and use your own `ssh -L` forward or a private HTTPS Dashboard address. |
 | Agent connection offline | Keep the panel open. The extension will reconnect with a new one-use ticket. |
 | Incompatible response | Confirm that Hermes is healthy and check its version. |
-| Some operations are unavailable | The corresponding optional Hermes feature or plugin may not be installed. Agent and board features can still work independently. |
+| Some operations are unavailable | That feature or plugin may not be installed in Hermes. Agent and board features can still work independently. |
 
 ## Uninstalling
 
@@ -126,6 +122,6 @@ npm run validate
 npm run qualify
 ```
 
-`npm run build` creates the marketplace package in `dist/`. `npm run validate` checks the package, permissions, assets, secret safety, and reproducible build output. `npm run qualify` runs the disposable connection lab for the supported connection methods.
+`npm run build` creates the marketplace package in `dist/`. `npm run validate` checks the package, permissions, assets, secret safety, and reproducible build output. `npm run qualify` tests the supported connection methods in a disposable lab.
 
-`npm run qualify:native` only reproduces the known Muxy SSH-workspace problem. It is not part of the normal release check.
+`npm run qualify:native` exists only to reproduce the known Muxy SSH-workspace problem. It is not part of the normal release check.

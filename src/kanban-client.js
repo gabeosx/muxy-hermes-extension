@@ -196,14 +196,22 @@ export class KanbanClient {
     return normalizeBoard(classifyResponse(response));
   }
 
-  async createTask({ title, triage = false, idempotencyKey }) {
+  async createTask({ title, body = "", assignee = null, triage = false, idempotencyKey }) {
     const normalizedTitle = String(title ?? "").trim();
     if (!normalizedTitle || normalizedTitle.length > 1_000) throw new Error("Task title must be 1–1,000 characters.");
+    const normalizedBody = String(body ?? "").trim();
+    if (normalizedBody.length > 20_000) throw new Error("Task instructions must be 20,000 characters or fewer.");
+    const normalizedAssignee = assignee == null || assignee === "" ? null : String(assignee).trim();
+    if (normalizedAssignee !== null && (!normalizedAssignee || normalizedAssignee.length > 128 || /[\u0000-\u001f\u007f]/.test(normalizedAssignee))) {
+      throw new Error("Choose a valid Hermes assignee.");
+    }
     const response = await this.session.requestJson({
       url: this.endpoint("/tasks"),
       method: "POST",
       body: {
         title: normalizedTitle,
+        body: normalizedBody,
+        assignee: normalizedAssignee,
         triage: Boolean(triage),
         workspace_kind: "scratch",
         idempotency_key: typeof idempotencyKey === "string" ? idempotencyKey.slice(0, 128) : null,

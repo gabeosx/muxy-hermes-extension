@@ -216,8 +216,14 @@ button:disabled { cursor: default; opacity: 0.6; }
 
 .board-toolbar > div { display: grid; gap: var(--s1); min-width: 0; }
 .board-toolbar span { color: var(--muxy-foreground-muted); font-size: var(--font-footnote); }
-.board-create-form { margin-left: auto; }
-.board-create-form .board-input { width: clamp(180px, 28vw, 420px); }
+.board-create-form {
+  width: min(70vw, 760px);
+  margin-left: auto;
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(120px, 1fr) auto auto;
+}
+.board-create-form .board-input { width: 100%; }
+.board-task-instructions { grid-column: 1 / -1; }
 .board-message { min-height: var(--s8); padding: var(--s2) var(--s6); }
 
 .board-columns {
@@ -294,8 +300,9 @@ button:disabled { cursor: default; opacity: 0.6; }
 @media (max-width: 720px) {
   .board-connect-shell { grid-template-columns: minmax(0, 1fr); gap: var(--s7); padding: var(--s7); }
   .board-toolbar { align-items: stretch; flex-direction: column; }
-  .board-create-form { width: 100%; margin-left: 0; flex-wrap: wrap; }
-  .board-create-form .board-input { width: 100%; flex: 1 0 100%; }
+  .board-create-form { width: 100%; margin-left: 0; grid-template-columns: minmax(0, 1fr) minmax(120px, auto); }
+  .board-task-title,
+  .board-task-instructions { grid-column: 1 / -1; }
   .board-workspace { overflow: hidden; }
   .board-columns { flex-direction: column; align-content: start; overflow-x: hidden; overflow-y: auto; }
   .board-column { overflow: visible; }
