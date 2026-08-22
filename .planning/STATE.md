@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Marketplace Beta Hardening
 status: active
-last_updated: "2026-08-21T22:23:08.000Z"
-last_activity: 2026-08-21
+last_updated: "2026-08-22T19:41:28.892Z"
+last_activity: 2026-08-22
 progress:
   total_phases: 4
   completed_phases: 3
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 7 of 7 — Marketplace Submission
 Plan: Not started
 Status: Ready — Phase 6 passed the revised `0.1.0` support matrix; Muxy SSH workspaces are explicitly unsupported and tracked for the next release
-Last activity: 2026-08-21 — Completed quick task 260821-pe1: preserved queue stats when optional worker telemetry is unavailable and verified the fix in native Muxy
+Last activity: 2026-08-22 — Completed quick task 260822-lsk: created a categorized reference of useful Muxy extension development resources
 
 ## Performance Metrics
 
@@ -143,6 +143,7 @@ None yet.
 | 260821-i95 | Correct the approval screenshot caption to describe all four approval choices | 2026-08-21 | 679b806 | Passed | [260821-i95-correct-the-approval-screenshot-caption-](./quick/260821-i95-correct-the-approval-screenshot-caption-/) |
 | 260821-k4x | Prepare the Hermes Agent marketplace submission with a store-first hero, release governance, and exact-package validation | 2026-08-21 | 9ffbaa1 | Needs Review | [260821-k4x-prepare-the-hermes-agent-marketplace-sub](./quick/260821-k4x-prepare-the-hermes-agent-marketplace-sub/) |
 | 260821-pe1 | Preserve queue stats when optional worker telemetry is unavailable and update the existing review branches | 2026-08-21 | 57a6f64 | Passed | [260821-pe1-fix-queue-status-fallback-so-worker-enri](./quick/260821-pe1-fix-queue-status-fallback-so-worker-enri/) |
+| 260822-lsk | Create a Markdown reference listing the useful resources for building Muxy extensions | 2026-08-22 | 564417b | Passed | [260822-lsk-create-a-markdown-reference-listing-the-](./quick/260822-lsk-create-a-markdown-reference-listing-the-/) |
 
 ### Roadmap Evolution
 
