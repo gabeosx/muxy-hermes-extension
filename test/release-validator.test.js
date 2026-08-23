@@ -9,6 +9,7 @@ test("production import graph contains only current Dashboard and Muxy modules",
   assert.deepEqual(graph, [
     "src/board-main.js",
     "src/board/app.js",
+    "src/board/mapping-restore.js",
     "src/curl-relay.js",
     "src/dashboard-agent.js",
     "src/dashboard-auth.js",

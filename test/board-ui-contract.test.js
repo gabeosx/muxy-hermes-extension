@@ -3,10 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("the project board is a responsive Muxy tab rather than a second chat client", async () => {
-  const [app, css, html] = await Promise.all([
+  const [app, css, html, mappingRestore] = await Promise.all([
     readFile(new URL("../src/board/app.js", import.meta.url), "utf8"),
     readFile(new URL("../src/styles/board.css", import.meta.url), "utf8"),
     readFile(new URL("../board/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../src/board/mapping-restore.js", import.meta.url), "utf8"),
   ]);
 
   for (const copy of [
@@ -18,6 +19,9 @@ test("the project board is a responsive Muxy tab rather than a second chat clien
     "No boards are available",
     "View board",
     "Map to this project",
+    "Project:",
+    "Mapped board:",
+    "No board mapped to this project",
     "That mapped board is no longer available. Choose another board.",
     "Signed in as",
     "Sign-in expired",
@@ -46,9 +50,13 @@ test("the project board is a responsive Muxy tab rather than a second chat clien
   assert.match(app, /body: this\.createBody/);
   assert.match(app, /selectBoardSlug/);
   assert.match(app, /resolveActiveProject/);
-  assert.match(app, /readBoardMapping/);
   assert.match(app, /saveBoardMapping/);
   assert.match(app, /clearBoardMapping/);
+  assert.match(app, /restoreProjectBoardMapping/);
+  assert.match(app, /restoreProjectMapping/);
+  assert.match(app, /projectMappingState/);
+  assert.match(mappingRestore, /readBoardMapping/);
+  assert.match(mappingRestore, /clearBoardMapping/);
   assert.match(app, /this\.viewedBoardValue/);
   assert.match(app, /this\.mappedBoardValue/);
   assert.match(app, /openBoard/);

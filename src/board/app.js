@@ -3,6 +3,7 @@ import { DashboardAuthError, DashboardAuthSession } from "@/dashboard-auth";
 import { KANBAN_STATUSES, KanbanClient, KanbanClientError, normalizeHermesDashboardUrl, selectBoardSlug } from "@/kanban-client";
 import { resolveActiveProject } from "@/muxy-tabs";
 import { SessionBrokerClient } from "@/session-broker";
+import { restoreProjectBoardMapping } from "./mapping-restore";
 
 const STATUS_LABELS = Object.freeze({
   triage: "Triage",
@@ -226,6 +227,7 @@ export class HermesProjectBoard {
         h("p", { class: "board-eyebrow" }, "Hermes board"),
         h("h2", null, "Choose a board"),
         h("p", null, hasBoards ? "Choose a board, then open it when you’re ready." : "No boards are available for this Dashboard."),
+        this.projectMappingState(),
       ),
       h("div", { class: "board-auth-stack" },
         h("form", { class: "board-connect-form", onsubmit: (event) => void this.openBoard(event) },
@@ -274,7 +276,10 @@ export class HermesProjectBoard {
     selector.value = this.boardValue ?? "";
     return h("section", { class: "board-workspace" },
       h("div", { class: "board-toolbar" },
-        h("div", null, h("strong", null, `${total} ${total === 1 ? "card" : "cards"}`)),
+        h("div", null,
+          h("strong", null, `${total} ${total === 1 ? "card" : "cards"}`),
+          this.projectMappingState(),
+        ),
         h("form", { class: "board-create-form", onsubmit: (event) => void this.openBoard(event) },
           selector,
           h("button", { class: "board-button board-button-secondary", type: "submit", disabled: !this.boardValue }, "View board"),
@@ -374,13 +379,19 @@ export class HermesProjectBoard {
       const client = new KanbanClient({ baseUrl: this.urlValue, session: this.authSession });
       this.client?.release();
       this.client = client;
-      await this.resolveProject();
+      const project = await this.resolveProject();
       await this.loadBoardCatalog();
+      const mappedBoard = await this.restoreProjectMapping(project);
       this.board = null;
       this.state = "board_picker";
       this.message = "";
       await this.persistSession();
       await window.muxy?.tabs?.setTitle?.("Hermes Board");
+      if (mappedBoard) {
+        this.boardValue = mappedBoard;
+        await this.openBoard();
+        return;
+      }
     } catch (error) {
       this.client?.release();
       this.client = null;
@@ -534,6 +545,28 @@ export class HermesProjectBoard {
     return this.activeProject;
   }
 
+  projectMappingState() {
+    const projectName = this.activeProject?.name ?? "Current project";
+    const mappedBoard = this.catalog.boards.find((candidate) => candidate.slug === this.mappedBoardValue);
+    const boardName = mappedBoard?.name ?? this.mappedBoardValue;
+    return h("p", { class: "board-project-mapping", role: "status" },
+      h("strong", null, `Project: ${projectName}`),
+      h("span", null, boardName ? `Mapped board: ${boardName}` : "No board mapped to this project"),
+    );
+  }
+
+  async restoreProjectMapping(project) {
+    const restored = await restoreProjectBoardMapping({
+      sessionBroker: this.sessionBroker,
+      projectID: project.id,
+      baseUrl: this.urlValue,
+      boards: this.catalog.boards,
+    });
+    this.mappedBoardValue = restored.board;
+    if (restored.stale) this.message = "That mapped board is no longer available. Choose another board.";
+    return restored.board;
+  }
+
   async mapViewedBoard() {
     if (!this.viewedBoardValue || !this.urlValue) return;
     try {
@@ -602,22 +635,15 @@ export class HermesProjectBoard {
       this.client = client;
       const project = await this.resolveProject();
       await this.loadBoardCatalog();
-      const mapping = await this.sessionBroker.readBoardMapping({ projectID: project.id, baseUrl: saved.baseUrl });
-      this.mappedBoardValue = mapping?.board ?? null;
+      const mappedBoard = await this.restoreProjectMapping(project);
       this.board = null;
       this.state = "board_picker";
       await this.persistSession();
       await window.muxy?.tabs?.setTitle?.("Hermes Board");
-      if (mapping) {
-        if (!this.catalog.boards.some((candidate) => candidate.slug === mapping.board)) {
-          await this.sessionBroker.clearBoardMapping({ projectID: project.id });
-          this.mappedBoardValue = null;
-          this.message = "That mapped board is no longer available. Choose another board.";
-        } else {
-          this.boardValue = mapping.board;
-          await this.openBoard();
-          return;
-        }
+      if (mappedBoard) {
+        this.boardValue = mappedBoard;
+        await this.openBoard();
+        return;
       }
     } catch (error) {
       this.client?.release();
