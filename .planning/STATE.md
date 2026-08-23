@@ -1,10 +1,14 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: Marketplace Beta Hardening
+milestone_name: Phases
+current_phase: 7
+current_phase_name: Marketplace Submission
 status: active
-last_updated: "2026-08-22T19:41:28.892Z"
-last_activity: 2026-08-22
+stopped_at: "Completed quick task 260823-cdh: per-project Hermes board mappings"
+last_updated: "2026-08-23T13:32:10.447Z"
+last_activity: 2026-08-23
+last_activity_desc: "Completed quick task 260823-cdh: per-project Hermes board mappings"
 progress:
   total_phases: 4
   completed_phases: 3
@@ -27,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 7 of 7 — Marketplace Submission
 Plan: Not started
 Status: Ready — Phase 6 passed the revised `0.1.0` support matrix; Muxy SSH workspaces are explicitly unsupported and tracked for the next release
-Last activity: 2026-08-22 — Completed quick task 260822-lsk: created a categorized reference of useful Muxy extension development resources
+Last activity: 2026-08-23 — Completed quick task 260823-cdh: per-project Hermes board mappings
 
 ## Performance Metrics
 
@@ -107,6 +111,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Post-Phase 3]: Keep live JSON-RPC ownership in the open panel, automatically reattach after reconnect, and require user action only when Hermes rejects the primary Dashboard session.
 - [Post-Phase 3]: Make the narrow Hermes panel an at-a-glance operations and command surface: bounded attention signals, exact queue counts/age, scheduled-job state, coarse health, and the agent composer; keep detailed administration in Hermes.
 - [Post-Phase 3]: Refresh authenticated operations only while the panel is open, serialize requests through session-cookie rotation, and discard cron prompts/scripts, diagnostic detail, worker identity, paths, and resource measurements at the request boundary.
+- [Phase ?]: Per-project Hermes board mappings use stable Muxy project IDs and exact Dashboard URL scope; Dashboard authentication remains global.
 
 ### Pending Todos
 
@@ -144,6 +149,7 @@ None yet.
 | 260821-k4x | Prepare the Hermes Agent marketplace submission with a store-first hero, release governance, and exact-package validation | 2026-08-21 | 9ffbaa1 | Needs Review | [260821-k4x-prepare-the-hermes-agent-marketplace-sub](./quick/260821-k4x-prepare-the-hermes-agent-marketplace-sub/) |
 | 260821-pe1 | Preserve queue stats when optional worker telemetry is unavailable and update the existing review branches | 2026-08-21 | 57a6f64 | Passed | [260821-pe1-fix-queue-status-fallback-so-worker-enri](./quick/260821-pe1-fix-queue-status-fallback-so-worker-enri/) |
 | 260822-lsk | Create a Markdown reference listing the useful resources for building Muxy extensions | 2026-08-22 | 564417b | Passed | [260822-lsk-create-a-markdown-reference-listing-the-](./quick/260822-lsk-create-a-markdown-reference-listing-the-/) |
+| 260823-cdh | Fix per-project Hermes board mappings with global Dashboard authentication | 2026-08-23 | 6319a8b | Passed | [260823-cdh-fix-per-project-hermes-board-mappings-wi](./quick/260823-cdh-fix-per-project-hermes-board-mappings-wi/) |
 
 ### Roadmap Evolution
 
@@ -162,8 +168,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-20T20:50:00.000Z
-Stopped at: Phase 06 complete under revised beta scope; Phase 07 ready
+Last session: 2026-08-23T13:32:10.428Z
+Stopped at: Completed quick task 260823-cdh: per-project Hermes board mappings
 Resume file: None
 
 ## Operator Next Steps
