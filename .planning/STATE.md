@@ -5,10 +5,10 @@ milestone_name: Phases
 current_phase: 7
 current_phase_name: Marketplace Submission
 status: active
-stopped_at: Completed verifier follow-up for quick task 260823-cdh
-last_updated: "2026-08-23T13:49:27.473Z"
-last_activity: 2026-08-23
-last_activity_desc: "Completed verifier follow-up for quick task 260823-cdh: per-project Hermes board mappings"
+stopped_at: Completed quick task 260824-nwg
+last_updated: "2026-08-24T21:12:32.858Z"
+last_activity: 2026-08-24
+last_activity_desc: "Completed quick task 260824-nwg: Accept Copilot stop confirmation safety defaults"
 progress:
   total_phases: 4
   completed_phases: 3
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 7 of 7 — Marketplace Submission
 Plan: Not started
 Status: Ready — Phase 6 passed the revised `0.1.0` support matrix; Muxy SSH workspaces are explicitly unsupported and tracked for the next release
-Last activity: 2026-08-23 — Completed verifier follow-up for quick task 260823-cdh: per-project Hermes board mappings
+Last activity: 2026-08-24 — Completed quick task 260824-nwg: Accept Copilot stop confirmation safety defaults
 
 ## Performance Metrics
 
@@ -150,6 +150,7 @@ None yet.
 | 260821-pe1 | Preserve queue stats when optional worker telemetry is unavailable and update the existing review branches | 2026-08-21 | 57a6f64 | Passed | [260821-pe1-fix-queue-status-fallback-so-worker-enri](./quick/260821-pe1-fix-queue-status-fallback-so-worker-enri/) |
 | 260822-lsk | Create a Markdown reference listing the useful resources for building Muxy extensions | 2026-08-22 | 564417b | Passed | [260822-lsk-create-a-markdown-reference-listing-the-](./quick/260822-lsk-create-a-markdown-reference-listing-the-/) |
 | 260823-cdh | Fix per-project Hermes board mappings with global Dashboard authentication | 2026-08-23 | 6319a8b | Passed | [260823-cdh-fix-per-project-hermes-board-mappings-wi](./quick/260823-cdh-fix-per-project-hermes-board-mappings-wi/) |
+| 260824-nwg | Accept Copilot stop confirmation safety defaults | 2026-08-24 | b2510ef | Passed | [260824-nwg-accept-copilot-stop-confirmation-safety-](./quick/260824-nwg-accept-copilot-stop-confirmation-safety-/) |
 
 ### Roadmap Evolution
 
@@ -168,8 +169,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-23T13:49:27.461Z
-Stopped at: Completed verifier follow-up for quick task 260823-cdh
+Last session: 2026-08-24T21:12:32.858Z
+Stopped at: Completed quick task 260824-nwg
 Resume file: None
 
 ## Operator Next Steps
