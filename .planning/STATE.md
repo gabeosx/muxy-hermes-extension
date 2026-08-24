@@ -5,10 +5,10 @@ milestone_name: Phases
 current_phase: 7
 current_phase_name: Marketplace Submission
 status: active
-stopped_at: Completed quick task 260824-nwg
-last_updated: "2026-08-24T21:12:32.858Z"
+stopped_at: Completed quick task 260824-oo8
+last_updated: "2026-08-24T17:54:56-04:00"
 last_activity: 2026-08-24
-last_activity_desc: "Completed quick task 260824-nwg: Accept Copilot stop confirmation safety defaults"
+last_activity_desc: "Completed quick task 260824-oo8: Fix Copilot review risks and enforce source-first marketplace release flow"
 progress:
   total_phases: 4
   completed_phases: 3
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 7 of 7 — Marketplace Submission
 Plan: Not started
 Status: Ready — Phase 6 passed the revised `0.1.0` support matrix; Muxy SSH workspaces are explicitly unsupported and tracked for the next release
-Last activity: 2026-08-24 — Completed quick task 260824-nwg: Accept Copilot stop confirmation safety defaults
+Last activity: 2026-08-24 — Completed quick task 260824-oo8: Fix Copilot review risks and enforce source-first marketplace release flow
 
 ## Performance Metrics
 
@@ -151,6 +151,7 @@ None yet.
 | 260822-lsk | Create a Markdown reference listing the useful resources for building Muxy extensions | 2026-08-22 | 564417b | Passed | [260822-lsk-create-a-markdown-reference-listing-the-](./quick/260822-lsk-create-a-markdown-reference-listing-the-/) |
 | 260823-cdh | Fix per-project Hermes board mappings with global Dashboard authentication | 2026-08-23 | 6319a8b | Passed | [260823-cdh-fix-per-project-hermes-board-mappings-wi](./quick/260823-cdh-fix-per-project-hermes-board-mappings-wi/) |
 | 260824-nwg | Accept Copilot stop confirmation safety defaults | 2026-08-24 | b2510ef | Passed | [260824-nwg-accept-copilot-stop-confirmation-safety-](./quick/260824-nwg-accept-copilot-stop-confirmation-safety-/) |
+| 260824-oo8 | Fix Copilot review risks and enforce source-first marketplace release flow | 2026-08-24 | 2a1aaf4 | Passed | [260824-oo8-fix-copilot-review-risks-and-enforce-sou](./quick/260824-oo8-fix-copilot-review-risks-and-enforce-sou/) |
 
 ### Roadmap Evolution
 
@@ -169,8 +170,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-24T21:12:32.858Z
-Stopped at: Completed quick task 260824-nwg
+Last session: 2026-08-24T17:54:56-04:00
+Stopped at: Completed quick task 260824-oo8
 Resume file: None
 
 ## Operator Next Steps
