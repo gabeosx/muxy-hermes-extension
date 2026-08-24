@@ -2,7 +2,9 @@ const GATEWAY_STORAGE_KEY = "session.gateway.v1";
 const DASHBOARD_STORAGE_KEY = "session.dashboard.v2";
 const LEGACY_DASHBOARD_STORAGE_KEY = "session.dashboard.v1";
 const BOARD_MAPPING_STORAGE_PREFIX = "board.mapping.v1.";
-const PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
+const MUXY_STORAGE_KEY_MAX_LENGTH = 256;
+export const MAX_PROJECT_ID_LENGTH = MUXY_STORAGE_KEY_MAX_LENGTH - BOARD_MAPPING_STORAGE_PREFIX.length;
+const PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const COOKIE_NAME = /^(?:(?:__Secure-|__Host-)?hermes_session_(?:at|rt|provider))$/;
 const COOKIE_VALUE = /^[A-Za-z0-9._~+/%=-]{1,4096}$/;
 const PROVIDER = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -29,7 +31,8 @@ function boardSlug(value) {
 }
 
 function projectID(value) {
-  const id = safeText(value, 256);
+  const id = typeof value === "string" ? value.trim() : "";
+  if (id.length > MAX_PROJECT_ID_LENGTH) return null;
   return PROJECT_ID.test(id) ? id : null;
 }
 

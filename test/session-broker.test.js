@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PersistentSessionBroker, SessionBrokerClient } from "../src/session-broker.js";
+import { MAX_PROJECT_ID_LENGTH, PersistentSessionBroker, SessionBrokerClient } from "../src/session-broker.js";
 import { resolveActiveProject } from "../src/muxy-tabs.js";
 
 function dashboard() {
@@ -96,4 +96,20 @@ test("active-project resolution accepts only one valid stable active identity", 
   await assert.rejects(() => resolveActiveProject({ projects: { async list() { return [{ id: "a", name: "A", isActive: true }, { id: "b", name: "B", isActive: true }]; } } }), /active project/i);
   await assert.rejects(() => resolveActiveProject({ projects: { async list() { return [{ id: "", name: "A", isActive: true }]; } } }), /identity/i);
   await assert.rejects(() => resolveActiveProject(null), /project bridge/i);
+});
+
+test("project IDs cannot produce mapping keys beyond Muxy's storage limit", async () => {
+  const storage = extensionStorage();
+  const client = new SessionBrokerClient({ storage, randomId: () => "project-id-boundary" });
+  const maximumProjectID = `p${"a".repeat(MAX_PROJECT_ID_LENGTH - 1)}`;
+  const oversizedProjectID = `${maximumProjectID}a`;
+
+  assert.equal(MAX_PROJECT_ID_LENGTH, 239);
+  assert.equal(await client.saveBoardMapping({ projectID: maximumProjectID, baseUrl: "https://hermes.example", board: "alpha" }), true);
+  assert.equal(await client.saveBoardMapping({ projectID: oversizedProjectID, baseUrl: "https://hermes.example", board: "alpha" }), false);
+  assert.deepEqual(await resolveActiveProject({ projects: { async list() { return [{ id: maximumProjectID, name: "Boundary", isActive: true }]; } } }), { id: maximumProjectID, name: "Boundary" });
+  await assert.rejects(
+    () => resolveActiveProject({ projects: { async list() { return [{ id: oversizedProjectID, name: "Too long", isActive: true }]; } } }),
+    /identity/i,
+  );
 });

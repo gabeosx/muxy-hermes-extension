@@ -429,8 +429,8 @@ export class HermesProjectBoard {
       await window.muxy?.tabs?.setTitle?.(`Hermes Board · ${this.viewedBoardValue}`);
     } catch (error) {
       this.board = null;
-      await this.recoverMissingMappedBoard(error);
-      this.handleActionError(error);
+      const recovered = await this.recoverMissingMappedBoard(error);
+      if (!recovered) this.handleActionError(error);
       if (this.state !== "session_expired" && this.state !== "board_picker") this.state = "board_picker";
     }
     this.render();
@@ -477,8 +477,8 @@ export class HermesProjectBoard {
         await this.persistSession();
       }
     } catch (error) {
-      await this.recoverMissingMappedBoard(error);
-      this.handleActionError(error);
+      const recovered = await this.recoverMissingMappedBoard(error);
+      if (!recovered) this.handleActionError(error);
       shouldRender = true;
     } finally {
       this.boardRefreshInFlight = false;
@@ -519,6 +519,9 @@ export class HermesProjectBoard {
         title: `Move card to ${STATUS_LABELS[nextStatus]}?`,
         message: task.title,
         buttons: ["Cancel", "Move"],
+        default: "Cancel",
+        cancel: "Cancel",
+        style: "warning",
       });
       if (confirmed !== "Move") {
         this.render();
@@ -587,10 +590,10 @@ export class HermesProjectBoard {
 
   async recoverMissingMappedBoard(error) {
     if (!(error instanceof KanbanClientError) || error.status !== 404
-      || !this.activeProject || this.mappedBoardValue !== this.viewedBoardValue) return;
+      || !this.activeProject || this.mappedBoardValue !== this.viewedBoardValue) return false;
     try {
       await this.loadBoardCatalog();
-      if (this.catalog.boards.some((candidate) => candidate.slug === this.mappedBoardValue)) return;
+      if (this.catalog.boards.some((candidate) => candidate.slug === this.mappedBoardValue)) return false;
       await this.sessionBroker.clearBoardMapping({ projectID: this.activeProject.id });
       this.mappedBoardValue = null;
       this.viewedBoardValue = null;
@@ -598,7 +601,9 @@ export class HermesProjectBoard {
       this.boardValue = selectBoardSlug(this.catalog);
       this.state = "board_picker";
       this.message = "That mapped board is no longer available. Choose another board.";
+      return true;
     } catch { /* retain the original request failure when catalog recovery fails */ }
+    return false;
   }
 
   handleActionError(error) {
