@@ -166,6 +166,10 @@ export class HermesGatewayPanel {
     this.operationsSnapshot = emptyOperationsSnapshot();
     this.jobsExpanded = false;
     this.operationsRefreshInFlight = false;
+    this.operationsRefreshGeneration = 0;
+    this.operationsRefreshActiveGeneration = null;
+    this.operationsRefreshQueued = false;
+    this.operationsRefreshPromise = null;
     this.unsubscribeConnection = null;
     this.unsubscribeAgent = null;
     this.sessionCheckTimer = null;
@@ -775,30 +779,60 @@ export class HermesGatewayPanel {
     await this.gateway.connect().catch(() => {});
   }
 
-  async refreshOperations() {
-    if (!this.operations || this.authSnapshot.state !== "logged_in" || this.operationsRefreshInFlight) return;
+  refreshOperations() {
+    if (!this.operations || this.authSnapshot.state !== "logged_in") return Promise.resolve();
+    if (this.operationsRefreshInFlight) {
+      if (this.operationsRefreshActiveGeneration !== this.operationsRefreshGeneration) this.operationsRefreshQueued = true;
+      return this.operationsRefreshPromise ?? Promise.resolve();
+    }
     this.operationsRefreshInFlight = true;
-    if (!this.operationsSnapshot.updatedAt) {
-      this.operationsSnapshot = Object.freeze({ ...this.operationsSnapshot, state: "loading" });
-    }
-    this.render();
+    const operation = this.performOperationsRefreshes();
+    this.operationsRefreshPromise = operation;
+    return operation;
+  }
+
+  async performOperationsRefreshes() {
     try {
-      this.operationsSnapshot = await this.operations.load();
-      await this.persistDashboardSession();
-    } catch (error) {
-      if (error instanceof DashboardAuthError && error.code === "session_expired") {
-        await this.invalidateSession();
-        return;
-      }
-      this.operationsSnapshot = Object.freeze({
-        ...this.operationsSnapshot,
-        state: this.operationsSnapshot.updatedAt ? "partial" : "unavailable",
-        updatedAt: Date.now(),
-      });
+      do {
+        this.operationsRefreshQueued = false;
+        const operations = this.operations;
+        const generation = this.operationsRefreshGeneration;
+        this.operationsRefreshActiveGeneration = generation;
+        if (!operations || this.authSnapshot.state !== "logged_in") break;
+        if (!this.operationsSnapshot.updatedAt) {
+          this.operationsSnapshot = Object.freeze({ ...this.operationsSnapshot, state: "loading" });
+        }
+        this.render();
+        try {
+          const snapshot = await operations.load();
+          if (operations !== this.operations || generation !== this.operationsRefreshGeneration) continue;
+          this.operationsSnapshot = snapshot;
+          await this.persistDashboardSession();
+        } catch (error) {
+          if (operations !== this.operations || generation !== this.operationsRefreshGeneration) continue;
+          if (error instanceof DashboardAuthError && error.code === "session_expired") {
+            await this.invalidateSession();
+            return;
+          }
+          this.operationsSnapshot = Object.freeze({
+            ...this.operationsSnapshot,
+            state: this.operationsSnapshot.updatedAt ? "partial" : "unavailable",
+            updatedAt: Date.now(),
+          });
+        }
+      } while (this.operationsRefreshQueued && this.operations && this.authSnapshot.state === "logged_in");
     } finally {
+      this.operationsRefreshActiveGeneration = null;
+      this.operationsRefreshQueued = false;
       this.operationsRefreshInFlight = false;
+      this.operationsRefreshPromise = null;
+      this.render();
     }
-    this.render();
+  }
+
+  invalidateOperationsRefresh() {
+    this.operationsRefreshGeneration += 1;
+    if (this.operationsRefreshInFlight) this.operationsRefreshQueued = true;
   }
 
   async verifyPrimarySession() {
@@ -840,6 +874,7 @@ export class HermesGatewayPanel {
 
   async syncActiveProjectBoard() {
     if (!this.authSession) return;
+    this.invalidateOperationsRefresh();
     this.operationsSnapshot = emptyOperationsSnapshot();
     this.boardValue = null;
     this.activeProject = null;
@@ -853,6 +888,7 @@ export class HermesGatewayPanel {
       this.activeProject = project;
       this.boardValue = mapping?.board ?? null;
     } catch { /* A missing project identity fails closed to global-only operations. */ }
+    this.invalidateOperationsRefresh();
     this.operations?.setBoard(this.boardValue);
     this.render();
   }
@@ -932,9 +968,9 @@ export class HermesGatewayPanel {
 
   async releaseConnection({ preserveGeneration = false } = {}) {
     if (!preserveGeneration) this.connectionGeneration += 1;
+    this.invalidateOperationsRefresh();
     this.operations?.release();
     this.operations = null;
-    this.operationsRefreshInFlight = false;
     this.operationsSnapshot = emptyOperationsSnapshot();
     this.unsubscribeAgent?.();
     this.unsubscribeAgent = null;
