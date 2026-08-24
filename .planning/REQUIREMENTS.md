@@ -41,7 +41,7 @@
 ## Marketplace Submission
 
 - [ ] **MKT-01**: `muxy.marketplace` declares author Gabe, GitHub `gabeosx`, categories `developer-tools` and `productivity`, and valid listing asset paths.
-- [ ] **MKT-02**: The package contains a compact SVG icon and three sanitized 1600×1000 screenshots for operations, active agent/approval, and project board surfaces.
+- [ ] **MKT-02**: The package contains a compact SVG icon, one sanitized 1600×1000 marketplace hero, and three sanitized 1600×1000 feature screenshots for operations, active agent/approval, and project board surfaces.
 - [ ] **MKT-03**: README documents features, setup, permissions and rationale, tested tuple, compatibility policy, limitations, security model, privacy, and uninstall behavior.
 - [ ] **MKT-04**: Listing assets are copied into `dist/`, accepted by the local distribution allowlist, and pass upstream `validate.mjs` plus `pack.mjs --dry-run`.
 - [ ] **MKT-05**: GSD code review, security audit, UI review, Nyquist validation, milestone verification, and final milestone audit have no blocker or unaccepted medium finding.

@@ -15,11 +15,12 @@ const allowedPanelKeys = new Set(["entry", "icon", "id", "mode", "position", "ti
 const allowedTabTypeKeys = new Set(["entry", "id", "title"]);
 const allowedCommandKeys = new Set(["id", "title", "action"]);
 const allowedCommandActionKeys = new Set(["kind", "panel", "tabType"]);
-const REQUIRED_PERMISSIONS = ["commands:exec", "panels:write", "storage:read", "storage:write", "tabs:write"];
+const REQUIRED_PERMISSIONS = ["commands:exec", "panels:write", "projects:read", "storage:read", "storage:write", "tabs:write"];
 const REQUIRED_SCREENSHOTS = [
-  "assets/screenshots/operations.png",
-  "assets/screenshots/agent-approval.png",
-  "assets/screenshots/project-board.png",
+  "assets/screenshots/screenshot-1.png",
+  "assets/screenshots/screenshot-2.png",
+  "assets/screenshots/screenshot-3.png",
+  "assets/screenshots/screenshot-4.png",
 ];
 const README_SCREENSHOTS = Object.freeze([
   "assets/readme/operations.png",
@@ -85,6 +86,7 @@ function assertManifest(manifest, label) {
     categories: ["developer-tools", "productivity"],
     github: "gabeosx",
     icon: "assets/icon.svg",
+    repository: "https://github.com/gabeosx/muxy-hermes-extension",
     screenshots: REQUIRED_SCREENSHOTS,
   }, `${label} must contain the frozen listing metadata`);
   return [panel.entry, manifest.muxy.tabTypes[0].entry];

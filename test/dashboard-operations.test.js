@@ -103,6 +103,26 @@ test("scheduled-job cadence stays human-readable and timezone-neutral", () => {
   assert.equal(formatScheduleCadence(null, ""), "Schedule unavailable");
 });
 
+test("unavailable worker telemetry does not hide valid queue stats", async () => {
+  const session = sessionFixture({
+    workers: { status: 503, body: { detail: "offline" } },
+    queue: {
+      status: 200,
+      body: { by_status: { ready: 3, running: 1, blocked: 2, review: 4 }, oldest_ready_age_seconds: 90 },
+    },
+  });
+  const snapshot = await new DashboardOperationsClient({ baseUrl: "http://127.0.0.1:9119", session, board: "default" }).load();
+
+  assert.equal(snapshot.state, "ready");
+  assert.equal(snapshot.available.queue, true);
+  assert.equal(snapshot.queue.waiting, 3);
+  assert.equal(snapshot.queue.running, 1);
+  assert.equal(snapshot.queue.blocked, 2);
+  assert.equal(snapshot.queue.review, 4);
+  assert.equal(snapshot.queue.oldestWaitingSeconds, 90);
+  assert.equal(snapshot.queue.activeWorkers, 0);
+});
+
 test("optional Hermes surfaces degrade independently", async () => {
   const session = sessionFixture({
     jobs: { status: 404, body: { detail: "missing" } },
@@ -110,12 +130,38 @@ test("optional Hermes surfaces degrade independently", async () => {
     workers: { status: 404, body: { detail: "missing" } },
     diagnostics: { status: 500, body: { detail: "private" } },
   });
-  const snapshot = await new DashboardOperationsClient({ baseUrl: "http://127.0.0.1:9119", session }).load();
+  const snapshot = await new DashboardOperationsClient({ baseUrl: "http://127.0.0.1:9119", session, board: "default" }).load();
   assert.equal(snapshot.state, "partial");
   assert.deepEqual(snapshot.available, { queue: false, jobs: false, health: true, diagnostics: false });
   assert.equal(snapshot.queue, null);
   assert.deepEqual(snapshot.jobs, []);
   assert.equal(snapshot.health.gateway, "ok");
+});
+
+test("an unmapped project loads only global health and scheduled jobs", async () => {
+  const session = sessionFixture();
+  const client = new DashboardOperationsClient({ baseUrl: "http://127.0.0.1:9119", session, board: null });
+  const snapshot = await client.load();
+
+  assert.deepEqual(session.calls, [
+    "http://127.0.0.1:9119/api/status",
+    "http://127.0.0.1:9119/api/cron/jobs?profile=all",
+  ]);
+  assert.equal(snapshot.state, "ready");
+  assert.deepEqual(snapshot.available, { queue: false, jobs: true, health: true, diagnostics: false });
+  assert.equal(snapshot.queue, null);
+  assert.equal(snapshot.diagnostics, 0);
+
+  client.setBoard("beta");
+  await client.load();
+  assert.ok(session.calls.some((url) => url.includes("/api/plugins/kanban/stats?board=beta")));
+  client.setBoard(null);
+  const callsBefore = session.calls.length;
+  await client.load();
+  assert.deepEqual(session.calls.slice(callsBefore), [
+    "http://127.0.0.1:9119/api/status",
+    "http://127.0.0.1:9119/api/cron/jobs?profile=all",
+  ]);
 });
 
 test("an expired primary Dashboard session still fails the complete refresh", async () => {
