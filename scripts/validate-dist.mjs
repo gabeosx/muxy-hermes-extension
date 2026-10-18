@@ -52,7 +52,7 @@ async function parseJson(path) {
 
 function assertManifest(manifest, label) {
   assert.equal(manifest.name, "hermes-agent", `${label} must use the marketplace extension ID`);
-  assert.equal(manifest.version, "0.1.0", `${label} must use the immutable beta version`);
+  assert.equal(manifest.version, "0.2.0", `${label} must use the reviewed release version`);
   assert.equal(manifest.engines?.node, ">=20", `${label} must declare Node 20 compatibility`);
   assert.equal(Object.keys(manifest.dependencies ?? {}).length, 0, `${label} must not add runtime dependencies`);
   assert.ok(manifest.muxy && typeof manifest.muxy === "object", `${label} must contain a muxy manifest`);

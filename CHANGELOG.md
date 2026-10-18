@@ -4,6 +4,8 @@ All notable changes to Hermes Agent are documented here. This project follows [K
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-18
+
 ### Added
 
 - Muxy 2 Open Agent Panel command, alongside the existing toggle command.

@@ -7,7 +7,7 @@ const root = new URL("../", import.meta.url);
 test("marketplace identity, metadata, and permissions are frozen", async () => {
   const manifest = JSON.parse(await readFile(new URL("package.json", root), "utf8"));
   assert.equal(manifest.name, "hermes-agent");
-  assert.equal(manifest.version, "0.1.0");
+  assert.equal(manifest.version, "0.2.0");
   assert.equal(manifest.engines.node, ">=20");
   assert.equal(Object.keys(manifest.dependencies ?? {}).length, 0);
   assert.deepEqual(manifest.muxy.marketplace, {
@@ -70,7 +70,8 @@ test("OAuth-only providers and password security boundaries are explicit in both
   assert.match(readme, /Hermes Agent.*is an open-source AI agent/);
   assert.match(readme, /This extension connects Muxy to the Hermes Dashboard you already have/);
   assert.doesNotMatch(readme, /candidate Muxy marketplace beta|support contract/i);
-  assert.match(readme, /Muxy 1\.5\.0 \(945\)/);
+  assert.match(readme, /Muxy 2\.1\.0 \(1143\)/);
+  assert.match(readme, /Hermes 0\.22\.0/);
   assert.match(readme, /Hermes 0\.20\.2/);
   assert.match(readme, /No analytics or telemetry/);
   assert.match(readme, /assets\/readme\/operations\.png/);
