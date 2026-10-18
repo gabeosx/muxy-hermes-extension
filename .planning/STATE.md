@@ -5,10 +5,10 @@ milestone_name: Phases
 current_phase: 7
 current_phase_name: Marketplace Submission
 status: active
-stopped_at: Completed quick task 260824-oo8
-last_updated: "2026-08-24T17:54:56-04:00"
-last_activity: 2026-08-24
-last_activity_desc: "Completed quick task 260824-oo8: Fix Copilot review risks and enforce source-first marketplace release flow"
+stopped_at: Completed quick task 20261018-muxy-2-improvements
+last_updated: "2026-10-18T11:51:28-04:00"
+last_activity: 2026-10-18
+last_activity_desc: "Completed Muxy 2 toolbar, dependency, execAsync, and openPanel improvements"
 progress:
   total_phases: 4
   completed_phases: 3
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-08-18)
 Phase: 7 of 7 — Marketplace Submission
 Plan: Not started
 Status: Ready — Phase 6 passed the revised `0.1.0` support matrix; Muxy SSH workspaces are explicitly unsupported and tracked for the next release
-Last activity: 2026-08-24 — Completed quick task 260824-oo8: Fix Copilot review risks and enforce source-first marketplace release flow
+Last activity: 2026-10-18 — Completed Muxy 2 toolbar, dependency, execAsync, and openPanel improvements
 
 ## Performance Metrics
 
@@ -152,6 +152,7 @@ None yet.
 | 260823-cdh | Fix per-project Hermes board mappings with global Dashboard authentication | 2026-08-23 | 6319a8b | Passed | [260823-cdh-fix-per-project-hermes-board-mappings-wi](./quick/260823-cdh-fix-per-project-hermes-board-mappings-wi/) |
 | 260824-nwg | Accept Copilot stop confirmation safety defaults | 2026-08-24 | b2510ef | Passed | [260824-nwg-accept-copilot-stop-confirmation-safety-](./quick/260824-nwg-accept-copilot-stop-confirmation-safety-/) |
 | 260824-oo8 | Fix Copilot review risks and enforce source-first marketplace release flow | 2026-08-24 | 2a1aaf4 | Passed | [260824-oo8-fix-copilot-review-risks-and-enforce-sou](./quick/260824-oo8-fix-copilot-review-risks-and-enforce-sou/) |
+| 20261018-muxy-2-improvements | Fix toolbar and dependency; adopt execAsync and openPanel | 2026-10-18 | 45808f3 | Passed — 103 tests, release validation, real Hermes matrix, native command smoke | [Muxy 2 improvements](./quick/20261018-muxy-2-improvements/) |
 
 ### Roadmap Evolution
 
@@ -170,8 +171,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-24T17:54:56-04:00
-Stopped at: Completed quick task 260824-oo8
+Last session: 2026-10-18T11:51:28-04:00
+Stopped at: Completed quick task 20261018-muxy-2-improvements
 Resume file: None
 
 ## Operator Next Steps
