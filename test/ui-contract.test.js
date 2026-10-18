@@ -24,6 +24,8 @@ test("marketplace identity, metadata, and permissions are frozen", async () => {
     ],
   });
   assert.deepEqual(manifest.muxy.permissions, ["commands:exec", "panels:write", "projects:read", "storage:read", "storage:write", "tabs:write"]);
+  assert.deepEqual(manifest.muxy.commands.find((command) => command.id === "open-hermes-gateway")?.action, { kind: "openPanel", panel: "hermes-gateway" });
+  assert.deepEqual(manifest.muxy.commands.find((command) => command.id === "toggle-hermes-gateway")?.action, { kind: "togglePanel", panel: "hermes-gateway" });
   for (const forbidden of ["background", "events", "scripts", "topbarItems", "statusbarItems"]) {
     assert.equal(Object.hasOwn(manifest.muxy, forbidden), false);
   }
@@ -39,7 +41,9 @@ test("product source contains only the Dashboard session relay contract", async 
   ]);
   assert.match(relay, /requestSessionJson/);
   assert.match(relay, /const stdin = buildSessionConfig/);
-  assert.match(relay, /this\.exec\(argv, \{\s*stdin,/);
+  assert.match(relay, /const options = \{ stdin, timeoutMs:/);
+  assert.match(relay, /this\.execAsync\(argv, options\)/);
+  assert.match(relay, /this\.exec\(argv, options\)/);
   assert.doesNotMatch(relay, /bearer|text\/event-stream|streamJournal|journal|Authorization:/i);
   assert.match(auth, /requestWebSocketTicket/);
   assert.match(gateway, /authSession\.requestWebSocketTicket\(\)/);

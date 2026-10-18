@@ -73,6 +73,7 @@ function assertManifest(manifest, label) {
     for (const key of Object.keys(tab)) assert.ok(allowedTabTypeKeys.has(key), `${label} tab contains unauthorized surface: ${key}`);
   }
   assert.deepEqual(manifest.muxy.commands, [
+    { id: "open-hermes-gateway", title: "Hermes: Open Agent Panel", action: { kind: "openPanel", panel: panel.id } },
     { id: "toggle-hermes-gateway", title: "Hermes: Toggle Agent Panel", action: { kind: "togglePanel", panel: panel.id } },
     { id: "open-hermes-project-board", title: "Hermes: Open Project Board", action: { kind: "openTab", tabType: "hermes-project-board" } },
   ]);

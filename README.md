@@ -41,7 +41,7 @@ Version `0.1.0` was tested with **Muxy 1.5.0 (945)** and **Hermes 0.20.2**. Othe
 
 1. Install **Hermes Agent** from the Muxy marketplace.
 2. Make sure your Hermes Dashboard is running.
-3. In Muxy, run **Hermes: Toggle Agent Panel**.
+3. In Muxy 2, run **Hermes: Open Agent Panel**. **Hermes: Toggle Agent Panel** remains available to show or hide it.
 4. Enter the same Dashboard address you use in a browser, select your password provider, and sign in.
 5. To use a project board, run **Hermes: Open Project Board**.
 

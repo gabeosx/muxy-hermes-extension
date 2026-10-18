@@ -25,6 +25,14 @@
     },
     "commands" : [
       {
+        "id" : "open-hermes-gateway",
+        "title" : "Hermes: Open Agent Panel",
+        "action" : {
+          "kind" : "openPanel",
+          "panel" : "hermes-gateway"
+        }
+      },
+      {
         "id" : "toggle-hermes-gateway",
         "title" : "Hermes: Toggle Agent Panel",
         "action" : {
